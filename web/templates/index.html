@@ -145,7 +145,13 @@
                         </div>
                         <div class="archive-list" data-archive-list>
                             {{ range .CompletedTasks }}
-                            <article class="archive-card" data-task-id="{{ .ID }}">
+                            <article class="archive-card"
+                                data-task-id="{{ .ID }}"
+                                data-kind-label="{{ .KindLabel }}"
+                                data-kind-class="{{ .KindClass }}"
+                                data-status-line="{{ .StatusLine }}"
+                                data-can-postpone="{{ if .CanPostpone }}1{{ else }}0{{ end }}"
+                                data-postpone-value="{{ .PostponeValue }}">
                                 <div class="archive-card-main">
                                     <span class="task-kind task-kind-{{ .KindClass }}">{{ .KindLabel }}</span>
                                     <div class="task-body">

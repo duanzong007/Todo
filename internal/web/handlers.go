@@ -122,13 +122,16 @@ type TaskCard struct {
 }
 
 type CompletedTaskCard struct {
-	ID           string `json:"id"`
-	Title        string `json:"title"`
-	KindLabel    string `json:"kind_label"`
-	KindClass    string `json:"kind_class"`
-	FinishedLine string `json:"finished_line"`
-	Note         string `json:"note"`
-	ReturnDate   string `json:"return_date"`
+	ID            string `json:"id"`
+	Title         string `json:"title"`
+	KindLabel     string `json:"kind_label"`
+	KindClass     string `json:"kind_class"`
+	FinishedLine  string `json:"finished_line"`
+	StatusLine    string `json:"status_line"`
+	Note          string `json:"note"`
+	CanPostpone   bool   `json:"can_postpone"`
+	PostponeValue string `json:"postpone_value"`
+	ReturnDate    string `json:"return_date"`
 }
 
 type DashboardSnapshot struct {
@@ -180,6 +183,7 @@ func (h *Handler) Router() http.Handler {
 		r.Use(h.requireAuth)
 
 		r.Get("/", h.handleIndex)
+		r.Get("/dashboard/snapshot", h.handleDashboardSnapshot)
 		r.Get("/me", h.handleAccountPage)
 		r.Post("/tasks", h.handleCreateTask)
 		r.Post("/tasks/{taskID}/complete", h.handleCompleteTask)
@@ -537,7 +541,7 @@ func (h *Handler) buildDashboardPageData(ctx context.Context, user domain.User, 
 		FocusMonth:           focusDate.In(h.location).Format("01"),
 		FocusDay:             focusDate.In(h.location).Format("02"),
 		FocusTasks:           focusTasks,
-		CompletedTasks:       buildCompletedTaskCards(completedTasks, focusDate, h.location),
+		CompletedTasks:       buildCompletedTaskCards(completedTasks, now, focusDate, h.location),
 		YesterdayPath:        buildDatePath(today.AddDate(0, 0, -1), h.location),
 		TodayPath:            buildDatePath(today, h.location),
 		TomorrowPath:         buildDatePath(today.AddDate(0, 0, 1), h.location),
@@ -566,6 +570,16 @@ func (h *Handler) writeDashboardSnapshot(w http.ResponseWriter, r *http.Request,
 		CompletedTasks: pageData.CompletedTasks,
 		EmptyQuote:     pageData.EmptyQuote,
 	})
+}
+
+func (h *Handler) handleDashboardSnapshot(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		http.Error(w, "请先登录", http.StatusUnauthorized)
+		return
+	}
+
+	h.writeDashboardSnapshot(w, r, user)
 }
 
 func (h *Handler) handleAccountPage(w http.ResponseWriter, r *http.Request) {
@@ -980,10 +994,10 @@ func formatDDLCountdown(deadline, now time.Time, location *time.Location) string
 	return fmt.Sprintf("还有 %d 分钟", maxInt(1, ceilDuration(remaining, time.Minute)))
 }
 
-func buildCompletedTaskCards(tasks []domain.Task, focusDate time.Time, location *time.Location) []CompletedTaskCard {
+func buildCompletedTaskCards(tasks []domain.Task, now, focusDate time.Time, location *time.Location) []CompletedTaskCard {
 	cards := make([]CompletedTaskCard, 0, len(tasks))
 	for _, task := range tasks {
-		cards = append(cards, CompletedTaskCard{
+		card := CompletedTaskCard{
 			ID:           task.ID.String(),
 			Title:        task.Title,
 			KindLabel:    kindLabel(task.Type),
@@ -991,7 +1005,25 @@ func buildCompletedTaskCards(tasks []domain.Task, focusDate time.Time, location 
 			FinishedLine: formatCompletedAt(task, location),
 			Note:         task.Note,
 			ReturnDate:   normalizeDateForView(focusDate, location).Format("2006-01-02"),
-		})
+		}
+
+		if task.SupportsPostpone() {
+			card.CanPostpone = true
+		}
+
+		switch task.Type {
+		case domain.TaskTypeSchedule:
+			if task.ScheduledFor != nil {
+				card.PostponeValue = normalizeDateForView(*task.ScheduledFor, location).AddDate(0, 0, 1).Format("2006-01-02")
+			}
+		case domain.TaskTypeDDL:
+			if task.Deadline != nil {
+				card.StatusLine = formatDDLCountdown(*task.Deadline, now, location)
+				card.PostponeValue = normalizeDateForView(*task.Deadline, location).AddDate(0, 0, 1).Format("2006-01-02")
+			}
+		}
+
+		cards = append(cards, card)
 	}
 	return cards
 }

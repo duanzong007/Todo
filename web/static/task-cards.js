@@ -3,6 +3,8 @@ const MOVE_ANIMATION_MS = 320;
 const ENTER_ANIMATION_MS = 320;
 const EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
 let taskMutationQueue = Promise.resolve();
+let pendingTaskRequestCount = 0;
+let requiresSnapshotResync = false;
 
 function wait(ms) {
   return new Promise((resolve) => {
@@ -21,6 +23,75 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function focusCounterElements() {
+  return Array.from(document.querySelectorAll(".focus-counter"));
+}
+
+function updatePendingCounterState() {
+  focusCounterElements().forEach((element) => {
+    element.classList.toggle("is-pending", pendingTaskRequestCount > 0);
+    element.setAttribute("data-pending-count", String(pendingTaskRequestCount));
+  });
+}
+
+function beginPendingTaskRequest(options = {}) {
+  const { needsResync = true } = options;
+  if (needsResync && pendingTaskRequestCount > 0) {
+    requiresSnapshotResync = true;
+  }
+  pendingTaskRequestCount += 1;
+  updatePendingCounterState();
+}
+
+function currentFocusDateValue() {
+  const fromComposer = document.querySelector(".capture-form input[name='return_date']");
+  if (fromComposer?.value) {
+    return fromComposer.value;
+  }
+
+  const url = new URL(window.location.href);
+  const fromQuery = (url.searchParams.get("date") || "").trim();
+  if (fromQuery) {
+    return fromQuery;
+  }
+
+  return "";
+}
+
+async function resyncDashboardSnapshot() {
+  const url = new URL("/dashboard/snapshot", window.location.origin);
+  const focusDate = currentFocusDateValue();
+  if (focusDate) {
+    url.searchParams.set("date", focusDate);
+  }
+
+  const response = await fetch(url.pathname + url.search, {
+    headers: {
+      "X-Requested-With": "fetch",
+    },
+  });
+  if (!response.ok) {
+    throw new Error("snapshot sync failed");
+  }
+
+  const snapshot = await response.json();
+  applyTaskSnapshot(snapshot);
+}
+
+function endPendingTaskRequest() {
+  pendingTaskRequestCount = Math.max(0, pendingTaskRequestCount - 1);
+  updatePendingCounterState();
+
+  if (pendingTaskRequestCount !== 0 || !requiresSnapshotResync) {
+    return Promise.resolve();
+  }
+
+  requiresSnapshotResync = false;
+  return resyncDashboardSnapshot().catch(() => {
+    window.location.reload();
+  });
 }
 
 function cssEscape(value) {
@@ -344,7 +415,7 @@ function buildFocusTaskCardHTML(card) {
 
 function buildCompletedTaskCardHTML(card) {
   return `
-    <article class="archive-card" data-task-id="${escapeHtml(card.id)}">
+    <article class="archive-card" data-task-id="${escapeHtml(card.id)}" data-kind-label="${escapeHtml(card.kind_label)}" data-kind-class="${escapeHtml(card.kind_class)}" data-status-line="${escapeHtml(card.status_line || "")}" data-can-postpone="${card.can_postpone ? "1" : "0"}" data-postpone-value="${escapeHtml(card.postpone_value || "")}">
       <div class="archive-card-main">
         <span class="task-kind task-kind-${escapeHtml(card.kind_class)}">${escapeHtml(card.kind_label)}</span>
         <div class="task-body">
@@ -359,6 +430,187 @@ function buildCompletedTaskCardHTML(card) {
       </div>
     </article>
   `;
+}
+
+function padNumber(value) {
+  return String(value).padStart(2, "0");
+}
+
+function formatOptimisticCompletedLine(kindClass) {
+  const now = new Date();
+  const dateText = `${now.getMonth() + 1}月${now.getDate()}日`;
+  if (kindClass === "ddl") {
+    return `完成于 ${dateText} ${padNumber(now.getHours())}:${padNumber(now.getMinutes())}`;
+  }
+  return `完成于 ${dateText}`;
+}
+
+function extractCardText(element, selector) {
+  return element?.querySelector(selector)?.textContent?.trim() || "";
+}
+
+function extractCardKind(element) {
+  const label = element?.getAttribute("data-kind-label") || extractCardText(element, ".task-kind");
+  const kindClass = element?.getAttribute("data-kind-class") || "";
+  return {
+    label,
+    kindClass,
+  };
+}
+
+function extractReturnDate(element) {
+  return element?.querySelector("input[name='return_date']")?.value || currentFocusDateValue();
+}
+
+function nextDateValue(baseValue) {
+  const base = baseValue ? new Date(`${baseValue}T00:00:00`) : new Date();
+  base.setDate(base.getDate() + 1);
+  return `${base.getFullYear()}-${padNumber(base.getMonth() + 1)}-${padNumber(base.getDate())}`;
+}
+
+function syncFocusCounterFromDOM() {
+  const count = document.querySelectorAll(".focus-list [data-task-card]").length;
+  focusCounterElements().forEach((element) => {
+    element.textContent = String(count);
+  });
+  updatePendingCounterState();
+}
+
+function syncArchiveCounterFromDOM() {
+  const count = document.querySelectorAll("[data-archive-list] .archive-card").length;
+  document.querySelectorAll("[data-archive-count]").forEach((element) => {
+    element.textContent = String(count);
+  });
+}
+
+function insertElementWithMotion(container, selector, element, method = "prepend") {
+  const previousRects = captureRects(container, selector);
+  stageEnter(element, false);
+
+  if (method === "append") {
+    container.appendChild(element);
+  } else {
+    container.prepend(element);
+  }
+
+  initializeTaskCards(container);
+  animateMovedElements(container, selector, previousRects);
+  window.requestAnimationFrame(() => {
+    revealEnter(element, false);
+  });
+
+  return element;
+}
+
+function buildOptimisticCompletedCard(sourceElement, request) {
+  const { label, kindClass } = extractCardKind(sourceElement);
+  return {
+    id: request.taskID,
+    title: extractCardText(sourceElement, "h3"),
+    kind_label: label,
+    kind_class: kindClass,
+    finished_line: formatOptimisticCompletedLine(kindClass),
+    status_line: extractCardText(sourceElement, ".status"),
+    note: extractCardText(sourceElement, ".note"),
+    can_postpone: Boolean(sourceElement?.querySelector("[data-postpone-panel]")),
+    postpone_value: sourceElement?.querySelector("[data-postpone-form] input[name='target_date']")?.value || "",
+    return_date: extractReturnDate(sourceElement),
+  };
+}
+
+function buildOptimisticFocusCard(sourceElement, request) {
+  const { label, kindClass } = extractCardKind(sourceElement);
+  const returnDate = extractReturnDate(sourceElement);
+  const statusLine = sourceElement?.getAttribute("data-status-line") || "";
+  const postponeValue = sourceElement?.getAttribute("data-postpone-value") || nextDateValue(returnDate);
+  const canPostpone = sourceElement?.getAttribute("data-can-postpone") === "1";
+  return {
+    id: request.taskID,
+    title: extractCardText(sourceElement, "h3"),
+    kind_label: label,
+    kind_class: kindClass,
+    status_line: statusLine,
+    note: extractCardText(sourceElement, ".note"),
+    can_postpone: canPostpone,
+    can_complete: true,
+    postpone_value: postponeValue,
+    return_date: returnDate,
+  };
+}
+
+function insertOptimisticArchiveCard(request) {
+  const section = document.querySelector("[data-archive-section]");
+  const sourceElement = actionTargetForRequest(request);
+  if (!section || !sourceElement) {
+    return null;
+  }
+
+  const cardData = buildOptimisticCompletedCard(sourceElement, request);
+  let insertedElement = null;
+  const applyInsert = () => {
+    section.classList.remove("is-empty");
+    const list = ensureArchiveList(section);
+    const element = createElementFromHTML(buildCompletedTaskCardHTML(cardData));
+    insertedElement = insertElementWithMotion(list, ".archive-card", element, "prepend");
+    syncArchiveCounterFromDOM();
+  };
+
+  animateHeightMutation(section, applyInsert);
+  return insertedElement;
+}
+
+function insertOptimisticFocusCard(request) {
+  const panel = document.querySelector(".focus-panel");
+  const sourceElement = actionTargetForRequest(request);
+  if (!panel || !sourceElement) {
+    return null;
+  }
+
+  const cardData = buildOptimisticFocusCard(sourceElement, request);
+  const currentEmpty = panel.querySelector(".focus-empty");
+  if (currentEmpty) {
+    const overlay = currentEmpty.cloneNode(true);
+    overlay.classList.add("focus-empty-overlay");
+    panel.classList.add("has-empty-overlay");
+    panel.appendChild(overlay);
+
+    let insertedElement = null;
+    const list = document.createElement("div");
+    list.className = "focus-list";
+    const applyInsert = () => {
+      const element = createElementFromHTML(buildFocusTaskCardHTML(cardData));
+      stageEnter(element, false);
+      list.appendChild(element);
+      insertedElement = element;
+      currentEmpty.replaceWith(list);
+      initializeTaskCards(panel);
+      syncFocusCounterFromDOM();
+      overlay.classList.add("is-leaving");
+    };
+
+    animateHeightMutation(panel, applyInsert);
+    window.setTimeout(() => {
+      if (insertedElement) {
+        revealEnter(insertedElement, false);
+      }
+    }, Math.round(MOVE_ANIMATION_MS * 0.55));
+    afterTransition(MOVE_ANIMATION_MS, () => {
+      overlay.remove();
+      panel.classList.remove("has-empty-overlay");
+    });
+    return insertedElement;
+  }
+
+  let insertedElement = null;
+  const applyInsert = () => {
+    const list = ensureFocusList(panel);
+    const element = createElementFromHTML(buildFocusTaskCardHTML(cardData));
+    insertedElement = insertElementWithMotion(list, "[data-task-card]", element, "prepend");
+    syncFocusCounterFromDOM();
+  };
+
+  animateHeightMutation(panel, applyInsert);
+  return insertedElement;
 }
 
 function buildFocusEmptyHTML(snapshot) {
@@ -688,6 +940,7 @@ function updateArchiveSection(snapshot) {
 function applyTaskSnapshot(snapshot) {
   updateFocusPanel(snapshot);
   updateArchiveSection(snapshot);
+  updatePendingCounterState();
 }
 
 function enqueueTaskMutation(run) {
@@ -705,6 +958,38 @@ function buildTaskRequest(form) {
     isRestore: form.hasAttribute("data-restore-form"),
     isPostpone: form.hasAttribute("data-postpone-form"),
   };
+}
+
+function applyOptimisticTaskMutation(request) {
+  if (request.isComplete) {
+    request.optimistic = true;
+    request.optimisticInsertedElement = insertOptimisticArchiveCard(request);
+    request.exitHandle = detachForExit(actionTargetForRequest(request));
+    syncFocusCounterFromDOM();
+    return;
+  }
+
+  if (request.isRestore) {
+    request.optimistic = true;
+    request.optimisticInsertedElement = insertOptimisticFocusCard(request);
+    request.exitHandle = detachForExit(actionTargetForRequest(request));
+    syncArchiveCounterFromDOM();
+  }
+}
+
+function fetchTaskRequestSnapshot(request) {
+  return fetch(request.action, {
+    method: "POST",
+    body: request.formData,
+    headers: {
+      "X-Requested-With": "fetch",
+    },
+  }).then(async (response) => {
+    if (!response.ok) {
+      throw new Error("request failed");
+    }
+    return response.json();
+  });
 }
 
 function actionTargetForRequest(request) {
@@ -749,24 +1034,20 @@ function shouldAnimateTaskExitRequest(request, snapshot) {
   return false;
 }
 
-async function processTaskRequest(request) {
-  const immediateExit = request.isComplete || request.isRestore;
-  let exitHandle = immediateExit ? detachForExit(actionTargetForRequest(request)) : null;
-
+async function processTaskRequest(request, responsePromise) {
+  let exitHandle = request.exitHandle || null;
   try {
-    const response = await fetch(request.action, {
-      method: "POST",
-      body: request.formData,
-      headers: {
-        "X-Requested-With": "fetch",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error("request failed");
+    const snapshot = await responsePromise;
+    if (request.optimistic) {
+      if (exitHandle) {
+        await exitHandle.done;
+      }
+      if (request.isComplete && snapshot.focus_tasks.length === 0) {
+        updateFocusPanel(snapshot);
+      }
+      return snapshot;
     }
 
-    const snapshot = await response.json();
     if (!exitHandle && shouldAnimateTaskExitRequest(request, snapshot)) {
       exitHandle = detachForExit(actionTargetForRequest(request));
     }
@@ -815,7 +1096,13 @@ async function processTaskRequest(request) {
     }
 
     applyTaskSnapshot(snapshot);
+    return snapshot;
   } catch (_error) {
+    if (request.optimistic) {
+      window.location.reload();
+      return null;
+    }
+
     if (exitHandle) {
       exitHandle.restore();
     } else {
@@ -829,6 +1116,7 @@ async function processTaskRequest(request) {
     }
 
     window.location.reload();
+    return null;
   }
 }
 
@@ -854,8 +1142,18 @@ function bindAsyncTaskForm(form) {
     const isTaskForm = form.hasAttribute("data-async-task-form");
     if (isTaskForm) {
       const request = buildTaskRequest(form);
-      enqueueTaskMutation(() => processTaskRequest(request))
-        .finally(() => {
+      if (request.isComplete || request.isRestore) {
+        applyOptimisticTaskMutation(request);
+      }
+
+      const needsResync = !(request.isComplete || request.isRestore);
+      beginPendingTaskRequest({
+        needsResync,
+      });
+      const responsePromise = fetchTaskRequestSnapshot(request);
+      enqueueTaskMutation(() => processTaskRequest(request, responsePromise))
+        .finally(async () => {
+          await endPendingTaskRequest();
           form.dataset.submitting = "0";
           if (submitButton && submitButton.isConnected) {
             submitButton.disabled = false;
@@ -867,6 +1165,7 @@ function bindAsyncTaskForm(form) {
     const preservedState = window.captureFocusPageState
       ? window.captureFocusPageState(document)
       : null;
+    beginPendingTaskRequest();
 
     try {
       const response = await fetch(form.action, {
@@ -898,6 +1197,7 @@ function bindAsyncTaskForm(form) {
 
       window.location.reload();
     } catch (_error) {
+      await endPendingTaskRequest();
       form.dataset.submitting = "0";
       if (submitButton) {
         submitButton.disabled = false;
@@ -908,6 +1208,7 @@ function bindAsyncTaskForm(form) {
 }
 
 function initializeTaskCards(root = document) {
+  updatePendingCounterState();
   root.querySelectorAll("[data-async-task-form], [data-async-focus-form]").forEach((form) => {
     bindAsyncTaskForm(form);
   });

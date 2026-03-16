@@ -446,6 +446,10 @@ button.danger:hover {
         transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
+.focus-panel.has-empty-overlay {
+    position: relative;
+}
+
 .focus-panel-head {
     display: flex;
     align-items: start;
@@ -491,6 +495,32 @@ button.danger:hover {
     background: rgba(255, 255, 255, 0.7);
     color: var(--muted);
     font-weight: 700;
+    background-size: 220% 100%;
+    transition: border-color 180ms ease, color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.focus-counter.is-pending {
+    border-color: rgba(179, 124, 77, 0.26);
+    color: rgba(113, 72, 39, 0.92);
+    background-image: linear-gradient(
+        110deg,
+        rgba(255, 255, 255, 0.82) 0%,
+        rgba(245, 225, 203, 0.84) 26%,
+        rgba(255, 241, 226, 0.92) 48%,
+        rgba(236, 210, 181, 0.84) 74%,
+        rgba(255, 255, 255, 0.82) 100%
+    );
+    animation: focus-counter-flow 1.8s linear infinite;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+}
+
+@keyframes focus-counter-flow {
+    from {
+        background-position: 0% 50%;
+    }
+    to {
+        background-position: 200% 50%;
+    }
 }
 
 .focus-list {
@@ -687,6 +717,22 @@ button.complete-toggle:hover {
 
 .focus-empty {
     padding: 32px 8px 18px;
+}
+
+.focus-empty-overlay {
+    position: absolute;
+    inset: 22px 22px auto;
+    pointer-events: none;
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+        opacity 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.focus-empty-overlay.is-leaving {
+    opacity: 0;
+    transform: translateY(-10px);
 }
 
 .focus-empty > p:first-child {
