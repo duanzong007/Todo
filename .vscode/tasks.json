@@ -4,11 +4,7 @@
     {
       "label": "todo:check-db",
       "type": "shell",
-      "command": "zsh",
-      "args": [
-        "-lc",
-        "set -a; source ./.env; set +a; pg_isready -d \"$DATABASE_URL\""
-      ],
+      "command": "set -a; source ./.env; set +a; for i in {1..5}; do pg_isready -d \"$DATABASE_URL\" && exit 0; sleep 1; done; echo \"database not reachable: $DATABASE_URL\" >&2; exit 1",
       "options": {
         "cwd": "${workspaceFolder}"
       },

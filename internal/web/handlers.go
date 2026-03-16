@@ -49,6 +49,7 @@ type Handler struct {
 type UserView struct {
 	DisplayName string
 	Username    string
+	IsAdmin     bool
 }
 
 type DashboardPageData struct {
@@ -59,6 +60,13 @@ type DashboardPageData struct {
 	TodayTasks  []TaskCard
 	DDLTasks    []TaskCard
 	TodoTasks   []TaskCard
+}
+
+type AdminPageData struct {
+	CurrentUser  *UserView
+	Message      string
+	Error        string
+	PendingUsers []PendingUserCard
 }
 
 type AuthPageData struct {
@@ -83,6 +91,13 @@ type TaskCard struct {
 	CanComplete   bool
 	CanPostpone   bool
 	PostponeValue string
+}
+
+type PendingUserCard struct {
+	ID          string
+	DisplayName string
+	Username    string
+	CreatedAt   string
 }
 
 func NewHandler(taskService *service.TaskService, authService *service.AuthService, options HandlerOptions) (*Handler, error) {
@@ -124,6 +139,12 @@ func (h *Handler) Router() http.Handler {
 		r.Post("/tasks/{taskID}/complete", h.handleCompleteTask)
 		r.Post("/tasks/{taskID}/postpone", h.handlePostponeTask)
 		r.Post("/imports/ics", h.handleImportICS)
+
+		r.Group(func(r chi.Router) {
+			r.Use(h.requireAdmin)
+			r.Get("/admin/users", h.handleAdminUsers)
+			r.Post("/admin/users/{userID}/approve", h.handleApproveUser)
+		})
 	})
 
 	return router
@@ -170,7 +191,7 @@ func (h *Handler) handleRegisterPage(w http.ResponseWriter, r *http.Request) {
 		Message:          r.URL.Query().Get("msg"),
 		Error:            r.URL.Query().Get("err"),
 		Action:           "/register",
-		SubmitLabel:      "注册并登录",
+		SubmitLabel:      "提交注册申请",
 		AlternativeLabel: "已有账号，去登录",
 		AlternativePath:  "/login",
 		ShowDisplayName:  true,
@@ -226,6 +247,11 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	result, err := h.authService.Register(r.Context(), username, displayName, password, r.UserAgent(), clientIPAddress(r))
 	if err != nil {
 		h.redirectToRegister(w, r, "", humanizeError(err), username, displayName)
+		return
+	}
+
+	if result.PendingApproval {
+		h.redirectToLogin(w, r, "注册申请已提交，等待管理员审批后再登录", "")
 		return
 	}
 
@@ -372,6 +398,48 @@ func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domai
 	return h.templates.ExecuteTemplate(w, "index.html", pageData)
 }
 
+func (h *Handler) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+
+	pendingUsers, err := h.authService.ListPendingUsers(r.Context(), user)
+	if err != nil {
+		h.redirectHome(w, r, "", humanizeError(err))
+		return
+	}
+
+	data := AdminPageData{
+		CurrentUser:  buildUserView(user),
+		Message:      r.URL.Query().Get("msg"),
+		Error:        r.URL.Query().Get("err"),
+		PendingUsers: buildPendingUserCards(pendingUsers, h.location),
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "admin_users.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) handleApproveUser(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+
+	userID := chi.URLParam(r, "userID")
+	approvedUser, err := h.authService.ApproveUser(r.Context(), user, userID)
+	if err != nil {
+		h.redirectToAdminUsers(w, r, "", humanizeError(err))
+		return
+	}
+
+	h.redirectToAdminUsers(w, r, fmt.Sprintf("已批准 @%s", approvedUser.Username), "")
+}
+
 func (h *Handler) requireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, err := h.authService.Authenticate(r.Context(), h.sessionToken(r))
@@ -383,6 +451,21 @@ func (h *Handler) requireAuth(next http.Handler) http.Handler {
 
 		ctx := context.WithValue(r.Context(), currentUserContextKey, user)
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (h *Handler) requireAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, ok := h.currentUser(r)
+		if !ok {
+			h.redirectToLogin(w, r, "", "请先登录")
+			return
+		}
+		if !user.IsAdmin() {
+			h.redirectHome(w, r, "", "只有管理员可以执行该操作")
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -441,6 +524,10 @@ func (h *Handler) redirectHome(w http.ResponseWriter, r *http.Request, message, 
 	h.redirectWithQuery(w, r, "/", message, errorMessage, nil)
 }
 
+func (h *Handler) redirectToAdminUsers(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
+	h.redirectWithQuery(w, r, "/admin/users", message, errorMessage, nil)
+}
+
 func (h *Handler) redirectToLogin(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
 	h.redirectWithQuery(w, r, "/login", message, errorMessage, nil)
 }
@@ -482,7 +569,21 @@ func buildUserView(user domain.User) *UserView {
 	return &UserView{
 		DisplayName: user.DisplayName,
 		Username:    user.Username,
+		IsAdmin:     user.IsAdmin(),
 	}
+}
+
+func buildPendingUserCards(users []domain.User, location *time.Location) []PendingUserCard {
+	var cards []PendingUserCard
+	for _, user := range users {
+		cards = append(cards, PendingUserCard{
+			ID:          user.ID.String(),
+			DisplayName: user.DisplayName,
+			Username:    user.Username,
+			CreatedAt:   user.CreatedAt.In(location).Format("2006-01-02 15:04"),
+		})
+	}
+	return cards
 }
 
 func buildTaskCards(tasks []domain.Task, now time.Time, location *time.Location) []TaskCard {
@@ -538,6 +639,8 @@ func humanizeError(err error) string {
 		return ""
 	case errors.Is(err, repository.ErrTaskNotFound):
 		return "任务不存在"
+	case errors.Is(err, repository.ErrUserNotFound):
+		return "用户不存在"
 	case errors.Is(err, repository.ErrUnsupportedOperation):
 		return "这个任务不支持该操作"
 	case errors.Is(err, repository.ErrInvalidTaskTransition):
@@ -550,6 +653,14 @@ func humanizeError(err error) string {
 		return "当前已关闭注册"
 	case errors.Is(err, service.ErrUsernameTaken):
 		return "用户名已存在"
+	case errors.Is(err, service.ErrUserPendingApproval):
+		return "账号还在等待管理员审批"
+	case errors.Is(err, service.ErrPermissionDenied):
+		return "你没有管理员权限"
+	case errors.Is(err, service.ErrUserAlreadyApproved):
+		return "这个账号已经审批过了"
+	case strings.Contains(err.Error(), "invalid user id"):
+		return "用户 ID 无效"
 	case strings.Contains(err.Error(), "invalid task id"):
 		return "任务 ID 无效"
 	case strings.Contains(err.Error(), "invalid target date"):

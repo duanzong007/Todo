@@ -12,10 +12,18 @@
             <div class="user-badge">
                 <strong>{{ .CurrentUser.DisplayName }}</strong>
                 <span>@{{ .CurrentUser.Username }}</span>
+                {{ if .CurrentUser.IsAdmin }}
+                <span class="role-chip">admin</span>
+                {{ end }}
             </div>
-            <form action="/logout" method="post">
-                <button type="submit" class="secondary">退出登录</button>
-            </form>
+            <div class="topbar-actions">
+                {{ if .CurrentUser.IsAdmin }}
+                <a href="/admin/users" class="secondary action-link">用户审批</a>
+                {{ end }}
+                <form action="/logout" method="post">
+                    <button type="submit" class="secondary">退出登录</button>
+                </form>
+            </div>
         </section>
 
         <section class="hero">
@@ -132,4 +140,3 @@
     </main>
 </body>
 </html>
-

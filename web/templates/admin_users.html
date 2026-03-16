@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户审批 - Todo MVP</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <main class="page">
+        <section class="topbar">
+            <div class="user-badge">
+                <strong>{{ .CurrentUser.DisplayName }}</strong>
+                <span>@{{ .CurrentUser.Username }}</span>
+                <span class="role-chip">admin</span>
+            </div>
+            <div class="topbar-actions">
+                <a href="/" class="secondary action-link">返回任务面板</a>
+                <form action="/logout" method="post">
+                    <button type="submit" class="secondary">退出登录</button>
+                </form>
+            </div>
+        </section>
+
+        <section class="hero">
+            <div>
+                <p class="eyebrow">Admin</p>
+                <h1>待审批用户</h1>
+                <p class="hero-copy">新账号注册后默认不能使用系统，只有在这里批准后才会获得登录权限。</p>
+            </div>
+            <div class="hero-date">{{ len .PendingUsers }} 待处理</div>
+        </section>
+
+        {{ if .Message }}
+        <div class="flash flash-success">{{ .Message }}</div>
+        {{ end }}
+        {{ if .Error }}
+        <div class="flash flash-error">{{ .Error }}</div>
+        {{ end }}
+
+        <section class="panel">
+            <div class="section-head">
+                <h2>审批队列</h2>
+                <span>{{ len .PendingUsers }}</span>
+            </div>
+            {{ if .PendingUsers }}
+                {{ range .PendingUsers }}
+                <article class="approval-card">
+                    <div class="task-body">
+                        <h3>{{ .DisplayName }}</h3>
+                        <p class="status">@{{ .Username }}</p>
+                        <p class="note">注册时间 {{ .CreatedAt }}</p>
+                    </div>
+                    <form action="/admin/users/{{ .ID }}/approve" method="post" class="task-actions">
+                        <button type="submit">批准使用</button>
+                    </form>
+                </article>
+                {{ end }}
+            {{ else }}
+                <p class="empty">当前没有待审批用户。</p>
+            {{ end }}
+        </section>
+    </main>
+</body>
+</html>

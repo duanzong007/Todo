@@ -42,6 +42,13 @@ body {
     margin-bottom: 18px;
 }
 
+.topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
 .user-badge {
     display: inline-flex;
     gap: 10px;
@@ -56,6 +63,18 @@ body {
 .user-badge span {
     color: var(--muted);
     font-size: 0.92rem;
+}
+
+.role-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(197, 109, 58, 0.12);
+    color: var(--accent-strong);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
 }
 
 .hero {
@@ -189,6 +208,26 @@ button.secondary:hover {
     background: #e6cfba;
 }
 
+.action-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 0 18px;
+    border-radius: 16px;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.action-link.secondary {
+    background: #f0dbc7;
+    color: #5c3017;
+}
+
+.action-link.secondary:hover {
+    background: #e6cfba;
+}
+
 .grid {
     display: grid;
     gap: 20px;
@@ -230,6 +269,22 @@ button.secondary:hover {
 }
 
 .task-card:last-child {
+    margin-bottom: 0;
+}
+
+.approval-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    margin-bottom: 16px;
+    padding: 16px;
+    border-radius: 20px;
+    background: var(--bg-panel-strong);
+    border: 1px solid rgba(38, 33, 27, 0.08);
+    align-items: center;
+}
+
+.approval-card:last-child {
     margin-bottom: 0;
 }
 
@@ -355,8 +410,25 @@ button.secondary:hover {
         align-items: start;
     }
 
+    .topbar-actions {
+        width: 100%;
+    }
+
+    .topbar-actions form,
+    .action-link {
+        width: 100%;
+    }
+
+    .topbar-actions button {
+        width: 100%;
+    }
+
     .capture-row {
         flex-direction: column;
+    }
+
+    .approval-card {
+        grid-template-columns: 1fr;
     }
 
     input[type="text"],

@@ -15,6 +15,7 @@ import (
 	"todo/internal/domain"
 	"todo/internal/repository"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -23,6 +24,9 @@ var (
 	ErrInvalidSession       = errors.New("invalid session")
 	ErrRegistrationDisabled = errors.New("registration disabled")
 	ErrUsernameTaken        = errors.New("username already exists")
+	ErrUserPendingApproval  = errors.New("user pending approval")
+	ErrPermissionDenied     = errors.New("permission denied")
+	ErrUserAlreadyApproved  = errors.New("user already approved")
 )
 
 var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$`)
@@ -31,6 +35,13 @@ type AuthResult struct {
 	User      domain.User
 	Token     string
 	ExpiresAt time.Time
+}
+
+type RegistrationResult struct {
+	User            domain.User
+	Token           string
+	ExpiresAt       time.Time
+	PendingApproval bool
 }
 
 type AuthService struct {
@@ -49,26 +60,26 @@ func NewAuthService(repo *repository.AuthRepository, sessionCookieName string, s
 	}
 }
 
-func (s *AuthService) Register(ctx context.Context, username, displayName, password, userAgent, ipAddress string) (AuthResult, error) {
+func (s *AuthService) Register(ctx context.Context, username, displayName, password, userAgent, ipAddress string) (RegistrationResult, error) {
 	if !s.allowRegistration {
-		return AuthResult{}, ErrRegistrationDisabled
+		return RegistrationResult{}, ErrRegistrationDisabled
 	}
 
 	normalizedUsername, err := validateUsername(username)
 	if err != nil {
-		return AuthResult{}, err
+		return RegistrationResult{}, err
 	}
 	normalizedDisplayName, err := validateDisplayName(displayName)
 	if err != nil {
-		return AuthResult{}, err
+		return RegistrationResult{}, err
 	}
 	if err := validatePassword(password); err != nil {
-		return AuthResult{}, err
+		return RegistrationResult{}, err
 	}
 
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return AuthResult{}, fmt.Errorf("generate password hash: %w", err)
+		return RegistrationResult{}, fmt.Errorf("generate password hash: %w", err)
 	}
 
 	user, err := s.repo.CreateUser(ctx, repository.CreateUserInput{
@@ -79,12 +90,28 @@ func (s *AuthService) Register(ctx context.Context, username, displayName, passw
 	})
 	if err != nil {
 		if errors.Is(err, repository.ErrUserAlreadyExists) {
-			return AuthResult{}, ErrUsernameTaken
+			return RegistrationResult{}, ErrUsernameTaken
 		}
-		return AuthResult{}, err
+		return RegistrationResult{}, err
 	}
 
-	return s.issueSession(ctx, user, userAgent, ipAddress)
+	if !user.IsApproved() {
+		return RegistrationResult{
+			User:            user,
+			PendingApproval: true,
+		}, nil
+	}
+
+	authResult, err := s.issueSession(ctx, user, userAgent, ipAddress)
+	if err != nil {
+		return RegistrationResult{}, err
+	}
+
+	return RegistrationResult{
+		User:      authResult.User,
+		Token:     authResult.Token,
+		ExpiresAt: authResult.ExpiresAt,
+	}, nil
 }
 
 func (s *AuthService) Login(ctx context.Context, username, password, userAgent, ipAddress string) (AuthResult, error) {
@@ -100,10 +127,13 @@ func (s *AuthService) Login(ctx context.Context, username, password, userAgent, 
 		}
 		return AuthResult{}, err
 	}
-	if !user.IsActive {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return AuthResult{}, ErrInvalidCredentials
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+	if !user.IsApproved() {
+		return AuthResult{}, ErrUserPendingApproval
+	}
+	if !user.IsActive {
 		return AuthResult{}, ErrInvalidCredentials
 	}
 
@@ -145,7 +175,41 @@ func (s *AuthService) AllowRegistration() bool {
 	return s.allowRegistration
 }
 
+func (s *AuthService) ListPendingUsers(ctx context.Context, actor domain.User) ([]domain.User, error) {
+	if !actor.CanUseSystem() || !actor.IsAdmin() {
+		return nil, ErrPermissionDenied
+	}
+	return s.repo.ListPendingUsers(ctx)
+}
+
+func (s *AuthService) ApproveUser(ctx context.Context, actor domain.User, userID string) (domain.User, error) {
+	if !actor.CanUseSystem() || !actor.IsAdmin() {
+		return domain.User{}, ErrPermissionDenied
+	}
+
+	parsedUserID, err := parseUUID(userID)
+	if err != nil {
+		return domain.User{}, fmt.Errorf("invalid user id: %w", err)
+	}
+
+	user, err := s.repo.ApproveUser(ctx, actor.ID, parsedUserID)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotPending) {
+			return domain.User{}, ErrUserAlreadyApproved
+		}
+		return domain.User{}, err
+	}
+	return user, nil
+}
+
 func (s *AuthService) issueSession(ctx context.Context, user domain.User, userAgent, ipAddress string) (AuthResult, error) {
+	if !user.IsApproved() {
+		return AuthResult{}, ErrUserPendingApproval
+	}
+	if !user.IsActive {
+		return AuthResult{}, ErrInvalidCredentials
+	}
+
 	token, err := generateSessionToken()
 	if err != nil {
 		return AuthResult{}, fmt.Errorf("generate session token: %w", err)
@@ -209,4 +273,12 @@ func validatePassword(value string) error {
 		return errors.New("密码不能为空白字符")
 	}
 	return nil
+}
+
+func parseUUID(value string) (uuid.UUID, error) {
+	parsed, err := uuid.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return parsed, nil
 }

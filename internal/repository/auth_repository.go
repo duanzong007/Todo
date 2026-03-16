@@ -19,6 +19,7 @@ var (
 	ErrUserNotFound      = errors.New("user not found")
 	ErrUserAlreadyExists = errors.New("user already exists")
 	ErrSessionNotFound   = errors.New("session not found")
+	ErrUserNotPending    = errors.New("user is not pending approval")
 )
 
 type CreateUserInput struct {
@@ -51,21 +52,31 @@ func (r *AuthRepository) CreateUser(ctx context.Context, input CreateUserInput) 
 	}
 	defer tx.Rollback(ctx)
 
-	role := input.Role
-	if role == "" {
-		role = domain.UserRoleMember
-	}
-
 	var userCount int
 	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM app_users`).Scan(&userCount); err != nil {
 		return domain.User{}, fmt.Errorf("count users: %w", err)
 	}
 
+	role := input.Role
+	if role == "" {
+		role = domain.UserRoleMember
+	}
+
+	isActive := false
+	approvalStatus := domain.UserApprovalPending
+	var approvedAt any
+	if userCount == 0 {
+		role = domain.UserRoleAdmin
+		isActive = true
+		approvalStatus = domain.UserApprovalApproved
+		approvedAt = time.Now().UTC()
+	}
+
 	row := tx.QueryRow(ctx, `
-		INSERT INTO app_users (username, display_name, password_hash, role)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, username, display_name, password_hash, role, is_active, last_login_at, created_at, updated_at
-	`, input.Username, input.DisplayName, input.PasswordHash, role)
+		INSERT INTO app_users (username, display_name, password_hash, role, is_active, approval_status, approved_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, username, display_name, password_hash, role, approval_status, is_active, last_login_at, approved_at, approved_by, created_at, updated_at
+	`, input.Username, input.DisplayName, input.PasswordHash, role, isActive, approvalStatus, approvedAt)
 
 	user, err := scanUser(row)
 	if err != nil {
@@ -94,7 +105,7 @@ func (r *AuthRepository) CreateUser(ctx context.Context, input CreateUserInput) 
 
 func (r *AuthRepository) FindUserByUsername(ctx context.Context, username string) (domain.User, error) {
 	row := r.db.QueryRow(ctx, `
-		SELECT id, username, display_name, password_hash, role, is_active, last_login_at, created_at, updated_at
+		SELECT id, username, display_name, password_hash, role, approval_status, is_active, last_login_at, approved_at, approved_by, created_at, updated_at
 		FROM app_users
 		WHERE username = $1
 	`, username)
@@ -148,16 +159,73 @@ func (r *AuthRepository) GetUserBySessionTokenHash(ctx context.Context, tokenHas
 				AND expires_at > $2
 			RETURNING user_id
 		)
-		SELECT u.id, u.username, u.display_name, u.password_hash, u.role, u.is_active, u.last_login_at, u.created_at, u.updated_at
+		SELECT u.id, u.username, u.display_name, u.password_hash, u.role, u.approval_status, u.is_active, u.last_login_at, u.approved_at, u.approved_by, u.created_at, u.updated_at
 		FROM active_session s
 		JOIN app_users u ON u.id = s.user_id
 		WHERE u.is_active = TRUE
+			AND u.approval_status = 'approved'
 	`, tokenHash, now)
 
 	user, err := scanUser(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.User{}, ErrSessionNotFound
+		}
+		return domain.User{}, err
+	}
+	return user, nil
+}
+
+func (r *AuthRepository) ListPendingUsers(ctx context.Context) ([]domain.User, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, username, display_name, password_hash, role, approval_status, is_active, last_login_at, approved_at, approved_by, created_at, updated_at
+		FROM app_users
+		WHERE approval_status = 'pending'
+		ORDER BY created_at, username
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list pending users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []domain.User
+	for rows.Next() {
+		user, err := scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pending users: %w", err)
+	}
+	return users, nil
+}
+
+func (r *AuthRepository) ApproveUser(ctx context.Context, adminID, userID uuid.UUID) (domain.User, error) {
+	row := r.db.QueryRow(ctx, `
+		UPDATE app_users
+		SET
+			approval_status = 'approved',
+			is_active = TRUE,
+			approved_at = NOW(),
+			approved_by = $1
+		WHERE id = $2
+			AND approval_status = 'pending'
+		RETURNING id, username, display_name, password_hash, role, approval_status, is_active, last_login_at, approved_at, approved_by, created_at, updated_at
+	`, adminID, userID)
+
+	user, err := scanUser(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			var exists bool
+			if queryErr := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM app_users WHERE id = $1)`, userID).Scan(&exists); queryErr != nil {
+				return domain.User{}, fmt.Errorf("check user existence: %w", queryErr)
+			}
+			if !exists {
+				return domain.User{}, ErrUserNotFound
+			}
+			return domain.User{}, ErrUserNotPending
 		}
 		return domain.User{}, err
 	}
@@ -182,6 +250,8 @@ func (r *AuthRepository) RevokeSession(ctx context.Context, tokenHash string) er
 func scanUser(row interface{ Scan(dest ...any) error }) (domain.User, error) {
 	var user domain.User
 	var lastLoginAt pgtype.Timestamptz
+	var approvedAt pgtype.Timestamptz
+	var approvedBy pgtype.UUID
 
 	err := row.Scan(
 		&user.ID,
@@ -189,8 +259,11 @@ func scanUser(row interface{ Scan(dest ...any) error }) (domain.User, error) {
 		&user.DisplayName,
 		&user.PasswordHash,
 		&user.Role,
+		&user.ApprovalStatus,
 		&user.IsActive,
 		&lastLoginAt,
+		&approvedAt,
+		&approvedBy,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -201,6 +274,14 @@ func scanUser(row interface{ Scan(dest ...any) error }) (domain.User, error) {
 	if lastLoginAt.Valid {
 		value := lastLoginAt.Time
 		user.LastLoginAt = &value
+	}
+	if approvedAt.Valid {
+		value := approvedAt.Time
+		user.ApprovedAt = &value
+	}
+	if approvedBy.Valid {
+		value := uuid.UUID(approvedBy.Bytes)
+		user.ApprovedBy = &value
 	}
 	return user, nil
 }
