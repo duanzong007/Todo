@@ -20,8 +20,10 @@
         <section class="panel focus-panel">
             <div class="focus-panel-head">
                 <div>
-                    <p class="section-kicker">当前视图</p>
-                    <h2>这一天需要显示的任务</h2>
+                    <p class="section-kicker focus-weekday">
+                        {{ .FocusWeekdayLabel }}
+                        {{ range .FocusDayMarks }} · {{ . }}{{ end }}
+                    </p>
                 </div>
                 <span class="focus-counter">{{ len .FocusTasks }}</span>
             </div>

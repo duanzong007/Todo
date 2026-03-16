@@ -3,6 +3,7 @@ module todo
 go 1.25.0
 
 require (
+	github.com/6tail/lunar-go v1.4.6
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.8.0

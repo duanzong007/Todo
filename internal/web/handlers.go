@@ -56,6 +56,8 @@ type DashboardPageData struct {
 	CurrentUser          *UserView
 	Error                string
 	FocusTitle           string
+	FocusWeekdayLabel    string
+	FocusDayMarks        []string
 	FocusDateISO         string
 	FocusYear            string
 	FocusMonth           string
@@ -407,10 +409,13 @@ func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domai
 	}
 
 	today := normalizeDateForView(time.Now().In(h.location), h.location)
+	calendarMeta := service.CalendarMetaForDate(focusDate, h.location)
 	pageData := DashboardPageData{
 		CurrentUser:          buildUserView(user),
 		Error:                errorMessage,
 		FocusTitle:           buildFocusTitle(focusDate, today, h.location),
+		FocusWeekdayLabel:    calendarMeta.WeekdayLabel,
+		FocusDayMarks:        calendarMeta.Tags,
 		FocusDateISO:         focusDate.In(h.location).Format("2006-01-02"),
 		FocusYear:            focusDate.In(h.location).Format("2006"),
 		FocusMonth:           focusDate.In(h.location).Format("01"),
