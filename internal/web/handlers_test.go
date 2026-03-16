@@ -83,19 +83,73 @@ func TestBuildFocusTaskCardsSortsByImportanceThenUrgency(t *testing.T) {
 	}
 }
 
+func TestBuildFocusTaskCardsShowsDDLOnlyBetweenCreatedDayAndDeadlineDay(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 3, 16, 10, 15, 0, 0, location)
+	createdAt := time.Date(2026, 3, 16, 8, 0, 0, 0, location)
+	deadline := time.Date(2026, 3, 18, 20, 0, 0, 0, location)
+
+	dashboard := repository.Dashboard{
+		DDL: []domain.Task{
+			{
+				ID:         uuid.New(),
+				Title:      "窗口内可见",
+				Type:       domain.TaskTypeDDL,
+				Importance: 3,
+				Deadline:   &deadline,
+				CreatedAt:  createdAt,
+			},
+		},
+	}
+
+	beforeCreate := buildFocusTaskCards(dashboard, now, time.Date(2026, 3, 15, 0, 0, 0, 0, location), location)
+	if len(beforeCreate) != 0 {
+		t.Fatalf("before create len = %d, want 0", len(beforeCreate))
+	}
+
+	onCreate := buildFocusTaskCards(dashboard, now, time.Date(2026, 3, 16, 0, 0, 0, 0, location), location)
+	if len(onCreate) != 1 {
+		t.Fatalf("on create len = %d, want 1", len(onCreate))
+	}
+
+	onDeadline := buildFocusTaskCards(dashboard, now, time.Date(2026, 3, 18, 0, 0, 0, 0, location), location)
+	if len(onDeadline) != 1 {
+		t.Fatalf("on deadline len = %d, want 1", len(onDeadline))
+	}
+
+	afterDeadline := buildFocusTaskCards(dashboard, now, time.Date(2026, 3, 19, 0, 0, 0, 0, location), location)
+	if len(afterDeadline) != 0 {
+		t.Fatalf("after deadline len = %d, want 0", len(afterDeadline))
+	}
+}
+
 func TestFormatDDLCountdownSwitchesFromDaysToHoursToMinutes(t *testing.T) {
 	location := time.FixedZone("CST", 8*3600)
 	deadline := time.Date(2026, 3, 1, 20, 0, 0, 0, location)
 
-	if got := formatDDLCountdown(deadline, time.Date(2026, 2, 28, 9, 0, 0, 0, location), location); got != "还有 1 天" {
+	if got := formatDDLCountdown(deadline, time.Date(2026, 2, 28, 9, 0, 0, 0, location), time.Date(2026, 2, 28, 9, 0, 0, 0, location), location); got != "还有 1 天" {
 		t.Fatalf("day countdown = %q, want %q", got, "还有 1 天")
 	}
 
-	if got := formatDDLCountdown(deadline, time.Date(2026, 3, 1, 0, 30, 0, 0, location), location); got != "还有 20 小时" {
+	if got := formatDDLCountdown(deadline, time.Date(2026, 3, 1, 0, 30, 0, 0, location), time.Date(2026, 3, 1, 0, 0, 0, 0, location), location); got != "还有 20 小时" {
 		t.Fatalf("hour countdown = %q, want %q", got, "还有 20 小时")
 	}
 
-	if got := formatDDLCountdown(deadline, time.Date(2026, 3, 1, 19, 21, 0, 0, location), location); got != "还有 39 分钟" {
+	if got := formatDDLCountdown(deadline, time.Date(2026, 3, 1, 19, 21, 0, 0, location), time.Date(2026, 3, 1, 0, 0, 0, 0, location), location); got != "还有 39 分钟" {
 		t.Fatalf("minute countdown = %q, want %q", got, "还有 39 分钟")
+	}
+}
+
+func TestFormatDDLCountdownUsesFocusDateForNonTodayViews(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 3, 16, 10, 0, 0, 0, location)
+	deadline := time.Date(2026, 3, 21, 20, 0, 0, 0, location)
+
+	if got := formatDDLCountdown(deadline, now, time.Date(2026, 3, 18, 0, 0, 0, 0, location), location); got != "还有 3 天" {
+		t.Fatalf("focused future countdown = %q, want %q", got, "还有 3 天")
+	}
+
+	if got := formatDDLCountdown(deadline, now, time.Date(2026, 3, 21, 0, 0, 0, 0, location), location); got != "今天" {
+		t.Fatalf("focused same-day countdown = %q, want %q", got, "今天")
 	}
 }

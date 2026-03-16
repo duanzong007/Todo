@@ -841,6 +841,9 @@ func buildFocusTaskCards(dashboard repository.Dashboard, now, focusDate time.Tim
 		tasks = append(tasks, task)
 	}
 	for _, task := range dashboard.DDL {
+		if !shouldDisplayDDLOnFocusDate(task, focusDate, location) {
+			continue
+		}
 		tasks = append(tasks, task)
 	}
 	for _, task := range dashboard.Todo {
@@ -855,6 +858,24 @@ func buildFocusTaskCards(dashboard repository.Dashboard, now, focusDate time.Tim
 	}
 
 	return cards
+}
+
+func shouldDisplayDDLOnFocusDate(task domain.Task, focusDate time.Time, location *time.Location) bool {
+	if task.Type != domain.TaskTypeDDL || task.Deadline == nil {
+		return false
+	}
+
+	focusDay := normalizeDateForView(focusDate, location)
+	createdDay := normalizeDateForView(task.CreatedAt, location)
+	deadlineDay := normalizeDateForView(*task.Deadline, location)
+
+	if focusDay.Before(createdDay) {
+		return false
+	}
+	if focusDay.After(deadlineDay) {
+		return false
+	}
+	return true
 }
 
 func buildTaskCard(task domain.Task, now, focusDate time.Time, location *time.Location) TaskCard {
@@ -879,7 +900,7 @@ func buildTaskCard(task domain.Task, now, focusDate time.Time, location *time.Lo
 		card.KindLabel = "DDL"
 		card.KindClass = "ddl"
 		if task.Deadline != nil {
-			card.StatusLine = formatDDLCountdown(*task.Deadline, now, location)
+			card.StatusLine = formatDDLCountdown(*task.Deadline, now, focusDate, location)
 		}
 		card.PostponeMode = "datetime"
 		card.PostponeValue, card.PostponeMin = ddlPostponePickerValues(task, now, location)
@@ -904,8 +925,8 @@ func sortTasksForFocus(tasks []domain.Task, now, focusDate time.Time, location *
 		left := tasks[i]
 		right := tasks[j]
 
-		leftHourlyDDL := isHourlyCountdownDDL(left, now, location)
-		rightHourlyDDL := isHourlyCountdownDDL(right, now, location)
+		leftHourlyDDL := isHourlyCountdownDDL(left, now, focusDate, location)
+		rightHourlyDDL := isHourlyCountdownDDL(right, now, focusDate, location)
 		if leftHourlyDDL != rightHourlyDDL {
 			return leftHourlyDDL
 		}
@@ -966,26 +987,36 @@ func taskTypeSortRank(taskType domain.TaskType) int {
 	}
 }
 
-func isHourlyCountdownDDL(task domain.Task, now time.Time, location *time.Location) bool {
+func isHourlyCountdownDDL(task domain.Task, now, focusDate time.Time, location *time.Location) bool {
 	if task.Type != domain.TaskTypeDDL || task.Deadline == nil {
 		return false
 	}
-	return normalizeDateForView(*task.Deadline, location).Equal(normalizeDateForView(now, location))
+	actualToday := normalizeDateForView(now, location)
+	focusDay := normalizeDateForView(focusDate, location)
+	if !focusDay.Equal(actualToday) {
+		return false
+	}
+	return normalizeDateForView(*task.Deadline, location).Equal(focusDay)
 }
 
-func formatDDLCountdown(deadline, now time.Time, location *time.Location) string {
+func formatDDLCountdown(deadline, now, focusDate time.Time, location *time.Location) string {
 	deadlineLocal := deadline.In(location)
 	nowLocal := now.In(location)
 	deadlineDay := normalizeDateForView(deadlineLocal, location)
-	today := normalizeDateForView(nowLocal, location)
+	focusDay := normalizeDateForView(focusDate, location)
+	actualToday := normalizeDateForView(nowLocal, location)
 
 	switch {
-	case deadlineDay.After(today):
-		diffDays := int(deadlineDay.Sub(today).Hours() / 24)
+	case deadlineDay.After(focusDay):
+		diffDays := int(deadlineDay.Sub(focusDay).Hours() / 24)
 		return fmt.Sprintf("还有 %d 天", diffDays)
-	case deadlineDay.Before(today):
-		diffDays := int(today.Sub(deadlineDay).Hours() / 24)
+	case deadlineDay.Before(focusDay):
+		diffDays := int(focusDay.Sub(deadlineDay).Hours() / 24)
 		return fmt.Sprintf("已过期 %d 天", diffDays)
+	}
+
+	if !focusDay.Equal(actualToday) {
+		return "今天"
 	}
 
 	remaining := deadlineLocal.Sub(nowLocal)
@@ -1025,7 +1056,7 @@ func buildCompletedTaskCards(tasks []domain.Task, now, focusDate time.Time, loca
 			card.PostponeValue, card.PostponeMin = schedulePostponePickerValues(task, now, location)
 		case domain.TaskTypeDDL:
 			if task.Deadline != nil {
-				card.StatusLine = formatDDLCountdown(*task.Deadline, now, location)
+				card.StatusLine = formatDDLCountdown(*task.Deadline, now, focusDate, location)
 			}
 			card.PostponeMode = "datetime"
 			card.PostponeValue, card.PostponeMin = ddlPostponePickerValues(task, now, location)
