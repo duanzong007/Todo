@@ -1,0 +1,20 @@
+services:
+  app:
+    image: todo-app:synology-amd64
+    container_name: todo-app
+    restart: unless-stopped
+    environment:
+      APP_ADDR: ":8080"
+      APP_TIMEZONE: ${APP_TIMEZONE}
+      AUTO_MIGRATE: ${AUTO_MIGRATE}
+      MIGRATIONS_DIR: db/migrations
+      ICS_IMPORT_HORIZON_DAYS: ${ICS_IMPORT_HORIZON_DAYS}
+      MAX_UPLOAD_SIZE_BYTES: ${MAX_UPLOAD_SIZE_BYTES}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS}
+      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION}
+      DATABASE_URL: ${DATABASE_URL}
+      QUOTES_DATABASE_URL: ${QUOTES_DATABASE_URL}
+    ports:
+      - "${APP_PORT}:8080"

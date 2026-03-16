@@ -101,6 +101,19 @@ docker compose up --build
 
 访问：`http://localhost:8080`
 
+## 群晖部署
+
+如果你要从 macOS 导出给群晖 `x86_64` 使用，直接看：
+
+- [deploy/synology/README.md](/Users/adg/Documents/code/Todo/deploy/synology/README.md)
+
+里面已经包含：
+
+- 强制导出 `linux/amd64` 镜像的脚本
+- 群晖可导入的镜像 tar
+- 带数据库 / 外部数据库 两套 compose
+- 逐步命令说明
+
 ## 文本解析规则
 
 当前 MVP 已支持的典型输入：
