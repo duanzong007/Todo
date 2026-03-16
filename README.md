@@ -18,6 +18,7 @@
 - 中文文本规则解析
 - 快递短信解析为持久 Todo
 - ICS 文件导入为 Schedule
+- PWA 安装支持，可在 Chrome 中安装为应用
 - DDL / Todo 完成
 - DDL / Schedule 延期
 - Web Dashboard 展示 `今天 / DDL / Todo`
@@ -167,6 +168,20 @@ MVP 版支持：
 已完成：
 
 - `go test ./...`
+
+## PWA
+
+当前已接入浏览器可识别的 PWA 资源：
+
+- `manifest.webmanifest`
+- `service worker`
+- `apple-touch-icon / 192 / 512 / maskable` 图标
+
+如果你替换了根目录的 `logo.png`，可以重新生成图标：
+
+```bash
+./scripts/generate_pwa_assets.sh
+```
 
 ## 下一步建议
 

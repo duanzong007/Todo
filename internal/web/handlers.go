@@ -179,6 +179,9 @@ func (h *Handler) Router() http.Handler {
 
 	fileServer := http.FileServer(http.Dir(h.staticDir))
 	router.Handle("/static/*", http.StripPrefix("/static/", fileServer))
+	router.Get("/favicon.ico", h.handleFavicon)
+	router.Get("/manifest.webmanifest", h.handleManifest)
+	router.Get("/sw.js", h.handleServiceWorker)
 
 	router.Get("/login", h.handleLoginPage)
 	router.Post("/login", h.handleLogin)
@@ -209,6 +212,24 @@ func (h *Handler) Router() http.Handler {
 	})
 
 	return router
+}
+
+func (h *Handler) handleManifest(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/manifest+json")
+	w.Header().Set("Cache-Control", "no-cache")
+	http.ServeFile(w, r, filepath.Join(h.staticDir, "manifest.webmanifest"))
+}
+
+func (h *Handler) handleFavicon(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "image/x-icon")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	http.ServeFile(w, r, filepath.Join(h.staticDir, "pwa", "favicon.ico"))
+}
+
+func (h *Handler) handleServiceWorker(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	http.ServeFile(w, r, filepath.Join(h.staticDir, "sw.js"))
 }
 
 func (h *Handler) handleLoginPage(w http.ResponseWriter, r *http.Request) {
