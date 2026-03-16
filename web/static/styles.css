@@ -131,34 +131,19 @@ body {
     margin-bottom: 24px;
 }
 
-.capture-form,
-.ics-form {
-    display: grid;
-    gap: 10px;
-}
-
-.ics-form {
-    margin-top: 18px;
-    padding-top: 18px;
-    border-top: 1px solid var(--line);
-}
-
 label {
     font-size: 0.92rem;
     color: var(--muted);
     font-weight: 600;
 }
 
-.capture-row {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
 input[type="text"],
 input[type="password"],
 input[type="file"],
-input[type="date"] {
+input[type="date"],
+input[type="time"],
+select,
+textarea {
     min-height: 48px;
     border-radius: 16px;
     border: 1px solid var(--line);
@@ -166,6 +151,12 @@ input[type="date"] {
     color: var(--ink);
     padding: 0 14px;
     font: inherit;
+}
+
+textarea {
+    min-height: 112px;
+    padding: 12px 14px;
+    resize: vertical;
 }
 
 input[type="text"] {
@@ -460,6 +451,180 @@ button.danger:hover {
 
 .composer-head {
     margin-bottom: 14px;
+}
+
+.composer-shell {
+    display: grid;
+    gap: 12px;
+}
+
+.composer-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.composer-tabs {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+}
+
+.composer-tools-shortcuts {
+    display: flex;
+    gap: 7px;
+    justify-content: flex-end;
+    margin-left: auto;
+    flex: 0 0 auto;
+}
+
+.composer-hidden-upload {
+    display: none;
+}
+
+.composer-tab {
+    min-height: 34px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(92, 48, 23, 0.08);
+    background: rgba(240, 219, 199, 0.38);
+    color: rgba(92, 48, 23, 0.82);
+    font-size: 0.84rem;
+    font-weight: 700;
+}
+
+.composer-tab:hover {
+    background: rgba(240, 219, 199, 0.58);
+}
+
+.composer-tab.is-active {
+    background: rgba(197, 109, 58, 0.16);
+    color: #7c431f;
+}
+
+.composer-tab-utility {
+    background: rgba(255, 255, 255, 0.62);
+}
+
+.composer-sections {
+    display: grid;
+    gap: 10px;
+}
+
+.composer-form {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 18px;
+    border: 1px solid rgba(38, 33, 27, 0.08);
+    background: rgba(255, 248, 239, 0.78);
+}
+
+.composer-form[hidden] {
+    display: none !important;
+}
+
+.composer-form-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr;
+}
+
+.composer-field {
+    display: grid;
+    gap: 8px;
+}
+
+.composer-shortcuts {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.composer-shortcut {
+    min-height: 30px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(92, 48, 23, 0.08);
+    background: rgba(240, 219, 199, 0.42);
+    color: rgba(92, 48, 23, 0.82);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.composer-shortcut:hover {
+    background: rgba(240, 219, 199, 0.62);
+}
+
+.composer-field-compact {
+    align-content: start;
+}
+
+.composer-field-full {
+    grid-column: 1 / -1;
+}
+
+.composer-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.star-rating {
+    display: inline-flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.star-rating input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.star-rating label {
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+    color: rgba(158, 129, 102, 0.36);
+    transition: color 140ms ease, transform 140ms ease;
+}
+
+.star-rating label:hover,
+.star-rating label:hover ~ label,
+.star-rating input:checked ~ label {
+    color: rgba(197, 109, 58, 0.92);
+}
+
+.star-rating label:active {
+    transform: scale(0.94);
+}
+
+.composer-wheel-picker {
+    width: fit-content;
+    max-width: 100%;
+    min-height: 46px;
+    gap: 6px;
+    padding: 6px 10px;
+}
+
+.composer-wheel-picker .wheel-column {
+    width: 42px;
+}
+
+.composer-wheel-picker .wheel-column[data-part="year"] {
+    width: 62px;
+}
+
+.composer-tool-head h3 {
+    margin: 2px 0 0;
+    font-size: 0.98rem;
+    color: #2f2720;
+}
+
+.composer-tool-head .section-kicker {
+    margin-bottom: 0;
 }
 
 .section-kicker {
@@ -1235,7 +1400,7 @@ button.complete-toggle:hover {
     position: absolute;
     right: 0;
     bottom: 78px;
-    width: min(560px, calc(100vw - 24px));
+    width: min(480px, calc(100vw - 24px));
 }
 
 .account-page {
@@ -1324,8 +1489,17 @@ button.complete-toggle:hover {
         width: 100%;
     }
 
-    .capture-row {
+    .composer-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .composer-bar {
+        align-items: flex-start;
         flex-direction: column;
+    }
+
+    .composer-tools-shortcuts {
+        margin-left: 0;
     }
 
     .approval-card {

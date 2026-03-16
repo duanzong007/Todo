@@ -65,6 +65,9 @@ function hydrateFocusPage(root = document) {
   if (window.initializeDatePickers) {
     window.initializeDatePickers(root);
   }
+  if (window.initializeComposerPanels) {
+    window.initializeComposerPanels(root);
+  }
   if (window.initializeTaskCards) {
     window.initializeTaskCards(root);
   }

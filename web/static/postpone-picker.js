@@ -162,7 +162,7 @@
 
     const mode = root.dataset.pickerMode === "datetime" ? "datetime" : "date";
     const parts = PARTS_BY_MODE[mode];
-    const targetInput = root.querySelector("input[name='target_value']");
+    const targetInput = root.querySelector("[data-picker-value]") || root.querySelector("input[type='hidden']");
     const columns = {};
     const motions = {};
     const inputBuffers = {};
@@ -182,13 +182,17 @@
       inputTimers[part] = 0;
     });
 
+    const enforceCurrentMin = root.hasAttribute("data-postpone-picker") || root.dataset.enforceCurrentMin === "1";
     const configuredMinDate = parseValue(mode, root.dataset.minValue);
-    const currentMinDate = currentMinimumForMode(mode);
-    const minDate = configuredMinDate && configuredMinDate > currentMinDate
-      ? configuredMinDate
-      : currentMinDate;
+    const currentMinDate = enforceCurrentMin ? currentMinimumForMode(mode) : null;
+    let minDate = configuredMinDate || null;
+    if (currentMinDate && (!minDate || currentMinDate > minDate)) {
+      minDate = currentMinDate;
+    }
     const initialDate = parseValue(mode, root.dataset.initialValue || targetInput?.value || "") || minDate || new Date();
-    root.dataset.minValue = formatValue(mode, dateToState(minDate));
+    if (minDate) {
+      root.dataset.minValue = formatValue(mode, dateToState(minDate));
+    }
 
     const picker = {
       root,
@@ -622,7 +626,7 @@
   }
 
   function initPostponePickers(root = document) {
-    root.querySelectorAll("[data-postpone-picker]").forEach((element) => {
+    root.querySelectorAll("[data-postpone-picker], [data-composer-picker]").forEach((element) => {
       if (element.dataset.postponePickerBound === "1") {
         return;
       }
@@ -658,7 +662,23 @@
     }
   }
 
+  function setWheelPickerValue(root, rawValue) {
+    if (!root) {
+      return false;
+    }
+    const picker = getPicker(root);
+    const parsed = parseValue(picker.mode, rawValue);
+    if (!parsed) {
+      return false;
+    }
+    picker.state = normalizeState(picker.mode, dateToState(parsed), picker.minDate);
+    render(picker);
+    scheduleCollapse(picker);
+    return true;
+  }
+
   window.initializePostponePickers = initPostponePickers;
+  window.setWheelPickerValue = setWheelPickerValue;
   document.addEventListener("DOMContentLoaded", () => {
     initPostponePickers(document);
   });

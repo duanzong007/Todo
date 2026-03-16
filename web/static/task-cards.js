@@ -46,7 +46,7 @@ function beginPendingTaskRequest(options = {}) {
 }
 
 function currentFocusDateValue() {
-  const fromComposer = document.querySelector(".capture-form input[name='return_date']");
+  const fromComposer = document.querySelector(".composer-panel input[name='return_date']");
   if (fromComposer?.value) {
     return fromComposer.value;
   }

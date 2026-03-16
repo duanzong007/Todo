@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,11 +61,98 @@ func (s *TaskService) CreateFromInputWithImportance(ctx context.Context, userID 
 		return domain.Task{}, err
 	}
 	if importance != 0 {
-		normalizedImportance, err := domain.NormalizeTaskImportance(importance)
+		normalizedImportance, err := normalizeImportanceValue(importance)
 		if err != nil {
-			if errors.Is(err, domain.ErrInvalidTaskImportance) {
-				return domain.Task{}, fmt.Errorf("重要等级只能在 %d 到 %d 之间", domain.MinTaskImportance, domain.MaxTaskImportance)
-			}
+			return domain.Task{}, err
+		}
+		parsed.Task.Importance = normalizedImportance
+	}
+
+	source := repository.SourceInput{
+		Type:       parsed.SourceType,
+		RawContent: input,
+		Summary:    parsed.SourceSummary,
+		Checksum:   checksumString(input),
+		Metadata:   parsed.SourceMetadata,
+	}
+
+	return s.repo.CreateTask(ctx, userID, source, parsed.Task)
+}
+
+func (s *TaskService) CreateManualTask(ctx context.Context, userID uuid.UUID, input repository.TaskInput) (domain.Task, error) {
+	title := strings.TrimSpace(input.Title)
+	if title == "" {
+		return domain.Task{}, fmt.Errorf("标题不能为空")
+	}
+
+	normalizedImportance, err := normalizeImportanceValue(input.Importance)
+	if err != nil {
+		return domain.Task{}, err
+	}
+
+	cleanInput := repository.TaskInput{
+		Title:      title,
+		Note:       strings.TrimSpace(input.Note),
+		Type:       input.Type,
+		Importance: normalizedImportance,
+		Metadata: map[string]any{
+			"creator": "manual_form",
+		},
+	}
+
+	switch input.Type {
+	case domain.TaskTypeTodo:
+	case domain.TaskTypeSchedule:
+		if input.ScheduledFor == nil {
+			return domain.Task{}, fmt.Errorf("请选择日程日期")
+		}
+		dateValue := normalizeDateInLocation(*input.ScheduledFor, s.location)
+		cleanInput.ScheduledFor = &dateValue
+	case domain.TaskTypeDDL:
+		if input.Deadline == nil {
+			return domain.Task{}, fmt.Errorf("请选择截止时间")
+		}
+		deadline := time.Date(
+			input.Deadline.In(s.location).Year(),
+			input.Deadline.In(s.location).Month(),
+			input.Deadline.In(s.location).Day(),
+			input.Deadline.In(s.location).Hour(),
+			input.Deadline.In(s.location).Minute(),
+			0,
+			0,
+			s.location,
+		)
+		cleanInput.Deadline = &deadline
+	default:
+		return domain.Task{}, repository.ErrUnsupportedOperation
+	}
+
+	source := repository.SourceInput{
+		Type:       domain.SourceTypeManualText,
+		RawContent: manualSourceRawContent(cleanInput),
+		Summary:    cleanInput.Title,
+		Checksum:   checksumString(manualSourceRawContent(cleanInput)),
+		Metadata: map[string]any{
+			"entry":     "manual_form",
+			"task_type": string(cleanInput.Type),
+		},
+	}
+
+	return s.repo.CreateTask(ctx, userID, source, cleanInput)
+}
+
+func (s *TaskService) CreateFromSMSParse(ctx context.Context, userID uuid.UUID, input string, importance int) (domain.Task, error) {
+	parsed, err := s.parser.Parse(input, time.Now().In(s.location))
+	if err != nil {
+		return domain.Task{}, err
+	}
+	if parsed.SourceType != domain.SourceTypeSMSPaste {
+		return domain.Task{}, fmt.Errorf("暂时只支持解析快递短信")
+	}
+
+	if importance != 0 {
+		normalizedImportance, err := normalizeImportanceValue(importance)
+		if err != nil {
 			return domain.Task{}, err
 		}
 		parsed.Task.Importance = normalizedImportance
@@ -143,6 +231,35 @@ func checksumString(input string) string {
 func checksumBytes(body []byte) string {
 	sum := sha256.Sum256(body)
 	return hex.EncodeToString(sum[:])
+}
+
+func normalizeImportanceValue(value int) (int, error) {
+	normalizedImportance, err := domain.NormalizeTaskImportance(value)
+	if err != nil {
+		if errors.Is(err, domain.ErrInvalidTaskImportance) {
+			return 0, fmt.Errorf("重要等级只能在 %d 到 %d 之间", domain.MinTaskImportance, domain.MaxTaskImportance)
+		}
+		return 0, err
+	}
+	return normalizedImportance, nil
+}
+
+func manualSourceRawContent(input repository.TaskInput) string {
+	lines := []string{
+		"type=" + string(input.Type),
+		"title=" + input.Title,
+		"importance=" + strconv.Itoa(input.Importance),
+	}
+	if input.Note != "" {
+		lines = append(lines, "note="+input.Note)
+	}
+	if input.ScheduledFor != nil {
+		lines = append(lines, "scheduled_for="+input.ScheduledFor.In(time.UTC).Format(time.RFC3339))
+	}
+	if input.Deadline != nil {
+		lines = append(lines, "deadline="+input.Deadline.In(time.UTC).Format(time.RFC3339))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func mergeDeadlineDateWithExistingClock(targetDate time.Time, existing *time.Time, location *time.Location) time.Time {

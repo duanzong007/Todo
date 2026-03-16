@@ -63,6 +63,9 @@ type DashboardPageData struct {
 	FocusWeekdayLabel    string
 	FocusDayMarks        []string
 	FocusDateISO         string
+	TodayDateISO         string
+	TomorrowDateISO      string
+	DayAfterDateISO      string
 	FocusYear            string
 	FocusMonth           string
 	FocusDay             string
@@ -190,6 +193,8 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/dashboard/snapshot", h.handleDashboardSnapshot)
 		r.Get("/me", h.handleAccountPage)
 		r.Post("/tasks", h.handleCreateTask)
+		r.Post("/tasks/manual", h.handleCreateManualTask)
+		r.Post("/tasks/parse-sms", h.handleParseSMS)
 		r.Post("/tasks/{taskID}/complete", h.handleCompleteTask)
 		r.Post("/tasks/{taskID}/restore", h.handleRestoreTask)
 		r.Post("/tasks/{taskID}/postpone", h.handlePostponeTask)
@@ -379,6 +384,88 @@ func (h *Handler) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	h.redirectHome(w, r, "", "")
 }
 
+func (h *Handler) handleCreateManualTask(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		h.redirectHome(w, r, "", "请求解析失败")
+		return
+	}
+
+	input, err := h.parseManualTaskForm(r)
+	if err != nil {
+		if wantsAsyncResponse(r) {
+			http.Error(w, humanizeError(err), http.StatusBadRequest)
+			return
+		}
+		h.redirectHome(w, r, "", humanizeError(err))
+		return
+	}
+
+	if _, err := h.taskService.CreateManualTask(r.Context(), user.ID, input); err != nil {
+		if wantsAsyncResponse(r) {
+			http.Error(w, humanizeError(err), http.StatusBadRequest)
+			return
+		}
+		h.redirectHome(w, r, "", humanizeError(err))
+		return
+	}
+
+	if wantsAsyncResponse(r) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	h.redirectHome(w, r, "", "")
+}
+
+func (h *Handler) handleParseSMS(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		h.redirectHome(w, r, "", "请求解析失败")
+		return
+	}
+
+	input := strings.TrimSpace(r.FormValue("sms_input"))
+	if input == "" {
+		h.redirectHome(w, r, "", "短信内容不能为空")
+		return
+	}
+
+	importance, err := parseOptionalImportance(r.FormValue("importance"))
+	if err != nil {
+		if wantsAsyncResponse(r) {
+			http.Error(w, humanizeError(err), http.StatusBadRequest)
+			return
+		}
+		h.redirectHome(w, r, "", humanizeError(err))
+		return
+	}
+
+	if _, err := h.taskService.CreateFromSMSParse(r.Context(), user.ID, input, importance); err != nil {
+		if wantsAsyncResponse(r) {
+			http.Error(w, humanizeError(err), http.StatusBadRequest)
+			return
+		}
+		h.redirectHome(w, r, "", humanizeError(err))
+		return
+	}
+
+	if wantsAsyncResponse(r) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	h.redirectHome(w, r, "", "")
+}
+
 func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 	user, ok := h.currentUser(r)
 	if !ok {
@@ -544,6 +631,9 @@ func (h *Handler) buildDashboardPageData(ctx context.Context, user domain.User, 
 		FocusWeekdayLabel:    calendarMeta.WeekdayLabel,
 		FocusDayMarks:        calendarMeta.Tags,
 		FocusDateISO:         focusDate.In(h.location).Format("2006-01-02"),
+		TodayDateISO:         today.Format("2006-01-02"),
+		TomorrowDateISO:      today.AddDate(0, 0, 1).Format("2006-01-02"),
+		DayAfterDateISO:      today.AddDate(0, 0, 2).Format("2006-01-02"),
 		FocusYear:            focusDate.In(h.location).Format("2006"),
 		FocusMonth:           focusDate.In(h.location).Format("01"),
 		FocusDay:             focusDate.In(h.location).Format("02"),
@@ -1172,6 +1262,61 @@ func parseOptionalImportance(raw string) (int, error) {
 		return 0, fmt.Errorf("重要等级只能在 %d 到 %d 之间", domain.MinTaskImportance, domain.MaxTaskImportance)
 	}
 	return normalized, nil
+}
+
+func (h *Handler) parseManualTaskForm(r *http.Request) (repository.TaskInput, error) {
+	taskType := domain.TaskType(strings.TrimSpace(r.FormValue("task_type")))
+	title := strings.TrimSpace(r.FormValue("title"))
+	note := strings.TrimSpace(r.FormValue("note"))
+
+	importance, err := parseOptionalImportance(r.FormValue("importance"))
+	if err != nil {
+		return repository.TaskInput{}, err
+	}
+
+	input := repository.TaskInput{
+		Title:      title,
+		Note:       note,
+		Type:       taskType,
+		Importance: importance,
+	}
+
+	switch taskType {
+	case domain.TaskTypeTodo:
+		return input, nil
+	case domain.TaskTypeSchedule:
+		rawDate := strings.TrimSpace(r.FormValue("scheduled_value"))
+		if rawDate == "" {
+			rawDate = strings.TrimSpace(r.FormValue("scheduled_date"))
+		}
+		if rawDate == "" {
+			return repository.TaskInput{}, fmt.Errorf("请选择日程日期")
+		}
+		dateValue, err := time.ParseInLocation("2006-01-02", rawDate, h.location)
+		if err != nil {
+			return repository.TaskInput{}, fmt.Errorf("日程日期格式不正确")
+		}
+		input.ScheduledFor = &dateValue
+		return input, nil
+	case domain.TaskTypeDDL:
+		rawDateTime := strings.TrimSpace(r.FormValue("deadline_value"))
+		if rawDateTime == "" {
+			rawDate := strings.TrimSpace(r.FormValue("deadline_date"))
+			rawTime := strings.TrimSpace(r.FormValue("deadline_time"))
+			if rawDate == "" || rawTime == "" {
+				return repository.TaskInput{}, fmt.Errorf("请选择截止日期和时间")
+			}
+			rawDateTime = rawDate + "T" + rawTime
+		}
+		deadline, err := time.ParseInLocation("2006-01-02T15:04", rawDateTime, h.location)
+		if err != nil {
+			return repository.TaskInput{}, fmt.Errorf("截止时间格式不正确")
+		}
+		input.Deadline = &deadline
+		return input, nil
+	default:
+		return repository.TaskInput{}, fmt.Errorf("任务类型不正确")
+	}
 }
 
 func buildDatePath(targetDate time.Time, location *time.Location) string {
