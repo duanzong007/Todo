@@ -21,6 +21,12 @@ const (
 	TaskStatusDone   TaskStatus = "done"
 )
 
+const (
+	MinTaskImportance     = 1
+	DefaultTaskImportance = 3
+	MaxTaskImportance     = 5
+)
+
 type SourceType string
 
 const (
@@ -36,6 +42,7 @@ type Task struct {
 	Note           string
 	Type           TaskType
 	Status         TaskStatus
+	Importance     int
 	ScheduledFor   *time.Time
 	Deadline       *time.Time
 	CompletedAt    *time.Time
@@ -51,4 +58,14 @@ func (t Task) SupportsCompletion() bool {
 
 func (t Task) SupportsPostpone() bool {
 	return t.Type == TaskTypeSchedule || t.Type == TaskTypeDDL
+}
+
+func NormalizeTaskImportance(value int) (int, error) {
+	if value == 0 {
+		return DefaultTaskImportance, nil
+	}
+	if value < MinTaskImportance || value > MaxTaskImportance {
+		return 0, ErrInvalidTaskImportance
+	}
+	return value, nil
 }

@@ -90,6 +90,7 @@ func (p *TextParser) Parse(input string, now time.Time) (ParsedTask, error) {
 			Title:        title,
 			Note:         "",
 			Type:         taskType,
+			Importance:   domain.DefaultTaskImportance,
 			ScheduledFor: scheduledFor,
 			Deadline:     deadline,
 			Metadata:     metadata,
@@ -132,10 +133,11 @@ func (p *TextParser) parsePickupSMS(input string) (ParsedTask, bool) {
 			"parser": "pickup_sms",
 		},
 		Task: repository.TaskInput{
-			Title:    "取快递",
-			Note:     note,
-			Type:     domain.TaskTypeTodo,
-			Metadata: metadata,
+			Title:      "取快递",
+			Note:       note,
+			Type:       domain.TaskTypeTodo,
+			Importance: domain.DefaultTaskImportance,
+			Metadata:   metadata,
 		},
 	}, true
 }

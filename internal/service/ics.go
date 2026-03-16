@@ -68,6 +68,7 @@ func (i *ICSImporter) Parse(filename string, body []byte, now time.Time) (ICSImp
 				Title:        event.Summary,
 				Note:         formatICSNote(event, occurrence, i.location),
 				Type:         domain.TaskTypeSchedule,
+				Importance:   domain.DefaultTaskImportance,
 				ScheduledFor: &scheduledDate,
 				Metadata:     metadata,
 			})

@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -327,7 +330,13 @@ func (h *Handler) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.taskService.CreateFromInput(r.Context(), user.ID, input); err != nil {
+	importance, err := parseOptionalImportance(r.FormValue("importance"))
+	if err != nil {
+		h.redirectHome(w, r, "", humanizeError(err))
+		return
+	}
+
+	if _, err := h.taskService.CreateFromInputWithImportance(r.Context(), user.ID, input, importance); err != nil {
 		h.redirectHome(w, r, "", humanizeError(err))
 		return
 	}
@@ -695,17 +704,25 @@ func buildQuoteView(quote service.Quote) *QuoteView {
 }
 
 func buildFocusTaskCards(dashboard repository.Dashboard, focusDate time.Time, location *time.Location) []TaskCard {
-	var cards []TaskCard
+	var tasks []domain.Task
 
 	for _, task := range dashboard.Today {
-		cards = append(cards, buildTaskCard(task, focusDate, location))
+		tasks = append(tasks, task)
 	}
 	for _, task := range dashboard.DDL {
-		cards = append(cards, buildTaskCard(task, focusDate, location))
+		tasks = append(tasks, task)
 	}
 	for _, task := range dashboard.Todo {
+		tasks = append(tasks, task)
+	}
+
+	sortTasksForFocus(tasks, focusDate, location)
+
+	cards := make([]TaskCard, 0, len(tasks))
+	for _, task := range tasks {
 		cards = append(cards, buildTaskCard(task, focusDate, location))
 	}
+
 	return cards
 }
 
@@ -756,6 +773,85 @@ func buildTaskCard(task domain.Task, focusDate time.Time, location *time.Locatio
 	}
 
 	return card
+}
+
+func sortTasksForFocus(tasks []domain.Task, focusDate time.Time, location *time.Location) {
+	focusDate = normalizeDateForView(focusDate, location)
+
+	sort.SliceStable(tasks, func(i, j int) bool {
+		left := tasks[i]
+		right := tasks[j]
+
+		if left.Importance != right.Importance {
+			return left.Importance > right.Importance
+		}
+
+		leftUrgency := taskUrgencyDays(left, focusDate, location)
+		rightUrgency := taskUrgencyDays(right, focusDate, location)
+		if leftUrgency != rightUrgency {
+			return leftUrgency < rightUrgency
+		}
+
+		leftTypeRank := taskTypeSortRank(left.Type)
+		rightTypeRank := taskTypeSortRank(right.Type)
+		if leftTypeRank != rightTypeRank {
+			return leftTypeRank < rightTypeRank
+		}
+
+		if !left.CreatedAt.Equal(right.CreatedAt) {
+			return left.CreatedAt.Before(right.CreatedAt)
+		}
+
+		return left.ID.String() < right.ID.String()
+	})
+}
+
+func taskUrgencyDays(task domain.Task, focusDate time.Time, location *time.Location) int {
+	switch task.Type {
+	case domain.TaskTypeSchedule:
+		if task.ScheduledFor == nil {
+			return math.MaxInt / 4
+		}
+		dateValue := normalizeDateForView(*task.ScheduledFor, location)
+		return int(dateValue.Sub(focusDate).Hours() / 24)
+	case domain.TaskTypeDDL:
+		if task.Deadline == nil {
+			return math.MaxInt / 4
+		}
+		dateValue := normalizeDateForView(*task.Deadline, location)
+		return int(dateValue.Sub(focusDate).Hours() / 24)
+	default:
+		return math.MaxInt / 2
+	}
+}
+
+func taskTypeSortRank(taskType domain.TaskType) int {
+	switch taskType {
+	case domain.TaskTypeSchedule:
+		return 0
+	case domain.TaskTypeDDL:
+		return 1
+	default:
+		return 2
+	}
+}
+
+func parseOptionalImportance(raw string) (int, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return 0, nil
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("重要等级只能在 %d 到 %d 之间", domain.MinTaskImportance, domain.MaxTaskImportance)
+	}
+
+	normalized, err := domain.NormalizeTaskImportance(parsed)
+	if err != nil {
+		return 0, fmt.Errorf("重要等级只能在 %d 到 %d 之间", domain.MinTaskImportance, domain.MaxTaskImportance)
+	}
+	return normalized, nil
 }
 
 func buildDatePath(targetDate time.Time, location *time.Location) string {
@@ -833,6 +929,8 @@ func humanizeError(err error) string {
 		return "这个任务不支持该操作"
 	case errors.Is(err, repository.ErrInvalidTaskTransition):
 		return "当前任务状态不允许该操作"
+	case errors.Is(err, domain.ErrInvalidTaskImportance):
+		return fmt.Sprintf("重要等级只能在 %d 到 %d 之间", domain.MinTaskImportance, domain.MaxTaskImportance)
 	case errors.Is(err, service.ErrInvalidCredentials):
 		return "用户名或密码错误"
 	case errors.Is(err, service.ErrInvalidSession):

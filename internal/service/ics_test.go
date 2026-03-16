@@ -26,6 +26,9 @@ func TestICSImporterParseRecurringWeekly(t *testing.T) {
 		if task.Title != "高数" {
 			t.Fatalf("task title = %q, want 高数", task.Title)
 		}
+		if task.Importance != 3 {
+			t.Fatalf("task importance = %d, want 3", task.Importance)
+		}
 		if task.Note != "09:00 - 10:30" {
 			t.Fatalf("task note = %q, want 09:00 - 10:30", task.Note)
 		}

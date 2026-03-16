@@ -39,6 +39,7 @@ type TaskInput struct {
 	Title        string
 	Note         string
 	Type         domain.TaskType
+	Importance   int
 	ScheduledFor *time.Time
 	Deadline     *time.Time
 	Metadata     map[string]any
@@ -130,30 +131,30 @@ func (r *TaskRepository) ListDashboard(ctx context.Context, userID uuid.UUID, to
 	dateOnly := normalizeDate(today)
 
 	todayTasks, err := r.listTasks(ctx, `
-		SELECT id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
+		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1 AND status = 'active' AND task_type = 'schedule' AND scheduled_for = $2
-		ORDER BY scheduled_for, created_at
+		ORDER BY importance DESC, scheduled_for, created_at
 	`, userID, dateOnly)
 	if err != nil {
 		return Dashboard{}, err
 	}
 
 	ddlTasks, err := r.listTasks(ctx, `
-		SELECT id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
+		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1 AND status = 'active' AND task_type = 'ddl'
-		ORDER BY deadline, created_at
+		ORDER BY importance DESC, deadline, created_at
 	`, userID)
 	if err != nil {
 		return Dashboard{}, err
 	}
 
 	todoTasks, err := r.listTasks(ctx, `
-		SELECT id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
+		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1 AND status = 'active' AND task_type = 'todo'
-		ORDER BY created_at
+		ORDER BY importance DESC, created_at
 	`, userID)
 	if err != nil {
 		return Dashboard{}, err
@@ -188,7 +189,7 @@ func (r *TaskRepository) CompleteTask(ctx context.Context, userID, id uuid.UUID)
 		UPDATE tasks
 		SET status = 'done', completed_at = NOW()
 		WHERE id = $1 AND user_id = $2
-		RETURNING id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
+		RETURNING id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 	`, id, userID)
 
 	updatedTask, err := scanTask(row)
@@ -248,7 +249,7 @@ func (r *TaskRepository) PostponeTask(ctx context.Context, userID, id uuid.UUID,
 			deadline = CASE WHEN task_type = 'ddl' THEN $3 ELSE deadline END,
 			postponed_count = postponed_count + 1
 		WHERE id = $1 AND user_id = $2
-		RETURNING id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
+		RETURNING id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 	`, id, userID, targetDate)
 
 	updatedTask, err := scanTask(row)
@@ -319,17 +320,22 @@ func insertTaskTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, sourceID *uu
 	}
 
 	query := `
-		INSERT INTO tasks (user_id, source_id, title, note, task_type, scheduled_for, deadline, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO tasks (user_id, source_id, title, note, task_type, importance, scheduled_for, deadline, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	if skipOnConflict {
 		query += ` ON CONFLICT DO NOTHING`
 	}
 	query += `
-		RETURNING id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
+		RETURNING id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 	`
 
-	row := tx.QueryRow(ctx, query, userID, sourceID, input.Title, input.Note, input.Type, normalizeDatePtr(input.ScheduledFor), normalizeDatePtr(input.Deadline), metadata)
+	importance, err := domain.NormalizeTaskImportance(input.Importance)
+	if err != nil {
+		return domain.Task{}, false, err
+	}
+
+	row := tx.QueryRow(ctx, query, userID, sourceID, input.Title, input.Note, input.Type, importance, normalizeDatePtr(input.ScheduledFor), normalizeDatePtr(input.Deadline), metadata)
 	task, err := scanTask(row)
 	if err != nil {
 		if skipOnConflict && errors.Is(err, pgx.ErrNoRows) {
@@ -343,7 +349,7 @@ func insertTaskTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, sourceID *uu
 
 func getTaskTx(ctx context.Context, tx pgx.Tx, userID, id uuid.UUID, lock bool) (domain.Task, error) {
 	query := `
-		SELECT id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
+		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
 		WHERE id = $1 AND user_id = $2
 	`
@@ -393,6 +399,7 @@ func scanTask(row interface{ Scan(dest ...any) error }) (domain.Task, error) {
 		&task.Note,
 		&task.Type,
 		&task.Status,
+		&task.Importance,
 		&scheduledFor,
 		&deadline,
 		&completedAt,

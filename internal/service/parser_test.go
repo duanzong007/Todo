@@ -83,6 +83,9 @@ func TestTextParserParse(t *testing.T) {
 			if got.Task.Note != tt.wantNote {
 				t.Fatalf("Task.Note = %q, want %q", got.Task.Note, tt.wantNote)
 			}
+			if got.Task.Importance != domain.DefaultTaskImportance {
+				t.Fatalf("Task.Importance = %d, want %d", got.Task.Importance, domain.DefaultTaskImportance)
+			}
 
 			var dateValue *time.Time
 			if tt.checkDeadline {

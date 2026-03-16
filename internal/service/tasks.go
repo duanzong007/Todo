@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -43,9 +44,23 @@ func (s *TaskService) DashboardForDate(ctx context.Context, userID uuid.UUID, fo
 }
 
 func (s *TaskService) CreateFromInput(ctx context.Context, userID uuid.UUID, input string) (domain.Task, error) {
+	return s.CreateFromInputWithImportance(ctx, userID, input, 0)
+}
+
+func (s *TaskService) CreateFromInputWithImportance(ctx context.Context, userID uuid.UUID, input string, importance int) (domain.Task, error) {
 	parsed, err := s.parser.Parse(input, time.Now().In(s.location))
 	if err != nil {
 		return domain.Task{}, err
+	}
+	if importance != 0 {
+		normalizedImportance, err := domain.NormalizeTaskImportance(importance)
+		if err != nil {
+			if errors.Is(err, domain.ErrInvalidTaskImportance) {
+				return domain.Task{}, fmt.Errorf("重要等级只能在 %d 到 %d 之间", domain.MinTaskImportance, domain.MaxTaskImportance)
+			}
+			return domain.Task{}, err
+		}
+		parsed.Task.Importance = normalizedImportance
 	}
 
 	source := repository.SourceInput{
