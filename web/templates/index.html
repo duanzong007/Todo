@@ -79,14 +79,44 @@
                         <a href="{{ .TomorrowPath }}" class="secondary action-link date-chip">明天</a>
                         <a href="{{ .DayAfterTomorrowPath }}" class="secondary action-link date-chip">后天</a>
                     </div>
-                    <form action="/" method="get" class="mini-date-form">
-                        <div class="custom-date-input" aria-label="选择日期">
-                            <input type="text" name="year" inputmode="numeric" maxlength="4" value="{{ .FocusYear }}" aria-label="年" required>
-                            <span>年</span>
-                            <input type="text" name="month" inputmode="numeric" maxlength="2" value="{{ .FocusMonth }}" aria-label="月" required>
-                            <span>月</span>
-                            <input type="text" name="day" inputmode="numeric" maxlength="2" value="{{ .FocusDay }}" aria-label="日" required>
-                            <span>日</span>
+                    <form action="/" method="get" class="mini-date-form" data-date-picker>
+                        <div class="wheel-date-picker" aria-label="选择日期">
+                            <input type="hidden" name="year" value="{{ .FocusYear }}">
+                            <input type="hidden" name="month" value="{{ .FocusMonth }}">
+                            <input type="hidden" name="day" value="{{ .FocusDay }}">
+
+                            <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="年份">
+                                <div class="wheel-track">
+                                    <span class="wheel-item" data-slot="far-prev"></span>
+                                    <span class="wheel-item" data-slot="prev"></span>
+                                    <span class="wheel-item" data-slot="current"></span>
+                                    <span class="wheel-item" data-slot="next"></span>
+                                    <span class="wheel-item" data-slot="far-next"></span>
+                                </div>
+                            </div>
+                            <span class="date-unit">年</span>
+
+                            <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="月份">
+                                <div class="wheel-track">
+                                    <span class="wheel-item" data-slot="far-prev"></span>
+                                    <span class="wheel-item" data-slot="prev"></span>
+                                    <span class="wheel-item" data-slot="current"></span>
+                                    <span class="wheel-item" data-slot="next"></span>
+                                    <span class="wheel-item" data-slot="far-next"></span>
+                                </div>
+                            </div>
+                            <span class="date-unit">月</span>
+
+                            <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="日期">
+                                <div class="wheel-track">
+                                    <span class="wheel-item" data-slot="far-prev"></span>
+                                    <span class="wheel-item" data-slot="prev"></span>
+                                    <span class="wheel-item" data-slot="current"></span>
+                                    <span class="wheel-item" data-slot="next"></span>
+                                    <span class="wheel-item" data-slot="far-next"></span>
+                                </div>
+                            </div>
+                            <span class="date-unit">日</span>
                         </div>
                         <button type="submit" class="secondary">打开</button>
                     </form>
@@ -124,5 +154,6 @@
             </div>
         </details>
     </main>
+    <script src="/static/date-picker.js" defer></script>
 </body>
 </html>
