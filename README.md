@@ -2,7 +2,7 @@
 
 基于 Go + PostgreSQL 的极简任务提醒系统 MVP。
 
-当前版本聚焦单用户 Web 使用场景，围绕三类核心任务实现：
+当前版本已升级为多用户 Web 使用场景，围绕三类核心任务实现：
 
 - `todo`：长期待办，一直显示，手动完成后消失
 - `schedule`：某天发生的日程，只在当天显示，到天自动消失
@@ -11,6 +11,9 @@
 ## 已实现能力
 
 - 统一输入框录入任务
+- 多用户注册 / 登录 / 登出
+- 基于 Cookie 的会话管理
+- 每个用户仅能访问自己的任务和导入数据
 - 中文文本规则解析
 - 快递短信解析为持久 Todo
 - ICS 文件导入为 Schedule
@@ -39,9 +42,15 @@ web/static            CSS
 核心表：
 
 - `ingestion_sources`
+  - 记录所属用户
   - 记录输入来源，支持 `manual_text / sms_paste / ics_import`
   - 保存原始内容、摘要、校验和、扩展 metadata
+- `app_users`
+  - 存储用户账号、显示名、密码哈希、角色、状态
+- `user_sessions`
+  - 存储登录会话、到期时间、最后活跃时间
 - `tasks`
+  - 所有任务归属到具体用户
   - 统一任务主表
   - 通过约束保证三类任务与日期字段的组合合法
   - `metadata JSONB` 用于承载解析结果、ICS 字段、后续扩展
@@ -56,7 +65,8 @@ web/static            CSS
 - 状态与完成时间一致性约束
 - GIN 元数据索引
 - 活跃任务的部分索引
-- ICS `uid + scheduled_for` 去重索引
+- 用户维度的活跃任务索引
+- 用户维度的 ICS `uid + scheduled_for` 去重索引
 - `updated_at` 触发器
 
 ## 本地运行
@@ -72,6 +82,8 @@ go run ./cmd/server
 ```
 
 访问：`http://localhost:8080`
+
+首次使用时，先访问 `http://localhost:8080/register` 注册账号，然后登录。
 
 ### 方式二：Docker Compose
 
@@ -98,6 +110,24 @@ docker compose up --build
 - `本周X / 下周X`
 - `3月20号 / 2026-03-20 / 2026/03/20`
 
+## 多用户认证
+
+当前默认开启注册，相关环境变量：
+
+- `SESSION_COOKIE_NAME`
+- `SESSION_TTL_HOURS`
+- `SESSION_SECURE_COOKIE`
+- `ALLOW_REGISTRATION`
+
+认证方式：
+
+- 注册：`/register`
+- 登录：`/login`
+- 登出：`POST /logout`
+- 会话：HttpOnly Cookie + 数据库存储的哈希 token
+
+旧版单用户模式遗留的无归属数据，会在首个注册账号创建时自动归属给该账号。
+
 ## ICS 导入说明
 
 MVP 版支持：
@@ -122,3 +152,4 @@ MVP 版支持：
 - 增加后台定时任务，处理导入刷新和旧日程归档
 - 引入更完整的自然语言日期解析
 - 增加任务详情、批量操作、筛选能力
+- 增加管理员能力、邮箱验证、密码重置

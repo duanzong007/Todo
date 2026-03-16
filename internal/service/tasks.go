@@ -29,16 +29,16 @@ func NewTaskService(repo *repository.TaskRepository, parser *TextParser, icsImpo
 	}
 }
 
-func (s *TaskService) Dashboard(ctx context.Context) (repository.Dashboard, time.Time, error) {
+func (s *TaskService) Dashboard(ctx context.Context, userID uuid.UUID) (repository.Dashboard, time.Time, error) {
 	now := time.Now().In(s.location)
-	dashboard, err := s.repo.ListDashboard(ctx, now)
+	dashboard, err := s.repo.ListDashboard(ctx, userID, now)
 	if err != nil {
 		return repository.Dashboard{}, time.Time{}, err
 	}
 	return dashboard, now, nil
 }
 
-func (s *TaskService) CreateFromInput(ctx context.Context, input string) (domain.Task, error) {
+func (s *TaskService) CreateFromInput(ctx context.Context, userID uuid.UUID, input string) (domain.Task, error) {
 	parsed, err := s.parser.Parse(input, time.Now().In(s.location))
 	if err != nil {
 		return domain.Task{}, err
@@ -52,10 +52,10 @@ func (s *TaskService) CreateFromInput(ctx context.Context, input string) (domain
 		Metadata:   parsed.SourceMetadata,
 	}
 
-	return s.repo.CreateTask(ctx, source, parsed.Task)
+	return s.repo.CreateTask(ctx, userID, source, parsed.Task)
 }
 
-func (s *TaskService) ImportICS(ctx context.Context, filename string, body []byte) (int, error) {
+func (s *TaskService) ImportICS(ctx context.Context, userID uuid.UUID, filename string, body []byte) (int, error) {
 	result, err := s.icsImporter.Parse(filename, body, time.Now().In(s.location))
 	if err != nil {
 		return 0, err
@@ -69,20 +69,20 @@ func (s *TaskService) ImportICS(ctx context.Context, filename string, body []byt
 		Metadata:   result.SourceMeta,
 	}
 
-	return s.repo.ImportTasks(ctx, source, result.Tasks)
+	return s.repo.ImportTasks(ctx, userID, source, result.Tasks)
 }
 
-func (s *TaskService) Complete(ctx context.Context, rawID string) error {
+func (s *TaskService) Complete(ctx context.Context, userID uuid.UUID, rawID string) error {
 	taskID, err := uuid.Parse(rawID)
 	if err != nil {
 		return fmt.Errorf("invalid task id: %w", err)
 	}
 
-	_, err = s.repo.CompleteTask(ctx, taskID)
+	_, err = s.repo.CompleteTask(ctx, userID, taskID)
 	return err
 }
 
-func (s *TaskService) Postpone(ctx context.Context, rawID, targetDate string) error {
+func (s *TaskService) Postpone(ctx context.Context, userID uuid.UUID, rawID, targetDate string) error {
 	taskID, err := uuid.Parse(rawID)
 	if err != nil {
 		return fmt.Errorf("invalid task id: %w", err)
@@ -93,7 +93,7 @@ func (s *TaskService) Postpone(ctx context.Context, rawID, targetDate string) er
 		return fmt.Errorf("invalid target date: %w", err)
 	}
 
-	_, err = s.repo.PostponeTask(ctx, taskID, parsedDate)
+	_, err = s.repo.PostponeTask(ctx, userID, taskID, parsedDate)
 	return err
 }
 

@@ -52,19 +52,19 @@ func NewTaskRepository(db *pgxpool.Pool) *TaskRepository {
 	return &TaskRepository{db: db}
 }
 
-func (r *TaskRepository) CreateTask(ctx context.Context, source SourceInput, input TaskInput) (domain.Task, error) {
+func (r *TaskRepository) CreateTask(ctx context.Context, userID uuid.UUID, source SourceInput, input TaskInput) (domain.Task, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return domain.Task{}, fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	sourceID, err := createSourceTx(ctx, tx, source)
+	sourceID, err := createSourceTx(ctx, tx, userID, source)
 	if err != nil {
 		return domain.Task{}, err
 	}
 
-	task, inserted, err := insertTaskTx(ctx, tx, &sourceID, input, false)
+	task, inserted, err := insertTaskTx(ctx, tx, userID, &sourceID, input, false)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -85,7 +85,7 @@ func (r *TaskRepository) CreateTask(ctx context.Context, source SourceInput, inp
 	return task, nil
 }
 
-func (r *TaskRepository) ImportTasks(ctx context.Context, source SourceInput, inputs []TaskInput) (int, error) {
+func (r *TaskRepository) ImportTasks(ctx context.Context, userID uuid.UUID, source SourceInput, inputs []TaskInput) (int, error) {
 	if len(inputs) == 0 {
 		return 0, nil
 	}
@@ -96,14 +96,14 @@ func (r *TaskRepository) ImportTasks(ctx context.Context, source SourceInput, in
 	}
 	defer tx.Rollback(ctx)
 
-	sourceID, err := createSourceTx(ctx, tx, source)
+	sourceID, err := createSourceTx(ctx, tx, userID, source)
 	if err != nil {
 		return 0, err
 	}
 
 	insertedCount := 0
 	for _, input := range inputs {
-		task, inserted, err := insertTaskTx(ctx, tx, &sourceID, input, true)
+		task, inserted, err := insertTaskTx(ctx, tx, userID, &sourceID, input, true)
 		if err != nil {
 			return 0, err
 		}
@@ -126,15 +126,15 @@ func (r *TaskRepository) ImportTasks(ctx context.Context, source SourceInput, in
 	return insertedCount, nil
 }
 
-func (r *TaskRepository) ListDashboard(ctx context.Context, today time.Time) (Dashboard, error) {
+func (r *TaskRepository) ListDashboard(ctx context.Context, userID uuid.UUID, today time.Time) (Dashboard, error) {
 	dateOnly := normalizeDate(today)
 
 	todayTasks, err := r.listTasks(ctx, `
 		SELECT id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
-		WHERE status = 'active' AND task_type = 'schedule' AND scheduled_for = $1
+		WHERE user_id = $1 AND status = 'active' AND task_type = 'schedule' AND scheduled_for = $2
 		ORDER BY scheduled_for, created_at
-	`, dateOnly)
+	`, userID, dateOnly)
 	if err != nil {
 		return Dashboard{}, err
 	}
@@ -142,9 +142,9 @@ func (r *TaskRepository) ListDashboard(ctx context.Context, today time.Time) (Da
 	ddlTasks, err := r.listTasks(ctx, `
 		SELECT id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
-		WHERE status = 'active' AND task_type = 'ddl'
+		WHERE user_id = $1 AND status = 'active' AND task_type = 'ddl'
 		ORDER BY deadline, created_at
-	`)
+	`, userID)
 	if err != nil {
 		return Dashboard{}, err
 	}
@@ -152,9 +152,9 @@ func (r *TaskRepository) ListDashboard(ctx context.Context, today time.Time) (Da
 	todoTasks, err := r.listTasks(ctx, `
 		SELECT id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
-		WHERE status = 'active' AND task_type = 'todo'
+		WHERE user_id = $1 AND status = 'active' AND task_type = 'todo'
 		ORDER BY created_at
-	`)
+	`, userID)
 	if err != nil {
 		return Dashboard{}, err
 	}
@@ -166,14 +166,14 @@ func (r *TaskRepository) ListDashboard(ctx context.Context, today time.Time) (Da
 	}, nil
 }
 
-func (r *TaskRepository) CompleteTask(ctx context.Context, id uuid.UUID) (domain.Task, error) {
+func (r *TaskRepository) CompleteTask(ctx context.Context, userID, id uuid.UUID) (domain.Task, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return domain.Task{}, fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	task, err := getTaskTx(ctx, tx, id, true)
+	task, err := getTaskTx(ctx, tx, userID, id, true)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -187,9 +187,9 @@ func (r *TaskRepository) CompleteTask(ctx context.Context, id uuid.UUID) (domain
 	row := tx.QueryRow(ctx, `
 		UPDATE tasks
 		SET status = 'done', completed_at = NOW()
-		WHERE id = $1
+		WHERE id = $1 AND user_id = $2
 		RETURNING id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
-	`, id)
+	`, id, userID)
 
 	updatedTask, err := scanTask(row)
 	if err != nil {
@@ -209,14 +209,14 @@ func (r *TaskRepository) CompleteTask(ctx context.Context, id uuid.UUID) (domain
 	return updatedTask, nil
 }
 
-func (r *TaskRepository) PostponeTask(ctx context.Context, id uuid.UUID, targetDate time.Time) (domain.Task, error) {
+func (r *TaskRepository) PostponeTask(ctx context.Context, userID, id uuid.UUID, targetDate time.Time) (domain.Task, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return domain.Task{}, fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	task, err := getTaskTx(ctx, tx, id, true)
+	task, err := getTaskTx(ctx, tx, userID, id, true)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -244,12 +244,12 @@ func (r *TaskRepository) PostponeTask(ctx context.Context, id uuid.UUID, targetD
 	row := tx.QueryRow(ctx, `
 		UPDATE tasks
 		SET
-			scheduled_for = CASE WHEN task_type = 'schedule' THEN $2 ELSE scheduled_for END,
-			deadline = CASE WHEN task_type = 'ddl' THEN $2 ELSE deadline END,
+			scheduled_for = CASE WHEN task_type = 'schedule' THEN $3 ELSE scheduled_for END,
+			deadline = CASE WHEN task_type = 'ddl' THEN $3 ELSE deadline END,
 			postponed_count = postponed_count + 1
-		WHERE id = $1
+		WHERE id = $1 AND user_id = $2
 		RETURNING id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
-	`, id, targetDate)
+	`, id, userID, targetDate)
 
 	updatedTask, err := scanTask(row)
 	if err != nil {
@@ -293,7 +293,7 @@ func (r *TaskRepository) listTasks(ctx context.Context, query string, args ...an
 	return tasks, nil
 }
 
-func createSourceTx(ctx context.Context, tx pgx.Tx, input SourceInput) (uuid.UUID, error) {
+func createSourceTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, input SourceInput) (uuid.UUID, error) {
 	metadata, err := marshalMetadata(input.Metadata)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("marshal source metadata: %w", err)
@@ -301,10 +301,10 @@ func createSourceTx(ctx context.Context, tx pgx.Tx, input SourceInput) (uuid.UUI
 
 	var id uuid.UUID
 	err = tx.QueryRow(ctx, `
-		INSERT INTO ingestion_sources (source_type, raw_content, summary, checksum, metadata)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO ingestion_sources (user_id, source_type, raw_content, summary, checksum, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id
-	`, input.Type, input.RawContent, input.Summary, input.Checksum, metadata).Scan(&id)
+	`, userID, input.Type, input.RawContent, input.Summary, input.Checksum, metadata).Scan(&id)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("insert ingestion source: %w", err)
 	}
@@ -312,15 +312,15 @@ func createSourceTx(ctx context.Context, tx pgx.Tx, input SourceInput) (uuid.UUI
 	return id, nil
 }
 
-func insertTaskTx(ctx context.Context, tx pgx.Tx, sourceID *uuid.UUID, input TaskInput, skipOnConflict bool) (domain.Task, bool, error) {
+func insertTaskTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, sourceID *uuid.UUID, input TaskInput, skipOnConflict bool) (domain.Task, bool, error) {
 	metadata, err := marshalMetadata(input.Metadata)
 	if err != nil {
 		return domain.Task{}, false, fmt.Errorf("marshal task metadata: %w", err)
 	}
 
 	query := `
-		INSERT INTO tasks (source_id, title, note, task_type, scheduled_for, deadline, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO tasks (user_id, source_id, title, note, task_type, scheduled_for, deadline, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 	if skipOnConflict {
 		query += ` ON CONFLICT DO NOTHING`
@@ -329,7 +329,7 @@ func insertTaskTx(ctx context.Context, tx pgx.Tx, sourceID *uuid.UUID, input Tas
 		RETURNING id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 	`
 
-	row := tx.QueryRow(ctx, query, sourceID, input.Title, input.Note, input.Type, normalizeDatePtr(input.ScheduledFor), normalizeDatePtr(input.Deadline), metadata)
+	row := tx.QueryRow(ctx, query, userID, sourceID, input.Title, input.Note, input.Type, normalizeDatePtr(input.ScheduledFor), normalizeDatePtr(input.Deadline), metadata)
 	task, err := scanTask(row)
 	if err != nil {
 		if skipOnConflict && errors.Is(err, pgx.ErrNoRows) {
@@ -341,17 +341,17 @@ func insertTaskTx(ctx context.Context, tx pgx.Tx, sourceID *uuid.UUID, input Tas
 	return task, true, nil
 }
 
-func getTaskTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, lock bool) (domain.Task, error) {
+func getTaskTx(ctx context.Context, tx pgx.Tx, userID, id uuid.UUID, lock bool) (domain.Task, error) {
 	query := `
 		SELECT id, source_id, title, note, task_type, status, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
-		WHERE id = $1
+		WHERE id = $1 AND user_id = $2
 	`
 	if lock {
 		query += ` FOR UPDATE`
 	}
 
-	row := tx.QueryRow(ctx, query, id)
+	row := tx.QueryRow(ctx, query, id, userID)
 	task, err := scanTask(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

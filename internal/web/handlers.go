@@ -1,10 +1,12 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html/template"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -18,21 +20,59 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type Handler struct {
-	service       *service.TaskService
-	templates     *template.Template
-	staticDir     string
-	maxUploadSize int64
-	location      *time.Location
+type contextKey string
+
+const currentUserContextKey contextKey = "current-user"
+
+type HandlerOptions struct {
+	TemplateDir       string
+	StaticDir         string
+	MaxUploadSize     int64
+	Location          *time.Location
+	SessionCookieName string
+	SessionSecure     bool
+	AllowRegistration bool
 }
 
-type PageData struct {
-	TodayLabel string
-	Message    string
-	Error      string
-	TodayTasks []TaskCard
-	DDLTasks   []TaskCard
-	TodoTasks  []TaskCard
+type Handler struct {
+	taskService       *service.TaskService
+	authService       *service.AuthService
+	templates         *template.Template
+	staticDir         string
+	maxUploadSize     int64
+	location          *time.Location
+	sessionCookieName string
+	sessionSecure     bool
+	allowRegistration bool
+}
+
+type UserView struct {
+	DisplayName string
+	Username    string
+}
+
+type DashboardPageData struct {
+	CurrentUser *UserView
+	TodayLabel  string
+	Message     string
+	Error       string
+	TodayTasks  []TaskCard
+	DDLTasks    []TaskCard
+	TodoTasks   []TaskCard
+}
+
+type AuthPageData struct {
+	Title            string
+	Heading          string
+	Message          string
+	Error            string
+	Action           string
+	SubmitLabel      string
+	AlternativeLabel string
+	AlternativePath  string
+	ShowDisplayName  bool
+	UsernameValue    string
+	DisplayNameValue string
 }
 
 type TaskCard struct {
@@ -45,43 +85,178 @@ type TaskCard struct {
 	PostponeValue string
 }
 
-func NewHandler(taskService *service.TaskService, templateDir, staticDir string, maxUploadSize int64, location *time.Location) (*Handler, error) {
-	templates, err := template.ParseGlob(filepath.Join(templateDir, "*.html"))
+func NewHandler(taskService *service.TaskService, authService *service.AuthService, options HandlerOptions) (*Handler, error) {
+	templates, err := template.ParseGlob(filepath.Join(options.TemplateDir, "*.html"))
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
 	}
 
 	return &Handler{
-		service:       taskService,
-		templates:     templates,
-		staticDir:     staticDir,
-		maxUploadSize: maxUploadSize,
-		location:      location,
+		taskService:       taskService,
+		authService:       authService,
+		templates:         templates,
+		staticDir:         options.StaticDir,
+		maxUploadSize:     options.MaxUploadSize,
+		location:          options.Location,
+		sessionCookieName: options.SessionCookieName,
+		sessionSecure:     options.SessionSecure,
+		allowRegistration: options.AllowRegistration,
 	}, nil
 }
 
 func (h *Handler) Router() http.Handler {
 	router := chi.NewRouter()
 
-	router.Get("/", h.handleIndex)
-	router.Post("/tasks", h.handleCreateTask)
-	router.Post("/tasks/{taskID}/complete", h.handleCompleteTask)
-	router.Post("/tasks/{taskID}/postpone", h.handlePostponeTask)
-	router.Post("/imports/ics", h.handleImportICS)
-
 	fileServer := http.FileServer(http.Dir(h.staticDir))
 	router.Handle("/static/*", http.StripPrefix("/static/", fileServer))
+
+	router.Get("/login", h.handleLoginPage)
+	router.Post("/login", h.handleLogin)
+	router.Get("/register", h.handleRegisterPage)
+	router.Post("/register", h.handleRegister)
+	router.Post("/logout", h.handleLogout)
+
+	router.Group(func(r chi.Router) {
+		r.Use(h.requireAuth)
+
+		r.Get("/", h.handleIndex)
+		r.Post("/tasks", h.handleCreateTask)
+		r.Post("/tasks/{taskID}/complete", h.handleCompleteTask)
+		r.Post("/tasks/{taskID}/postpone", h.handlePostponeTask)
+		r.Post("/imports/ics", h.handleImportICS)
+	})
 
 	return router
 }
 
+func (h *Handler) handleLoginPage(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.optionalCurrentUser(r); ok {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	data := AuthPageData{
+		Title:         "登录",
+		Heading:       "登录你的 Todo 账户",
+		Message:       r.URL.Query().Get("msg"),
+		Error:         r.URL.Query().Get("err"),
+		Action:        "/login",
+		SubmitLabel:   "登录",
+		UsernameValue: strings.TrimSpace(r.URL.Query().Get("username")),
+	}
+	if h.allowRegistration {
+		data.AlternativeLabel = "注册新账号"
+		data.AlternativePath = "/register"
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "login.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) handleRegisterPage(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.optionalCurrentUser(r); ok {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	if !h.allowRegistration {
+		h.redirectToLogin(w, r, "", "当前已关闭注册")
+		return
+	}
+
+	data := AuthPageData{
+		Title:            "注册",
+		Heading:          "创建你的 Todo 账户",
+		Message:          r.URL.Query().Get("msg"),
+		Error:            r.URL.Query().Get("err"),
+		Action:           "/register",
+		SubmitLabel:      "注册并登录",
+		AlternativeLabel: "已有账号，去登录",
+		AlternativePath:  "/login",
+		ShowDisplayName:  true,
+		UsernameValue:    strings.TrimSpace(r.URL.Query().Get("username")),
+		DisplayNameValue: strings.TrimSpace(r.URL.Query().Get("display_name")),
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "register.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		h.redirectToLogin(w, r, "", "请求解析失败")
+		return
+	}
+
+	username := strings.TrimSpace(r.FormValue("username"))
+	password := r.FormValue("password")
+
+	result, err := h.authService.Login(r.Context(), username, password, r.UserAgent(), clientIPAddress(r))
+	if err != nil {
+		h.redirectToAuth(
+			w,
+			r,
+			"/login",
+			"",
+			humanizeError(err),
+			map[string]string{"username": username},
+		)
+		return
+	}
+
+	h.setSessionCookie(w, result.Token, result.ExpiresAt)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
+	if !h.allowRegistration {
+		h.redirectToLogin(w, r, "", "当前已关闭注册")
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		h.redirectToRegister(w, r, "", "请求解析失败", "", "")
+		return
+	}
+
+	username := strings.TrimSpace(r.FormValue("username"))
+	displayName := strings.TrimSpace(r.FormValue("display_name"))
+	password := r.FormValue("password")
+
+	result, err := h.authService.Register(r.Context(), username, displayName, password, r.UserAgent(), clientIPAddress(r))
+	if err != nil {
+		h.redirectToRegister(w, r, "", humanizeError(err), username, displayName)
+		return
+	}
+
+	h.setSessionCookie(w, result.Token, result.ExpiresAt)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
+	_ = h.authService.Logout(r.Context(), h.sessionToken(r))
+	h.clearSessionCookie(w)
+	h.redirectToLogin(w, r, "已退出登录", "")
+}
+
 func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if err := h.renderIndex(w, r, r.URL.Query().Get("msg"), r.URL.Query().Get("err")); err != nil {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+
+	if err := h.renderIndex(w, r, user, r.URL.Query().Get("msg"), r.URL.Query().Get("err")); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
 func (h *Handler) handleCreateTask(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		h.redirectHome(w, r, "", "请求解析失败")
 		return
@@ -93,7 +268,7 @@ func (h *Handler) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.service.CreateFromInput(r.Context(), input); err != nil {
+	if _, err := h.taskService.CreateFromInput(r.Context(), user.ID, input); err != nil {
 		h.redirectHome(w, r, "", humanizeError(err))
 		return
 	}
@@ -102,8 +277,14 @@ func (h *Handler) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+
 	taskID := chi.URLParam(r, "taskID")
-	if err := h.service.Complete(r.Context(), taskID); err != nil {
+	if err := h.taskService.Complete(r.Context(), user.ID, taskID); err != nil {
 		h.redirectHome(w, r, "", humanizeError(err))
 		return
 	}
@@ -112,6 +293,11 @@ func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handlePostponeTask(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		h.redirectHome(w, r, "", "请求解析失败")
 		return
@@ -124,7 +310,7 @@ func (h *Handler) handlePostponeTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.Postpone(r.Context(), taskID, targetDate); err != nil {
+	if err := h.taskService.Postpone(r.Context(), user.ID, taskID, targetDate); err != nil {
 		h.redirectHome(w, r, "", humanizeError(err))
 		return
 	}
@@ -133,6 +319,12 @@ func (h *Handler) handlePostponeTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleImportICS(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, h.maxUploadSize)
 	if err := r.ParseMultipartForm(h.maxUploadSize); err != nil {
 		h.redirectHome(w, r, "", "ICS 文件过大或格式错误")
@@ -152,7 +344,7 @@ func (h *Handler) handleImportICS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inserted, err := h.service.ImportICS(r.Context(), header.Filename, body)
+	inserted, err := h.taskService.ImportICS(r.Context(), user.ID, header.Filename, body)
 	if err != nil {
 		h.redirectHome(w, r, "", humanizeError(err))
 		return
@@ -161,25 +353,110 @@ func (h *Handler) handleImportICS(w http.ResponseWriter, r *http.Request) {
 	h.redirectHome(w, r, fmt.Sprintf("ICS 导入完成，新增 %d 条日程", inserted), "")
 }
 
-func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, message, errorMessage string) error {
-	dashboard, now, err := h.service.Dashboard(r.Context())
+func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domain.User, message, errorMessage string) error {
+	dashboard, now, err := h.taskService.Dashboard(r.Context(), user.ID)
 	if err != nil {
 		return err
 	}
 
-	pageData := PageData{
-		TodayLabel: now.In(h.location).Format("2006-01-02"),
-		Message:    message,
-		Error:      errorMessage,
-		TodayTasks: buildTaskCards(dashboard.Today, now, h.location),
-		DDLTasks:   buildTaskCards(dashboard.DDL, now, h.location),
-		TodoTasks:  buildTaskCards(dashboard.Todo, now, h.location),
+	pageData := DashboardPageData{
+		CurrentUser: buildUserView(user),
+		TodayLabel:  now.In(h.location).Format("2006-01-02"),
+		Message:     message,
+		Error:       errorMessage,
+		TodayTasks:  buildTaskCards(dashboard.Today, now, h.location),
+		DDLTasks:    buildTaskCards(dashboard.DDL, now, h.location),
+		TodoTasks:   buildTaskCards(dashboard.Todo, now, h.location),
 	}
 
 	return h.templates.ExecuteTemplate(w, "index.html", pageData)
 }
 
+func (h *Handler) requireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, err := h.authService.Authenticate(r.Context(), h.sessionToken(r))
+		if err != nil {
+			h.clearSessionCookie(w)
+			h.redirectToLogin(w, r, "", "请先登录")
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), currentUserContextKey, user)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (h *Handler) currentUser(r *http.Request) (domain.User, bool) {
+	user, ok := r.Context().Value(currentUserContextKey).(domain.User)
+	return user, ok
+}
+
+func (h *Handler) optionalCurrentUser(r *http.Request) (domain.User, bool) {
+	token := h.sessionToken(r)
+	if token == "" {
+		return domain.User{}, false
+	}
+
+	user, err := h.authService.Authenticate(r.Context(), token)
+	if err != nil {
+		return domain.User{}, false
+	}
+	return user, true
+}
+
+func (h *Handler) setSessionCookie(w http.ResponseWriter, token string, expiresAt time.Time) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     h.sessionCookieName,
+		Value:    token,
+		Path:     "/",
+		Expires:  expiresAt,
+		HttpOnly: true,
+		Secure:   h.sessionSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (h *Handler) clearSessionCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     h.sessionCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		Secure:   h.sessionSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (h *Handler) sessionToken(r *http.Request) string {
+	cookie, err := r.Cookie(h.sessionCookieName)
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
 func (h *Handler) redirectHome(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
+	h.redirectWithQuery(w, r, "/", message, errorMessage, nil)
+}
+
+func (h *Handler) redirectToLogin(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
+	h.redirectWithQuery(w, r, "/login", message, errorMessage, nil)
+}
+
+func (h *Handler) redirectToRegister(w http.ResponseWriter, r *http.Request, message, errorMessage, username, displayName string) {
+	h.redirectWithQuery(w, r, "/register", message, errorMessage, map[string]string{
+		"username":     username,
+		"display_name": displayName,
+	})
+}
+
+func (h *Handler) redirectToAuth(w http.ResponseWriter, r *http.Request, path, message, errorMessage string, extra map[string]string) {
+	h.redirectWithQuery(w, r, path, message, errorMessage, extra)
+}
+
+func (h *Handler) redirectWithQuery(w http.ResponseWriter, r *http.Request, path, message, errorMessage string, extra map[string]string) {
 	values := url.Values{}
 	if message != "" {
 		values.Set("msg", message)
@@ -187,13 +464,25 @@ func (h *Handler) redirectHome(w http.ResponseWriter, r *http.Request, message, 
 	if errorMessage != "" {
 		values.Set("err", errorMessage)
 	}
+	for key, value := range extra {
+		if strings.TrimSpace(value) != "" {
+			values.Set(key, value)
+		}
+	}
 
-	target := "/"
+	target := path
 	if encoded := values.Encode(); encoded != "" {
-		target = "/?" + encoded
+		target = path + "?" + encoded
 	}
 
 	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+func buildUserView(user domain.User) *UserView {
+	return &UserView{
+		DisplayName: user.DisplayName,
+		Username:    user.Username,
+	}
 }
 
 func buildTaskCards(tasks []domain.Task, now time.Time, location *time.Location) []TaskCard {
@@ -253,6 +542,14 @@ func humanizeError(err error) string {
 		return "这个任务不支持该操作"
 	case errors.Is(err, repository.ErrInvalidTaskTransition):
 		return "当前任务状态不允许该操作"
+	case errors.Is(err, service.ErrInvalidCredentials):
+		return "用户名或密码错误"
+	case errors.Is(err, service.ErrInvalidSession):
+		return "登录状态已失效，请重新登录"
+	case errors.Is(err, service.ErrRegistrationDisabled):
+		return "当前已关闭注册"
+	case errors.Is(err, service.ErrUsernameTaken):
+		return "用户名已存在"
 	case strings.Contains(err.Error(), "invalid task id"):
 		return "任务 ID 无效"
 	case strings.Contains(err.Error(), "invalid target date"):
@@ -265,4 +562,19 @@ func humanizeError(err error) string {
 func normalizeDateForView(value time.Time, location *time.Location) time.Time {
 	local := value.In(location)
 	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
+}
+
+func clientIPAddress(r *http.Request) string {
+	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); forwarded != "" {
+		parts := strings.Split(forwarded, ",")
+		if len(parts) > 0 {
+			return strings.TrimSpace(parts[0])
+		}
+	}
+
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err == nil {
+		return host
+	}
+	return strings.TrimSpace(r.RemoteAddr)
 }

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .Title }} - Todo MVP</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <main class="auth-shell">
+        <section class="auth-panel">
+            <p class="eyebrow">Todo MVP</p>
+            <h1>{{ .Heading }}</h1>
+            <p class="hero-copy">多用户任务系统。登录后只会看到你自己的任务、导入记录和提醒。</p>
+
+            {{ if .Message }}
+            <div class="flash flash-success">{{ .Message }}</div>
+            {{ end }}
+            {{ if .Error }}
+            <div class="flash flash-error">{{ .Error }}</div>
+            {{ end }}
+
+            <form action="{{ .Action }}" method="post" class="auth-form">
+                <label for="username">用户名</label>
+                <input id="username" name="username" type="text" value="{{ .UsernameValue }}" autocomplete="username" required>
+
+                <label for="password">密码</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+                <button type="submit">{{ .SubmitLabel }}</button>
+            </form>
+
+            {{ if .AlternativePath }}
+            <p class="auth-switch">
+                <a href="{{ .AlternativePath }}">{{ .AlternativeLabel }}</a>
+            </p>
+            {{ end }}
+        </section>
+    </main>
+</body>
+</html>

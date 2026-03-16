@@ -8,11 +8,21 @@
 </head>
 <body>
     <main class="page">
+        <section class="topbar">
+            <div class="user-badge">
+                <strong>{{ .CurrentUser.DisplayName }}</strong>
+                <span>@{{ .CurrentUser.Username }}</span>
+            </div>
+            <form action="/logout" method="post">
+                <button type="submit" class="secondary">退出登录</button>
+            </form>
+        </section>
+
         <section class="hero">
             <div>
                 <p class="eyebrow">Todo MVP</p>
                 <h1>把输入直接变成持续提醒</h1>
-                <p class="hero-copy">一个输入框，三类任务。今天、DDL、Todo 分开展示，不做复杂日历。</p>
+                <p class="hero-copy">每个账号拥有独立任务空间。一个输入框，三类任务，今天、DDL、Todo 分开展示。</p>
             </div>
             <div class="hero-date">{{ .TodayLabel }}</div>
         </section>

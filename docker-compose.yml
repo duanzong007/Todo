@@ -31,10 +31,13 @@ services:
       AUTO_MIGRATE: "true"
       MIGRATIONS_DIR: db/migrations
       ICS_IMPORT_HORIZON_DAYS: "180"
+      SESSION_COOKIE_NAME: todo_session
+      SESSION_TTL_HOURS: "720"
+      SESSION_SECURE_COOKIE: "false"
+      ALLOW_REGISTRATION: "true"
       DATABASE_URL: postgres://todo:todo@db:5432/todo?sslmode=disable
     ports:
       - "8080:8080"
 
 volumes:
   todo_pg_data:
-

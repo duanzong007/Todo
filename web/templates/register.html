@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .Title }} - Todo MVP</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <main class="auth-shell">
+        <section class="auth-panel">
+            <p class="eyebrow">Todo MVP</p>
+            <h1>{{ .Heading }}</h1>
+            <p class="hero-copy">注册后会拥有独立任务空间；旧版单用户数据会在首个注册账号创建时自动归属到该账号。</p>
+
+            {{ if .Message }}
+            <div class="flash flash-success">{{ .Message }}</div>
+            {{ end }}
+            {{ if .Error }}
+            <div class="flash flash-error">{{ .Error }}</div>
+            {{ end }}
+
+            <form action="{{ .Action }}" method="post" class="auth-form">
+                <label for="display_name">显示名称</label>
+                <input id="display_name" name="display_name" type="text" value="{{ .DisplayNameValue }}" autocomplete="nickname" required>
+
+                <label for="username">用户名</label>
+                <input id="username" name="username" type="text" value="{{ .UsernameValue }}" autocomplete="username" required>
+
+                <label for="password">密码</label>
+                <input id="password" name="password" type="password" autocomplete="new-password" required>
+
+                <button type="submit">{{ .SubmitLabel }}</button>
+            </form>
+
+            <p class="auth-switch">
+                <a href="{{ .AlternativePath }}">{{ .AlternativeLabel }}</a>
+            </p>
+        </section>
+    </main>
+</body>
+</html>

@@ -14,6 +14,10 @@ type Config struct {
 	MigrationsDir        string
 	ICSImportHorizonDays int
 	MaxUploadSizeBytes   int64
+	SessionCookieName    string
+	SessionTTLHours      int
+	SessionSecureCookie  bool
+	AllowRegistration    bool
 }
 
 func Load() (Config, error) {
@@ -25,6 +29,10 @@ func Load() (Config, error) {
 		MigrationsDir:        env("MIGRATIONS_DIR", "db/migrations"),
 		ICSImportHorizonDays: envInt("ICS_IMPORT_HORIZON_DAYS", 180),
 		MaxUploadSizeBytes:   envInt64("MAX_UPLOAD_SIZE_BYTES", 4<<20),
+		SessionCookieName:    env("SESSION_COOKIE_NAME", "todo_session"),
+		SessionTTLHours:      envInt("SESSION_TTL_HOURS", 720),
+		SessionSecureCookie:  envBool("SESSION_SECURE_COOKIE", false),
+		AllowRegistration:    envBool("ALLOW_REGISTRATION", true),
 	}
 
 	if cfg.ICSImportHorizonDays < 1 {
@@ -32,6 +40,12 @@ func Load() (Config, error) {
 	}
 	if cfg.MaxUploadSizeBytes < 1024 {
 		return Config{}, fmt.Errorf("MAX_UPLOAD_SIZE_BYTES must be at least 1024")
+	}
+	if cfg.SessionTTLHours < 1 {
+		return Config{}, fmt.Errorf("SESSION_TTL_HOURS must be at least 1")
+	}
+	if cfg.SessionCookieName == "" {
+		return Config{}, fmt.Errorf("SESSION_COOKIE_NAME must not be empty")
 	}
 
 	return cfg, nil

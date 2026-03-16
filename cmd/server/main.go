@@ -49,11 +49,26 @@ func main() {
 	}
 
 	repo := repository.NewTaskRepository(dbpool)
+	authRepo := repository.NewAuthRepository(dbpool)
 	parser := service.NewTextParser(location)
 	icsImporter := service.NewICSImporter(location, cfg.ICSImportHorizonDays)
 	taskService := service.NewTaskService(repo, parser, icsImporter, location)
+	authService := service.NewAuthService(
+		authRepo,
+		cfg.SessionCookieName,
+		time.Duration(cfg.SessionTTLHours)*time.Hour,
+		cfg.AllowRegistration,
+	)
 
-	handler, err := web.NewHandler(taskService, "web/templates", "web/static", cfg.MaxUploadSizeBytes, location)
+	handler, err := web.NewHandler(taskService, authService, web.HandlerOptions{
+		TemplateDir:       "web/templates",
+		StaticDir:         "web/static",
+		MaxUploadSize:     cfg.MaxUploadSizeBytes,
+		Location:          location,
+		SessionCookieName: cfg.SessionCookieName,
+		SessionSecure:     cfg.SessionSecureCookie,
+		AllowRegistration: cfg.AllowRegistration,
+	})
 	if err != nil {
 		log.Fatalf("build handler: %v", err)
 	}
