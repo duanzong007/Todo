@@ -14,7 +14,9 @@ import (
 var errEmptyInput = errors.New("input cannot be empty")
 
 var (
-	pickupCodeRegex     = regexp.MustCompile(`取件码[:：\s]*([A-Za-z0-9]+)`)
+	pickupCodeRegex     = regexp.MustCompile(`(?:凭取件码|取件码|凭)[:：\s]*([A-Za-z0-9-]+)`)
+	cabinetNumberRegex  = regexp.MustCompile(`(\d+号柜)`)
+	smsVendorMarkRegex  = regexp.MustCompile(`【[^】]+】`)
 	explicitDateRegex   = regexp.MustCompile(`(?:(\d{4})[年/-])?(\d{1,2})[月/-](\d{1,2})(?:日|号)?`)
 	clockTimeRegex      = regexp.MustCompile(`(?i)(凌晨|早上|上午|中午|下午|晚上)?\s*(\d{1,2})(?:[:：点时](\d{1,2}))?\s*(?:分)?`)
 	relativeDateRegex   = regexp.MustCompile(`(今天|明天|后天)`)
@@ -104,6 +106,33 @@ func (p *TextParser) Parse(input string, now time.Time) (ParsedTask, error) {
 	}, nil
 }
 
+func (p *TextParser) ParseSMSBatch(input string, now time.Time) ([]ParsedTask, error) {
+	_ = now
+	segments := splitSMSMessages(input)
+	if len(segments) == 0 {
+		return nil, errEmptyInput
+	}
+
+	tasks := make([]ParsedTask, 0, len(segments))
+	for _, segment := range segments {
+		cleaned := normalizeWhitespace(segment)
+		if cleaned == "" {
+			continue
+		}
+		parsed, ok := p.parsePickupSMS(cleaned)
+		if !ok {
+			continue
+		}
+		tasks = append(tasks, parsed)
+	}
+
+	if len(tasks) == 0 {
+		return nil, fmt.Errorf("暂时只支持解析这些取件短信")
+	}
+
+	return tasks, nil
+}
+
 type dateMatch struct {
 	Raw  string
 	Date time.Time
@@ -120,38 +149,102 @@ func (p *TextParser) parsePickupSMS(input string) (ParsedTask, bool) {
 		return ParsedTask{}, false
 	}
 
-	code := ""
-	if matched := pickupCodeRegex.FindStringSubmatch(input); len(matched) > 1 {
-		code = matched[1]
+	title, metadata, ok := extractPickupTaskTitle(input)
+	if !ok {
+		return ParsedTask{}, false
 	}
-
-	note := ""
-	if code != "" {
-		note = fmt.Sprintf("取件码 %s", code)
-	}
-
-	metadata := map[string]any{
-		"raw_input": input,
-		"parser":    "pickup_sms",
-	}
-	if code != "" {
-		metadata["pickup_code"] = code
-	}
+	metadata["raw_input"] = input
+	metadata["parser"] = "pickup_sms"
 
 	return ParsedTask{
 		SourceType:    domain.SourceTypeSMSPaste,
-		SourceSummary: "取快递",
+		SourceSummary: title,
 		SourceMetadata: map[string]any{
 			"parser": "pickup_sms",
 		},
 		Task: repository.TaskInput{
-			Title:      "取快递",
-			Note:       note,
+			Title:      title,
+			Note:       "",
 			Type:       domain.TaskTypeTodo,
-			Importance: domain.DefaultTaskImportance,
+			Importance: 2,
 			Metadata:   metadata,
 		},
 	}, true
+}
+
+func extractPickupTaskTitle(input string) (string, map[string]any, bool) {
+	codeMatch := pickupCodeRegex.FindStringSubmatch(input)
+	if len(codeMatch) < 2 {
+		return "", nil, false
+	}
+	code := strings.TrimSpace(codeMatch[1])
+	if code == "" {
+		return "", nil, false
+	}
+
+	metadata := map[string]any{
+		"pickup_code": code,
+	}
+
+	if strings.Contains(input, "驿站") {
+		metadata["pickup_kind"] = "station"
+		return "驿站：" + code, metadata, true
+	}
+
+	cabinetMatch := cabinetNumberRegex.FindStringSubmatch(input)
+	if len(cabinetMatch) > 1 {
+		cabinet := strings.TrimSpace(cabinetMatch[1])
+		metadata["pickup_kind"] = "cabinet"
+		metadata["cabinet_number"] = cabinet
+		return cabinet + " " + code, metadata, true
+	}
+
+	return "", nil, false
+}
+
+func splitSMSMessages(input string) []string {
+	normalized := strings.ReplaceAll(input, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+	trimmed := strings.TrimSpace(normalized)
+	if trimmed == "" {
+		return nil
+	}
+
+	indices := smsVendorMarkRegex.FindAllStringIndex(trimmed, -1)
+	if len(indices) <= 1 {
+		lines := strings.Split(trimmed, "\n")
+		if len(lines) <= 1 {
+			return []string{trimmed}
+		}
+
+		messages := make([]string, 0, len(lines))
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			messages = append(messages, line)
+		}
+		if len(messages) > 0 {
+			return messages
+		}
+		return []string{trimmed}
+	}
+
+	messages := make([]string, 0, len(indices))
+	for index, bounds := range indices {
+		start := bounds[0]
+		end := len(trimmed)
+		if index+1 < len(indices) {
+			end = indices[index+1][0]
+		}
+		segment := strings.TrimSpace(trimmed[start:end])
+		if segment == "" {
+			continue
+		}
+		messages = append(messages, segment)
+	}
+	return messages
 }
 
 func (p *TextParser) extractDate(input string, now time.Time) (dateMatch, bool) {

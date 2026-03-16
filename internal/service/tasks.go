@@ -187,32 +187,37 @@ func (s *TaskService) normalizeManualTaskInput(input repository.TaskInput) (repo
 	return cleanInput, nil
 }
 
-func (s *TaskService) CreateFromSMSParse(ctx context.Context, userID uuid.UUID, input string, importance int) (domain.Task, error) {
-	parsed, err := s.parser.Parse(input, time.Now().In(s.location))
+func (s *TaskService) CreateFromSMSParse(ctx context.Context, userID uuid.UUID, input string) (int, error) {
+	parsedTasks, err := s.parser.ParseSMSBatch(input, time.Now().In(s.location))
 	if err != nil {
-		return domain.Task{}, err
-	}
-	if parsed.SourceType != domain.SourceTypeSMSPaste {
-		return domain.Task{}, fmt.Errorf("暂时只支持解析快递短信")
+		return 0, err
 	}
 
-	if importance != 0 {
-		normalizedImportance, err := normalizeImportanceValue(importance)
-		if err != nil {
-			return domain.Task{}, err
+	inputs := make([]repository.TaskInput, 0, len(parsedTasks))
+	for _, parsed := range parsedTasks {
+		if parsed.SourceType != domain.SourceTypeSMSPaste {
+			continue
 		}
-		parsed.Task.Importance = normalizedImportance
+		parsed.Task.Importance = 2
+		inputs = append(inputs, parsed.Task)
+	}
+
+	if len(inputs) == 0 {
+		return 0, fmt.Errorf("暂时只支持解析这些取件短信")
 	}
 
 	source := repository.SourceInput{
-		Type:       parsed.SourceType,
+		Type:       domain.SourceTypeSMSPaste,
 		RawContent: input,
-		Summary:    parsed.SourceSummary,
+		Summary:    fmt.Sprintf("短信解析: %d 条", len(inputs)),
 		Checksum:   checksumString(input),
-		Metadata:   parsed.SourceMetadata,
+		Metadata: map[string]any{
+			"parser":        "pickup_sms",
+			"message_count": len(inputs),
+		},
 	}
 
-	return s.repo.CreateTask(ctx, userID, source, parsed.Task)
+	return s.repo.CreateTasks(ctx, userID, source, inputs)
 }
 
 func (s *TaskService) ImportICS(ctx context.Context, userID uuid.UUID, filename string, body []byte) (int, error) {

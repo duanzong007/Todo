@@ -664,6 +664,19 @@ button.danger:hover {
     justify-content: flex-end;
 }
 
+.composer-textarea {
+    width: 100%;
+    max-width: none;
+    resize: vertical;
+}
+
+.composer-sms-textarea {
+    min-height: 180px;
+    line-height: 1.55;
+    padding-top: 14px;
+    padding-bottom: 14px;
+}
+
 .star-rating {
     display: inline-flex;
     flex-direction: row-reverse;

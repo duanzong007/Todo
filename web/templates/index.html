@@ -246,7 +246,7 @@
                             <button type="button" class="composer-tab" data-composer-tab="ddl">DDL</button>
                         </div>
                         <div class="composer-tools-shortcuts">
-                            <button type="button" class="composer-tab composer-tab-utility" data-sms-entry title="短信入口，后续单独做">短信</button>
+                            <button type="button" class="composer-tab composer-tab-utility" data-composer-tab="sms">短信</button>
                             <button type="button" class="composer-tab composer-tab-utility" data-ics-upload-button>ICS</button>
                         </div>
                     </div>
@@ -571,6 +571,28 @@
 
                             <div class="composer-actions">
                                 <button type="submit">添加 DDL</button>
+                            </div>
+                        </form>
+
+                        <form action="/tasks/parse-sms" method="post" class="composer-form" data-composer-section="sms" data-async-focus-form hidden>
+                            <input type="hidden" name="return_date" value="{{ .FocusDateISO }}">
+
+                            <div class="composer-form-grid">
+                                <div class="composer-field">
+                                    <label for="sms-input">短信内容</label>
+                                    <textarea
+                                        id="sms-input"
+                                        name="sms_input"
+                                        class="composer-textarea composer-sms-textarea"
+                                        placeholder="直接粘贴取件短信；一次贴很多条也可以。"
+                                        autocomplete="off"
+                                        spellcheck="false"
+                                        required></textarea>
+                                </div>
+                            </div>
+
+                            <div class="composer-actions">
+                                <button type="submit">解析短信</button>
                             </div>
                         </form>
                     </section>

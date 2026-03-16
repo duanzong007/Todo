@@ -1,6 +1,8 @@
 package web
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -205,5 +207,30 @@ func TestParseManualTaskFormExpandsScheduleBatchInclusively(t *testing.T) {
 		if inputs[index].Title != "固定组会" {
 			t.Fatalf("inputs[%d].Title = %q, want %q", index, inputs[index].Title, "固定组会")
 		}
+	}
+}
+
+func TestParseRequestFormSupportsMultipartFields(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	handler := &Handler{location: location}
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("sms_input", "【菜鸟驿站】您的包裹已到站，凭140-1-3005到重庆双福状元路41号店取件。"); err != nil {
+		t.Fatalf("WriteField() error = %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("writer.Close() error = %v", err)
+	}
+
+	request := httptest.NewRequest("POST", "/tasks/parse-sms", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+
+	if err := handler.parseRequestForm(request); err != nil {
+		t.Fatalf("parseRequestForm() error = %v", err)
+	}
+
+	if got := request.FormValue("sms_input"); got == "" {
+		t.Fatalf("FormValue(sms_input) = empty, want non-empty")
 	}
 }

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -62,8 +63,8 @@ func TestTextParserParse(t *testing.T) {
 			name:       "pickup sms",
 			input:      "【菜鸟驿站】取件码 384923",
 			wantType:   domain.TaskTypeTodo,
-			wantTitle:  "取快递",
-			wantNote:   "取件码 384923",
+			wantTitle:  "驿站：384923",
+			wantNote:   "",
 			wantSource: domain.SourceTypeSMSPaste,
 		},
 		{
@@ -95,8 +96,12 @@ func TestTextParserParse(t *testing.T) {
 			if got.Task.Note != tt.wantNote {
 				t.Fatalf("Task.Note = %q, want %q", got.Task.Note, tt.wantNote)
 			}
-			if got.Task.Importance != domain.DefaultTaskImportance {
-				t.Fatalf("Task.Importance = %d, want %d", got.Task.Importance, domain.DefaultTaskImportance)
+			wantImportance := domain.DefaultTaskImportance
+			if tt.wantSource == domain.SourceTypeSMSPaste {
+				wantImportance = 2
+			}
+			if got.Task.Importance != wantImportance {
+				t.Fatalf("Task.Importance = %d, want %d", got.Task.Importance, wantImportance)
 			}
 
 			var dateValue *time.Time
@@ -123,5 +128,51 @@ func TestTextParserParse(t *testing.T) {
 				t.Fatalf("parsed time = %s, want %s", dateValue.In(location).Format("15:04"), tt.wantClock)
 			}
 		})
+	}
+}
+
+func TestTextParserParseSMSBatch(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	parser := NewTextParser(location)
+	now := time.Date(2026, 3, 16, 9, 0, 0, 0, location)
+
+	input := strings.Join([]string{
+		"【菜鸟驿站】您的包裹已到站，凭140-1-3005到重庆双福状元路41号店取件。",
+		"【韵达超市】快递员提醒您，请凭取件码466412到建宇门口零食有鸣9号柜智能柜取您的快递",
+		"【鸟箱】请凭取件码055151到零食有鸣5号柜鸟箱06副柜24格取件72小时内免费，之后每12小时收0.0元",
+		"【熊猫柜】您的圆通包裹已到建宇新时区零食有鸣10号柜，取件码65676997",
+	}, "")
+
+	got, err := parser.ParseSMSBatch(input, now)
+	if err != nil {
+		t.Fatalf("ParseSMSBatch() error = %v", err)
+	}
+
+	wantTitles := []string{
+		"驿站：140-1-3005",
+		"9号柜 466412",
+		"5号柜 055151",
+		"10号柜 65676997",
+	}
+	if len(got) != len(wantTitles) {
+		t.Fatalf("len(got) = %d, want %d", len(got), len(wantTitles))
+	}
+
+	for index, parsed := range got {
+		if parsed.SourceType != domain.SourceTypeSMSPaste {
+			t.Fatalf("got[%d].SourceType = %s, want %s", index, parsed.SourceType, domain.SourceTypeSMSPaste)
+		}
+		if parsed.Task.Type != domain.TaskTypeTodo {
+			t.Fatalf("got[%d].Task.Type = %s, want %s", index, parsed.Task.Type, domain.TaskTypeTodo)
+		}
+		if parsed.Task.Importance != 2 {
+			t.Fatalf("got[%d].Task.Importance = %d, want 2", index, parsed.Task.Importance)
+		}
+		if parsed.Task.Title != wantTitles[index] {
+			t.Fatalf("got[%d].Task.Title = %q, want %q", index, parsed.Task.Title, wantTitles[index])
+		}
+		if parsed.Task.Note != "" {
+			t.Fatalf("got[%d].Task.Note = %q, want empty", index, parsed.Task.Note)
+		}
 	}
 }

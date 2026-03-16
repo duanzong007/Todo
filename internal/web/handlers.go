@@ -350,7 +350,7 @@ func (h *Handler) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		h.redirectToLogin(w, r, "", "请先登录")
 		return
 	}
-	if err := r.ParseForm(); err != nil {
+	if err := h.parseRequestForm(r); err != nil {
 		h.redirectHome(w, r, "", "请求解析失败")
 		return
 	}
@@ -390,7 +390,7 @@ func (h *Handler) handleCreateManualTask(w http.ResponseWriter, r *http.Request)
 		h.redirectToLogin(w, r, "", "请先登录")
 		return
 	}
-	if err := r.ParseForm(); err != nil {
+	if err := h.parseRequestForm(r); err != nil {
 		h.redirectHome(w, r, "", "请求解析失败")
 		return
 	}
@@ -428,7 +428,7 @@ func (h *Handler) handleParseSMS(w http.ResponseWriter, r *http.Request) {
 		h.redirectToLogin(w, r, "", "请先登录")
 		return
 	}
-	if err := r.ParseForm(); err != nil {
+	if err := h.parseRequestForm(r); err != nil {
 		h.redirectHome(w, r, "", "请求解析失败")
 		return
 	}
@@ -439,17 +439,7 @@ func (h *Handler) handleParseSMS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	importance, err := parseOptionalImportance(r.FormValue("importance"))
-	if err != nil {
-		if wantsAsyncResponse(r) {
-			http.Error(w, humanizeError(err), http.StatusBadRequest)
-			return
-		}
-		h.redirectHome(w, r, "", humanizeError(err))
-		return
-	}
-
-	if _, err := h.taskService.CreateFromSMSParse(r.Context(), user.ID, input, importance); err != nil {
+	if _, err := h.taskService.CreateFromSMSParse(r.Context(), user.ID, input); err != nil {
 		if wantsAsyncResponse(r) {
 			http.Error(w, humanizeError(err), http.StatusBadRequest)
 			return
@@ -498,7 +488,7 @@ func (h *Handler) handlePostponeTask(w http.ResponseWriter, r *http.Request) {
 		h.redirectToLogin(w, r, "", "请先登录")
 		return
 	}
-	if err := r.ParseForm(); err != nil {
+	if err := h.parseRequestForm(r); err != nil {
 		h.redirectHome(w, r, "", "请求解析失败")
 		return
 	}
@@ -1452,6 +1442,18 @@ func (h *Handler) currentViewDateParam(r *http.Request) string {
 		return ""
 	}
 	return date.Format("2006-01-02")
+}
+
+func (h *Handler) parseRequestForm(r *http.Request) error {
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		maxMemory := int64(8 << 20)
+		if h.maxUploadSize > 0 && h.maxUploadSize < maxMemory {
+			maxMemory = h.maxUploadSize
+		}
+		return r.ParseMultipartForm(maxMemory)
+	}
+	return r.ParseForm()
 }
 
 func (h *Handler) actionFocusDate(r *http.Request) time.Time {
