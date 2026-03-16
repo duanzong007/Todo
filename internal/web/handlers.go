@@ -117,7 +117,9 @@ type TaskCard struct {
 	Note          string `json:"note"`
 	CanComplete   bool   `json:"can_complete"`
 	CanPostpone   bool   `json:"can_postpone"`
+	PostponeMode  string `json:"postpone_mode"`
 	PostponeValue string `json:"postpone_value"`
+	PostponeMin   string `json:"postpone_min_value"`
 	ReturnDate    string `json:"return_date"`
 }
 
@@ -130,7 +132,9 @@ type CompletedTaskCard struct {
 	StatusLine    string `json:"status_line"`
 	Note          string `json:"note"`
 	CanPostpone   bool   `json:"can_postpone"`
+	PostponeMode  string `json:"postpone_mode"`
 	PostponeValue string `json:"postpone_value"`
+	PostponeMin   string `json:"postpone_min_value"`
 	ReturnDate    string `json:"return_date"`
 }
 
@@ -413,9 +417,12 @@ func (h *Handler) handlePostponeTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	taskID := chi.URLParam(r, "taskID")
-	targetDate := strings.TrimSpace(r.FormValue("target_date"))
+	targetDate := strings.TrimSpace(r.FormValue("target_value"))
 	if targetDate == "" {
-		h.redirectHome(w, r, "", "请选择新的日期")
+		targetDate = strings.TrimSpace(r.FormValue("target_date"))
+	}
+	if targetDate == "" {
+		h.redirectHome(w, r, "", "请选择新的延期时间")
 		return
 	}
 
@@ -866,23 +873,24 @@ func buildTaskCard(task domain.Task, now, focusDate time.Time, location *time.Lo
 	case domain.TaskTypeSchedule:
 		card.KindLabel = "日程"
 		card.KindClass = "schedule"
-		if task.ScheduledFor != nil {
-			card.PostponeValue = normalizeDateForView(*task.ScheduledFor, location).AddDate(0, 0, 1).Format("2006-01-02")
-		}
+		card.PostponeMode = "date"
+		card.PostponeValue, card.PostponeMin = schedulePostponePickerValues(task, now, location)
 	case domain.TaskTypeDDL:
 		card.KindLabel = "DDL"
 		card.KindClass = "ddl"
 		if task.Deadline != nil {
 			card.StatusLine = formatDDLCountdown(*task.Deadline, now, location)
-			card.PostponeValue = normalizeDateForView(*task.Deadline, location).AddDate(0, 0, 1).Format("2006-01-02")
 		}
+		card.PostponeMode = "datetime"
+		card.PostponeValue, card.PostponeMin = ddlPostponePickerValues(task, now, location)
 	case domain.TaskTypeTodo:
 		card.KindLabel = "Todo"
 		card.KindClass = "todo"
 	}
 
-	if card.PostponeValue == "" {
+	if card.PostponeValue == "" && card.PostponeMode == "date" {
 		card.PostponeValue = focusDate.AddDate(0, 0, 1).Format("2006-01-02")
+		card.PostponeMin = card.PostponeValue
 	}
 
 	return card
@@ -1013,14 +1021,14 @@ func buildCompletedTaskCards(tasks []domain.Task, now, focusDate time.Time, loca
 
 		switch task.Type {
 		case domain.TaskTypeSchedule:
-			if task.ScheduledFor != nil {
-				card.PostponeValue = normalizeDateForView(*task.ScheduledFor, location).AddDate(0, 0, 1).Format("2006-01-02")
-			}
+			card.PostponeMode = "date"
+			card.PostponeValue, card.PostponeMin = schedulePostponePickerValues(task, now, location)
 		case domain.TaskTypeDDL:
 			if task.Deadline != nil {
 				card.StatusLine = formatDDLCountdown(*task.Deadline, now, location)
-				card.PostponeValue = normalizeDateForView(*task.Deadline, location).AddDate(0, 0, 1).Format("2006-01-02")
 			}
+			card.PostponeMode = "datetime"
+			card.PostponeValue, card.PostponeMin = ddlPostponePickerValues(task, now, location)
 		}
 
 		cards = append(cards, card)
@@ -1049,6 +1057,54 @@ func formatCompletedAt(task domain.Task, location *time.Location) string {
 		return "完成于 " + completedAt.Format("1月2日 15:04")
 	}
 	return "完成于 " + completedAt.Format("1月2日")
+}
+
+func schedulePostponePickerValues(task domain.Task, now time.Time, location *time.Location) (string, string) {
+	minimum := serviceEarliestSchedulePostponeDate(task, now, location)
+	value := minimum.Format("2006-01-02")
+	return value, value
+}
+
+func ddlPostponePickerValues(task domain.Task, now time.Time, location *time.Location) (string, string) {
+	minimum := serviceEarliestDDLPostponeTime(task, now, location)
+	value := minimum.Format("2006-01-02T15:04")
+	return value, value
+}
+
+func serviceEarliestSchedulePostponeDate(task domain.Task, now time.Time, location *time.Location) time.Time {
+	base := normalizeDateForView(now, location)
+	if task.ScheduledFor != nil {
+		scheduled := normalizeDateForView(*task.ScheduledFor, location)
+		if scheduled.After(base) {
+			base = scheduled
+		}
+	}
+	return base.AddDate(0, 0, 1)
+}
+
+func serviceEarliestDDLPostponeTime(task domain.Task, now time.Time, location *time.Location) time.Time {
+	base := now.In(location)
+	if task.Deadline != nil {
+		deadline := task.Deadline.In(location)
+		if deadline.After(base) {
+			base = deadline
+		}
+	}
+
+	rounded := time.Date(
+		base.Year(),
+		base.Month(),
+		base.Day(),
+		base.Hour(),
+		base.Minute(),
+		0,
+		0,
+		location,
+	)
+	if !rounded.After(base) {
+		rounded = rounded.Add(time.Minute)
+	}
+	return rounded
 }
 
 func ceilDuration(value, unit time.Duration) int {
@@ -1206,6 +1262,8 @@ func humanizeError(err error) string {
 		return "任务 ID 无效"
 	case strings.Contains(err.Error(), "invalid target date"):
 		return "延期日期格式不正确"
+	case strings.Contains(err.Error(), "invalid target time"):
+		return "延期时间格式不正确"
 	default:
 		return err.Error()
 	}

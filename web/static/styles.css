@@ -654,13 +654,13 @@ button.danger:hover {
 
 .inline-postpone form {
     display: flex;
-    gap: 8px;
+    gap: 10px;
     align-items: center;
     position: absolute;
     right: 0;
     top: calc(100% + 8px);
     z-index: 4;
-    padding: 8px;
+    padding: 10px;
     border-radius: 14px;
     border: 1px solid rgba(38, 33, 27, 0.1);
     background: rgba(255, 251, 245, 0.96);
@@ -668,11 +668,48 @@ button.danger:hover {
     flex-wrap: nowrap;
 }
 
-.inline-postpone input[type="date"] {
-    min-height: 34px;
-    min-width: 132px;
-    border-radius: 12px;
-    font-size: 0.86rem;
+.postpone-form-panel {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.postpone-wheel-picker {
+    height: 42px;
+    padding: 6px 10px;
+    gap: 6px;
+}
+
+.postpone-wheel-picker.is-expanded {
+    height: 104px;
+    padding: 10px 12px;
+    border-radius: 22px;
+}
+
+.postpone-wheel-picker .wheel-column {
+    width: 42px;
+}
+
+.postpone-wheel-picker .wheel-column[data-part="year"] {
+    width: 62px;
+}
+
+.postpone-wheel-picker .date-unit {
+    font-size: 0.84rem;
+}
+
+.postpone-wheel-picker .date-divider {
+    margin: 0 1px;
+    color: rgba(102, 76, 55, 0.52);
+}
+
+.postpone-form-panel button.secondary {
+    min-height: 42px;
+    padding: 0 16px;
+    border-radius: 14px;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    writing-mode: horizontal-tb;
 }
 
 button.complete-toggle {

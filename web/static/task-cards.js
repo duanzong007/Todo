@@ -390,16 +390,7 @@ function buildFocusTaskCardHTML(card) {
         </div>
       </div>
       <div class="task-actions focus-actions">
-        ${card.can_postpone ? `
-          <details class="inline-postpone" data-postpone-panel data-task-id="${escapeHtml(card.id)}">
-            <summary>延期</summary>
-            <form action="/tasks/${escapeHtml(card.id)}/postpone" method="post" data-postpone-form data-async-task-form>
-              <input type="hidden" name="return_date" value="${escapeHtml(card.return_date)}">
-              <input type="date" name="target_date" value="${escapeHtml(card.postpone_value)}">
-              <button type="submit" class="secondary">确认</button>
-            </form>
-          </details>
-        ` : ""}
+        ${card.can_postpone ? buildPostponeControlHTML(card) : ""}
         ${card.can_complete ? `
           <form action="/tasks/${escapeHtml(card.id)}/complete" method="post" data-complete-form data-async-task-form>
             <input type="hidden" name="return_date" value="${escapeHtml(card.return_date)}">
@@ -415,7 +406,7 @@ function buildFocusTaskCardHTML(card) {
 
 function buildCompletedTaskCardHTML(card) {
   return `
-    <article class="archive-card" data-task-id="${escapeHtml(card.id)}" data-kind-label="${escapeHtml(card.kind_label)}" data-kind-class="${escapeHtml(card.kind_class)}" data-status-line="${escapeHtml(card.status_line || "")}" data-can-postpone="${card.can_postpone ? "1" : "0"}" data-postpone-value="${escapeHtml(card.postpone_value || "")}">
+    <article class="archive-card" data-task-id="${escapeHtml(card.id)}" data-kind-label="${escapeHtml(card.kind_label)}" data-kind-class="${escapeHtml(card.kind_class)}" data-status-line="${escapeHtml(card.status_line || "")}" data-can-postpone="${card.can_postpone ? "1" : "0"}" data-postpone-mode="${escapeHtml(card.postpone_mode || "")}" data-postpone-value="${escapeHtml(card.postpone_value || "")}" data-postpone-min-value="${escapeHtml(card.postpone_min_value || "")}">
       <div class="archive-card-main">
         <span class="task-kind task-kind-${escapeHtml(card.kind_class)}">${escapeHtml(card.kind_label)}</span>
         <div class="task-body">
@@ -429,6 +420,51 @@ function buildCompletedTaskCardHTML(card) {
         </form>
       </div>
     </article>
+  `;
+}
+
+function buildWheelColumnHTML(part, ariaLabel) {
+  return `
+    <div class="wheel-column" data-part="${escapeHtml(part)}" tabindex="0" role="spinbutton" aria-label="${escapeHtml(ariaLabel)}">
+      <div class="wheel-track">
+        <span class="wheel-item" data-slot="far-prev"></span>
+        <span class="wheel-item" data-slot="prev"></span>
+        <span class="wheel-item" data-slot="current"></span>
+        <span class="wheel-item" data-slot="next"></span>
+        <span class="wheel-item" data-slot="far-next"></span>
+      </div>
+    </div>
+  `;
+}
+
+function buildPostponeControlHTML(card) {
+  const mode = card.postpone_mode === "datetime" ? "datetime" : "date";
+  const minValue = card.postpone_min_value || card.postpone_value || "";
+
+  return `
+    <details class="inline-postpone" data-postpone-panel data-task-id="${escapeHtml(card.id)}">
+      <summary>延期</summary>
+      <form action="/tasks/${escapeHtml(card.id)}/postpone" method="post" class="postpone-form-panel" data-postpone-form data-async-task-form>
+        <input type="hidden" name="return_date" value="${escapeHtml(card.return_date)}">
+        <div class="wheel-date-picker postpone-wheel-picker${mode === "datetime" ? " is-datetime" : ""}" data-postpone-picker data-picker-mode="${mode}" data-initial-value="${escapeHtml(card.postpone_value || minValue)}" data-min-value="${escapeHtml(minValue)}">
+          <input type="hidden" name="target_value" value="${escapeHtml(card.postpone_value || minValue)}">
+          ${buildWheelColumnHTML("year", "年份")}
+          <span class="date-unit">年</span>
+          ${buildWheelColumnHTML("month", "月份")}
+          <span class="date-unit">月</span>
+          ${buildWheelColumnHTML("day", "日期")}
+          <span class="date-unit">日</span>
+          ${mode === "datetime" ? `
+            <span class="date-unit date-divider">·</span>
+            ${buildWheelColumnHTML("hour", "小时")}
+            <span class="date-unit">时</span>
+            ${buildWheelColumnHTML("minute", "分钟")}
+            <span class="date-unit">分</span>
+          ` : ""}
+        </div>
+        <button type="submit" class="secondary">确认</button>
+      </form>
+    </details>
   `;
 }
 
@@ -468,6 +504,12 @@ function nextDateValue(baseValue) {
   return `${base.getFullYear()}-${padNumber(base.getMonth() + 1)}-${padNumber(base.getDate())}`;
 }
 
+function nextDateTimeValue(baseValue) {
+  const base = baseValue ? new Date(baseValue) : new Date();
+  base.setMinutes(base.getMinutes() + 1, 0, 0);
+  return `${base.getFullYear()}-${padNumber(base.getMonth() + 1)}-${padNumber(base.getDate())}T${padNumber(base.getHours())}:${padNumber(base.getMinutes())}`;
+}
+
 function syncFocusCounterFromDOM() {
   const count = document.querySelectorAll(".focus-list [data-task-card]").length;
   focusCounterElements().forEach((element) => {
@@ -504,6 +546,8 @@ function insertElementWithMotion(container, selector, element, method = "prepend
 
 function buildOptimisticCompletedCard(sourceElement, request) {
   const { label, kindClass } = extractCardKind(sourceElement);
+  const postponePicker = sourceElement?.querySelector("[data-postpone-picker]");
+  const postponeValue = sourceElement?.querySelector("[data-postpone-form] input[name='target_value']")?.value || "";
   return {
     id: request.taskID,
     title: extractCardText(sourceElement, "h3"),
@@ -513,7 +557,9 @@ function buildOptimisticCompletedCard(sourceElement, request) {
     status_line: extractCardText(sourceElement, ".status"),
     note: extractCardText(sourceElement, ".note"),
     can_postpone: Boolean(sourceElement?.querySelector("[data-postpone-panel]")),
-    postpone_value: sourceElement?.querySelector("[data-postpone-form] input[name='target_date']")?.value || "",
+    postpone_mode: postponePicker?.getAttribute("data-picker-mode") || "",
+    postpone_value: postponeValue,
+    postpone_min_value: postponePicker?.getAttribute("data-min-value") || postponeValue,
     return_date: extractReturnDate(sourceElement),
   };
 }
@@ -522,8 +568,10 @@ function buildOptimisticFocusCard(sourceElement, request) {
   const { label, kindClass } = extractCardKind(sourceElement);
   const returnDate = extractReturnDate(sourceElement);
   const statusLine = sourceElement?.getAttribute("data-status-line") || "";
-  const postponeValue = sourceElement?.getAttribute("data-postpone-value") || nextDateValue(returnDate);
+  const postponeMode = sourceElement?.getAttribute("data-postpone-mode") || (kindClass === "ddl" ? "datetime" : "date");
+  const postponeValue = sourceElement?.getAttribute("data-postpone-value") || (postponeMode === "datetime" ? nextDateTimeValue() : nextDateValue(returnDate));
   const canPostpone = sourceElement?.getAttribute("data-can-postpone") === "1";
+  const postponeMinValue = sourceElement?.getAttribute("data-postpone-min-value") || postponeValue;
   return {
     id: request.taskID,
     title: extractCardText(sourceElement, "h3"),
@@ -533,7 +581,9 @@ function buildOptimisticFocusCard(sourceElement, request) {
     note: extractCardText(sourceElement, ".note"),
     can_postpone: canPostpone,
     can_complete: true,
+    postpone_mode: postponeMode,
     postpone_value: postponeValue,
+    postpone_min_value: postponeMinValue,
     return_date: returnDate,
   };
 }
@@ -1208,6 +1258,9 @@ function bindAsyncTaskForm(form) {
 }
 
 function initializeTaskCards(root = document) {
+  if (window.initializePostponePickers) {
+    window.initializePostponePickers(root);
+  }
   updatePendingCounterState();
   root.querySelectorAll("[data-async-task-form], [data-async-focus-form]").forEach((form) => {
     bindAsyncTaskForm(form);

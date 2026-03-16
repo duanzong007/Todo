@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"todo/internal/domain"
@@ -121,19 +122,14 @@ func (s *TaskService) Postpone(ctx context.Context, userID uuid.UUID, rawID, tar
 		return fmt.Errorf("invalid task id: %w", err)
 	}
 
-	parsedDate, err := time.ParseInLocation("2006-01-02", targetDate, s.location)
-	if err != nil {
-		return fmt.Errorf("invalid target date: %w", err)
-	}
-
 	task, err := s.repo.GetTask(ctx, userID, taskID)
 	if err != nil {
 		return err
 	}
 
-	targetValue := normalizeDateInLocation(parsedDate, s.location)
-	if task.Type == domain.TaskTypeDDL {
-		targetValue = mergeDeadlineDateWithExistingClock(parsedDate.In(s.location), task.Deadline, s.location)
+	targetValue, err := parsePostponeTarget(task, strings.TrimSpace(targetDate), time.Now().In(s.location), s.location)
+	if err != nil {
+		return err
 	}
 
 	_, err = s.repo.PostponeTask(ctx, userID, taskID, targetValue)
@@ -166,4 +162,81 @@ func mergeDeadlineDateWithExistingClock(targetDate time.Time, existing *time.Tim
 		0,
 		location,
 	)
+}
+
+func parsePostponeTarget(task domain.Task, rawTarget string, now time.Time, location *time.Location) (time.Time, error) {
+	switch task.Type {
+	case domain.TaskTypeSchedule:
+		parsedDate, err := time.ParseInLocation("2006-01-02", rawTarget, location)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("日程延期日期格式不正确")
+		}
+
+		targetValue := normalizeDateInLocation(parsedDate, location)
+		minimum := earliestSchedulePostponeDate(task, now, location)
+		if targetValue.Before(minimum) {
+			return time.Time{}, fmt.Errorf("日程只能延期到更晚的日期")
+		}
+		return targetValue, nil
+	case domain.TaskTypeDDL:
+		parsedDateTime, err := time.ParseInLocation("2006-01-02T15:04", rawTarget, location)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("DDL 延期时间格式不正确")
+		}
+
+		targetValue := time.Date(
+			parsedDateTime.Year(),
+			parsedDateTime.Month(),
+			parsedDateTime.Day(),
+			parsedDateTime.Hour(),
+			parsedDateTime.Minute(),
+			0,
+			0,
+			location,
+		)
+		minimum := earliestDDLPostponeTime(task, now, location)
+		if targetValue.Before(minimum) {
+			return time.Time{}, fmt.Errorf("DDL 只能延期到更晚的时间")
+		}
+		return targetValue, nil
+	default:
+		return time.Time{}, repository.ErrUnsupportedOperation
+	}
+}
+
+func earliestSchedulePostponeDate(task domain.Task, now time.Time, location *time.Location) time.Time {
+	base := normalizeDateInLocation(now, location)
+	if task.ScheduledFor != nil {
+		scheduled := normalizeDateInLocation(*task.ScheduledFor, location)
+		if scheduled.After(base) {
+			base = scheduled
+		}
+	}
+	return base.AddDate(0, 0, 1)
+}
+
+func earliestDDLPostponeTime(task domain.Task, now time.Time, location *time.Location) time.Time {
+	base := now.In(location)
+	if task.Deadline != nil {
+		deadline := task.Deadline.In(location)
+		if deadline.After(base) {
+			base = deadline
+		}
+	}
+
+	local := base.In(location)
+	rounded := time.Date(
+		local.Year(),
+		local.Month(),
+		local.Day(),
+		local.Hour(),
+		local.Minute(),
+		0,
+		0,
+		location,
+	)
+	if !rounded.After(local) {
+		rounded = rounded.Add(time.Minute)
+	}
+	return rounded
 }

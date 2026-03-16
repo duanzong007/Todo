@@ -45,9 +45,70 @@
                         {{ if .CanPostpone }}
                         <details class="inline-postpone" data-postpone-panel data-task-id="{{ .ID }}">
                             <summary>延期</summary>
-                            <form action="/tasks/{{ .ID }}/postpone" method="post" data-postpone-form data-async-task-form>
+                            <form action="/tasks/{{ .ID }}/postpone" method="post" class="postpone-form-panel" data-postpone-form data-async-task-form>
                                 <input type="hidden" name="return_date" value="{{ .ReturnDate }}">
-                                <input type="date" name="target_date" value="{{ .PostponeValue }}">
+                                <div class="wheel-date-picker postpone-wheel-picker{{ if eq .PostponeMode "datetime" }} is-datetime{{ end }}" data-postpone-picker data-picker-mode="{{ .PostponeMode }}" data-initial-value="{{ .PostponeValue }}" data-min-value="{{ .PostponeMin }}">
+                                    <input type="hidden" name="target_value" value="{{ .PostponeValue }}">
+
+                                    <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="年份">
+                                        <div class="wheel-track">
+                                            <span class="wheel-item" data-slot="far-prev"></span>
+                                            <span class="wheel-item" data-slot="prev"></span>
+                                            <span class="wheel-item" data-slot="current"></span>
+                                            <span class="wheel-item" data-slot="next"></span>
+                                            <span class="wheel-item" data-slot="far-next"></span>
+                                        </div>
+                                    </div>
+                                    <span class="date-unit">年</span>
+
+                                    <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="月份">
+                                        <div class="wheel-track">
+                                            <span class="wheel-item" data-slot="far-prev"></span>
+                                            <span class="wheel-item" data-slot="prev"></span>
+                                            <span class="wheel-item" data-slot="current"></span>
+                                            <span class="wheel-item" data-slot="next"></span>
+                                            <span class="wheel-item" data-slot="far-next"></span>
+                                        </div>
+                                    </div>
+                                    <span class="date-unit">月</span>
+
+                                    <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="日期">
+                                        <div class="wheel-track">
+                                            <span class="wheel-item" data-slot="far-prev"></span>
+                                            <span class="wheel-item" data-slot="prev"></span>
+                                            <span class="wheel-item" data-slot="current"></span>
+                                            <span class="wheel-item" data-slot="next"></span>
+                                            <span class="wheel-item" data-slot="far-next"></span>
+                                        </div>
+                                    </div>
+                                    <span class="date-unit">日</span>
+
+                                    {{ if eq .PostponeMode "datetime" }}
+                                    <span class="date-unit date-divider">·</span>
+
+                                    <div class="wheel-column" data-part="hour" tabindex="0" role="spinbutton" aria-label="小时">
+                                        <div class="wheel-track">
+                                            <span class="wheel-item" data-slot="far-prev"></span>
+                                            <span class="wheel-item" data-slot="prev"></span>
+                                            <span class="wheel-item" data-slot="current"></span>
+                                            <span class="wheel-item" data-slot="next"></span>
+                                            <span class="wheel-item" data-slot="far-next"></span>
+                                        </div>
+                                    </div>
+                                    <span class="date-unit">时</span>
+
+                                    <div class="wheel-column" data-part="minute" tabindex="0" role="spinbutton" aria-label="分钟">
+                                        <div class="wheel-track">
+                                            <span class="wheel-item" data-slot="far-prev"></span>
+                                            <span class="wheel-item" data-slot="prev"></span>
+                                            <span class="wheel-item" data-slot="current"></span>
+                                            <span class="wheel-item" data-slot="next"></span>
+                                            <span class="wheel-item" data-slot="far-next"></span>
+                                        </div>
+                                    </div>
+                                    <span class="date-unit">分</span>
+                                    {{ end }}
+                                </div>
                                 <button type="submit" class="secondary">确认</button>
                             </form>
                         </details>
@@ -151,7 +212,9 @@
                                 data-kind-class="{{ .KindClass }}"
                                 data-status-line="{{ .StatusLine }}"
                                 data-can-postpone="{{ if .CanPostpone }}1{{ else }}0{{ end }}"
-                                data-postpone-value="{{ .PostponeValue }}">
+                                data-postpone-mode="{{ .PostponeMode }}"
+                                data-postpone-value="{{ .PostponeValue }}"
+                                data-postpone-min-value="{{ .PostponeMin }}">
                                 <div class="archive-card-main">
                                     <span class="task-kind task-kind-{{ .KindClass }}">{{ .KindLabel }}</span>
                                     <div class="task-body">
@@ -203,6 +266,7 @@
         </details>
     </main>
     <script src="/static/date-picker.js" defer></script>
+    <script src="/static/postpone-picker.js" defer></script>
     <script src="/static/focus-page.js" defer></script>
     <script src="/static/task-cards.js" defer></script>
 </body>
