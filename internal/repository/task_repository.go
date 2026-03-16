@@ -241,6 +241,46 @@ func (r *TaskRepository) CompleteTask(ctx context.Context, userID, id uuid.UUID)
 	return updatedTask, nil
 }
 
+func (r *TaskRepository) RestoreTask(ctx context.Context, userID, id uuid.UUID) (domain.Task, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	task, err := getTaskTx(ctx, tx, userID, id, true)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	if task.Status != domain.TaskStatusDone {
+		return domain.Task{}, ErrInvalidTaskTransition
+	}
+
+	row := tx.QueryRow(ctx, `
+		UPDATE tasks
+		SET status = 'active', completed_at = NULL
+		WHERE id = $1 AND user_id = $2
+		RETURNING id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
+	`, id, userID)
+
+	updatedTask, err := scanTask(row)
+	if err != nil {
+		return domain.Task{}, err
+	}
+
+	if err := createTaskEventTx(ctx, tx, id, "restored", map[string]any{
+		"previous_status": task.Status,
+	}); err != nil {
+		return domain.Task{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Task{}, fmt.Errorf("commit restore task: %w", err)
+	}
+
+	return updatedTask, nil
+}
+
 func (r *TaskRepository) PostponeTask(ctx context.Context, userID, id uuid.UUID, targetDate time.Time) (domain.Task, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {

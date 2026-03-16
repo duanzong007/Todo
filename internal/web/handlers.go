@@ -76,11 +76,11 @@ type DashboardPageData struct {
 }
 
 type QuoteView struct {
-	Text     string
-	Author   string
-	Source   string
-	HasMeta  bool
-	MetaLine string
+	Text     string `json:"text"`
+	Author   string `json:"author"`
+	Source   string `json:"source"`
+	HasMeta  bool   `json:"has_meta"`
+	MetaLine string `json:"meta_line"`
 }
 
 type AccountPageData struct {
@@ -109,24 +109,32 @@ type AuthPageData struct {
 }
 
 type TaskCard struct {
-	ID            string
-	Title         string
-	KindLabel     string
-	KindClass     string
-	StatusLine    string
-	Note          string
-	CanComplete   bool
-	CanPostpone   bool
-	PostponeValue string
-	ReturnDate    string
+	ID            string `json:"id"`
+	Title         string `json:"title"`
+	KindLabel     string `json:"kind_label"`
+	KindClass     string `json:"kind_class"`
+	StatusLine    string `json:"status_line"`
+	Note          string `json:"note"`
+	CanComplete   bool   `json:"can_complete"`
+	CanPostpone   bool   `json:"can_postpone"`
+	PostponeValue string `json:"postpone_value"`
+	ReturnDate    string `json:"return_date"`
 }
 
 type CompletedTaskCard struct {
-	Title        string
-	KindLabel    string
-	KindClass    string
-	FinishedLine string
-	Note         string
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	KindLabel    string `json:"kind_label"`
+	KindClass    string `json:"kind_class"`
+	FinishedLine string `json:"finished_line"`
+	Note         string `json:"note"`
+	ReturnDate   string `json:"return_date"`
+}
+
+type DashboardSnapshot struct {
+	FocusTasks     []TaskCard          `json:"focus_tasks"`
+	CompletedTasks []CompletedTaskCard `json:"completed_tasks"`
+	EmptyQuote     *QuoteView          `json:"empty_quote,omitempty"`
 }
 
 type PendingUserCard struct {
@@ -175,6 +183,7 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/me", h.handleAccountPage)
 		r.Post("/tasks", h.handleCreateTask)
 		r.Post("/tasks/{taskID}/complete", h.handleCompleteTask)
+		r.Post("/tasks/{taskID}/restore", h.handleRestoreTask)
 		r.Post("/tasks/{taskID}/postpone", h.handlePostponeTask)
 		r.Post("/imports/ics", h.handleImportICS)
 
@@ -346,7 +355,16 @@ func (h *Handler) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.taskService.CreateFromInputWithImportance(r.Context(), user.ID, input, importance); err != nil {
+		if wantsAsyncResponse(r) {
+			http.Error(w, humanizeError(err), http.StatusBadRequest)
+			return
+		}
 		h.redirectHome(w, r, "", humanizeError(err))
+		return
+	}
+
+	if wantsAsyncResponse(r) {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
@@ -361,7 +379,7 @@ func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	taskID := chi.URLParam(r, "taskID")
-	task, err := h.taskService.Complete(r.Context(), user.ID, taskID)
+	_, err := h.taskService.Complete(r.Context(), user.ID, taskID)
 	if err != nil {
 		if wantsAsyncResponse(r) {
 			http.Error(w, humanizeError(err), http.StatusBadRequest)
@@ -372,14 +390,7 @@ func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if wantsAsyncResponse(r) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"title":         task.Title,
-			"note":          task.Note,
-			"kind_label":    kindLabel(task.Type),
-			"kind_class":    string(task.Type),
-			"finished_line": formatCompletedAt(task, h.location),
-		})
+		h.writeDashboardSnapshot(w, r, user)
 		return
 	}
 
@@ -405,7 +416,41 @@ func (h *Handler) handlePostponeTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.taskService.Postpone(r.Context(), user.ID, taskID, targetDate); err != nil {
+		if wantsAsyncResponse(r) {
+			http.Error(w, humanizeError(err), http.StatusBadRequest)
+			return
+		}
 		h.redirectHome(w, r, "", humanizeError(err))
+		return
+	}
+
+	if wantsAsyncResponse(r) {
+		h.writeDashboardSnapshot(w, r, user)
+		return
+	}
+
+	h.redirectHome(w, r, "", "")
+}
+
+func (h *Handler) handleRestoreTask(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+
+	taskID := chi.URLParam(r, "taskID")
+	if _, err := h.taskService.Restore(r.Context(), user.ID, taskID); err != nil {
+		if wantsAsyncResponse(r) {
+			http.Error(w, humanizeError(err), http.StatusBadRequest)
+			return
+		}
+		h.redirectHome(w, r, "", humanizeError(err))
+		return
+	}
+
+	if wantsAsyncResponse(r) {
+		h.writeDashboardSnapshot(w, r, user)
 		return
 	}
 
@@ -440,23 +485,42 @@ func (h *Handler) handleImportICS(w http.ResponseWriter, r *http.Request) {
 
 	inserted, err := h.taskService.ImportICS(r.Context(), user.ID, header.Filename, body)
 	if err != nil {
+		if wantsAsyncResponse(r) {
+			http.Error(w, humanizeError(err), http.StatusBadRequest)
+			return
+		}
 		h.redirectHome(w, r, "", humanizeError(err))
 		return
 	}
 
 	_ = inserted
+	if wantsAsyncResponse(r) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	h.redirectHome(w, r, "", "")
 }
 
 func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domain.User, focusDate time.Time, message, errorMessage string) error {
-	now := time.Now().In(h.location)
-	dashboard, err := h.taskService.DashboardForDate(r.Context(), user.ID, focusDate)
+	pageData, err := h.buildDashboardPageData(r.Context(), user, focusDate, errorMessage)
 	if err != nil {
 		return err
 	}
-	completedTasks, err := h.taskService.CompletedTasks(r.Context(), user.ID, 20)
+	_ = message
+
+	return h.templates.ExecuteTemplate(w, "index.html", pageData)
+}
+
+func (h *Handler) buildDashboardPageData(ctx context.Context, user domain.User, focusDate time.Time, errorMessage string) (DashboardPageData, error) {
+	now := time.Now().In(h.location)
+	dashboard, err := h.taskService.DashboardForDate(ctx, user.ID, focusDate)
 	if err != nil {
-		return err
+		return DashboardPageData{}, err
+	}
+	completedTasks, err := h.taskService.CompletedTasks(ctx, user.ID, 20)
+	if err != nil {
+		return DashboardPageData{}, err
 	}
 
 	today := normalizeDateForView(now, h.location)
@@ -473,21 +537,35 @@ func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domai
 		FocusMonth:           focusDate.In(h.location).Format("01"),
 		FocusDay:             focusDate.In(h.location).Format("02"),
 		FocusTasks:           focusTasks,
-		CompletedTasks:       buildCompletedTaskCards(completedTasks, h.location),
+		CompletedTasks:       buildCompletedTaskCards(completedTasks, focusDate, h.location),
 		YesterdayPath:        buildDatePath(today.AddDate(0, 0, -1), h.location),
 		TodayPath:            buildDatePath(today, h.location),
 		TomorrowPath:         buildDatePath(today.AddDate(0, 0, 1), h.location),
 		DayAfterTomorrowPath: buildDatePath(today.AddDate(0, 0, 2), h.location),
 	}
 	if len(focusTasks) == 0 && h.quoteService != nil {
-		quote, err := h.quoteService.Random(r.Context())
+		quote, err := h.quoteService.Random(ctx)
 		if err == nil && strings.TrimSpace(quote.Text) != "" {
 			pageData.EmptyQuote = buildQuoteView(quote)
 		}
 	}
-	_ = message
+	return pageData, nil
+}
 
-	return h.templates.ExecuteTemplate(w, "index.html", pageData)
+func (h *Handler) writeDashboardSnapshot(w http.ResponseWriter, r *http.Request, user domain.User) {
+	focusDate := h.actionFocusDate(r)
+	pageData, err := h.buildDashboardPageData(r.Context(), user, focusDate, "")
+	if err != nil {
+		http.Error(w, humanizeError(err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(DashboardSnapshot{
+		FocusTasks:     pageData.FocusTasks,
+		CompletedTasks: pageData.CompletedTasks,
+		EmptyQuote:     pageData.EmptyQuote,
+	})
 }
 
 func (h *Handler) handleAccountPage(w http.ResponseWriter, r *http.Request) {
@@ -902,15 +980,17 @@ func formatDDLCountdown(deadline, now time.Time, location *time.Location) string
 	return fmt.Sprintf("还有 %d 分钟", maxInt(1, ceilDuration(remaining, time.Minute)))
 }
 
-func buildCompletedTaskCards(tasks []domain.Task, location *time.Location) []CompletedTaskCard {
+func buildCompletedTaskCards(tasks []domain.Task, focusDate time.Time, location *time.Location) []CompletedTaskCard {
 	cards := make([]CompletedTaskCard, 0, len(tasks))
 	for _, task := range tasks {
 		cards = append(cards, CompletedTaskCard{
+			ID:           task.ID.String(),
 			Title:        task.Title,
 			KindLabel:    kindLabel(task.Type),
 			KindClass:    string(task.Type),
 			FinishedLine: formatCompletedAt(task, location),
 			Note:         task.Note,
+			ReturnDate:   normalizeDateForView(focusDate, location).Format("2006-01-02"),
 		})
 	}
 	return cards
@@ -1025,6 +1105,22 @@ func (h *Handler) currentViewDateParam(r *http.Request) string {
 		return ""
 	}
 	return date.Format("2006-01-02")
+}
+
+func (h *Handler) actionFocusDate(r *http.Request) time.Time {
+	raw := strings.TrimSpace(r.FormValue("return_date"))
+	if raw == "" {
+		raw = strings.TrimSpace(r.URL.Query().Get("date"))
+	}
+	if raw == "" {
+		return normalizeDateForView(time.Now().In(h.location), h.location)
+	}
+
+	parsed, err := time.ParseInLocation("2006-01-02", raw, h.location)
+	if err != nil {
+		return normalizeDateForView(time.Now().In(h.location), h.location)
+	}
+	return normalizeDateForView(parsed, h.location)
 }
 
 func wantsAsyncResponse(r *http.Request) bool {

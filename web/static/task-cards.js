@@ -1,88 +1,16 @@
-document.addEventListener("DOMContentLoaded", () => {
-  document.querySelectorAll("[data-complete-form]").forEach((form) => {
-    form.addEventListener("submit", async (event) => {
-      if (form.dataset.submitting === "1") {
-        return;
-      }
+const EXIT_ANIMATION_MS = 320;
+const MOVE_ANIMATION_MS = 320;
+const ENTER_ANIMATION_MS = 320;
+const EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
 
-      event.preventDefault();
-      form.dataset.submitting = "1";
-      const submitButton = form.querySelector("button");
-      if (submitButton) {
-        submitButton.disabled = true;
-      }
-
-      const card = form.closest("[data-task-card]");
-      try {
-        const response = await fetch(form.action, {
-          method: "POST",
-          body: new FormData(form),
-          headers: {
-            "X-Requested-With": "fetch",
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error("request failed");
-        }
-
-        const payload = await response.json();
-        if (card) {
-          completeCard(card, payload);
-        }
-      } catch (_error) {
-        form.submit();
-      }
-    });
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
   });
-});
-
-function completeCard(card, payload) {
-  const archiveSection = document.querySelector("[data-archive-section]");
-  const archiveList = document.querySelector("[data-archive-list]");
-  const archiveCount = document.querySelector("[data-archive-count]");
-  const focusCounter = document.querySelector(".focus-counter");
-  const focusList = card.parentElement;
-
-  card.classList.add("is-completing");
-
-  window.setTimeout(() => {
-    if (archiveSection && archiveList) {
-      archiveSection.classList.remove("is-empty");
-      archiveList.prepend(buildArchiveCard(payload));
-      if (archiveCount) {
-        const count = Number.parseInt(archiveCount.textContent || "0", 10) || 0;
-        archiveCount.textContent = String(count + 1);
-      }
-    }
-
-    card.remove();
-
-    if (focusCounter) {
-      const count = Number.parseInt(focusCounter.textContent || "0", 10) || 0;
-      focusCounter.textContent = String(Math.max(0, count - 1));
-    }
-
-    if (focusList && focusList.children.length === 0) {
-      window.location.reload();
-    }
-  }, 120);
 }
 
-function buildArchiveCard(payload) {
-  const article = document.createElement("article");
-  article.className = "archive-card";
-  article.innerHTML = `
-    <div class="archive-card-main">
-      <span class="task-kind task-kind-${escapeHtml(payload.kind_class)}">${escapeHtml(payload.kind_label)}</span>
-      <div class="task-body">
-        <h3>${escapeHtml(payload.title)}</h3>
-        <p class="status">${escapeHtml(payload.finished_line)}</p>
-        ${payload.note ? `<p class="note">${escapeHtml(payload.note)}</p>` : ""}
-      </div>
-    </div>
-  `;
-  return article;
+function afterTransition(duration, callback) {
+  window.setTimeout(callback, duration);
 }
 
 function escapeHtml(value) {
@@ -93,3 +21,808 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+function createElementFromHTML(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html.trim();
+  return template.content.firstElementChild;
+}
+
+function actionTargetFor(form) {
+  if (form.hasAttribute("data-restore-form")) {
+    return form.closest(".archive-card");
+  }
+  return form.closest("[data-task-card]");
+}
+
+function taskIDForForm(form) {
+  return actionTargetFor(form)?.getAttribute("data-task-id") || "";
+}
+
+function captureRects(root, selector) {
+  const rects = new Map();
+  root.querySelectorAll(selector).forEach((element) => {
+    const taskID = element.getAttribute("data-task-id");
+    if (!taskID) {
+      return;
+    }
+    rects.set(taskID, element.getBoundingClientRect());
+  });
+  return rects;
+}
+
+function resetInlineAnimation(element) {
+  if (!element) {
+    return;
+  }
+
+  element.classList.remove("is-leaving", "is-restoring");
+  element.style.position = "";
+  element.style.left = "";
+  element.style.top = "";
+  element.style.width = "";
+  element.style.zIndex = "";
+  element.style.boxSizing = "";
+  element.style.margin = "";
+  element.style.height = "";
+  element.style.overflow = "";
+  element.style.opacity = "";
+  element.style.transform = "";
+  element.style.filter = "";
+  element.style.paddingTop = "";
+  element.style.paddingBottom = "";
+  element.style.borderTopWidth = "";
+  element.style.borderBottomWidth = "";
+  element.style.transition = "";
+}
+
+function animateHeightMutation(element, mutate) {
+  if (!element) {
+    return;
+  }
+
+  const startHeight = element.getBoundingClientRect().height;
+  element.style.height = `${startHeight}px`;
+  element.style.overflow = "hidden";
+  element.style.transition = "none";
+  mutate();
+  const endHeight = element.scrollHeight;
+
+  if (Math.abs(endHeight - startHeight) < 0.5) {
+    element.style.height = "";
+    element.style.overflow = "";
+    element.style.transition = "";
+    return;
+  }
+
+  element.getBoundingClientRect();
+  window.requestAnimationFrame(() => {
+    element.style.transition = `height ${MOVE_ANIMATION_MS}ms ${EASE}`;
+    element.style.height = `${endHeight}px`;
+  });
+
+  afterTransition(MOVE_ANIMATION_MS, () => {
+    element.style.height = "";
+    element.style.overflow = "";
+    element.style.transition = "";
+  });
+}
+
+function detachForExit(element) {
+  if (!element) {
+    return null;
+  }
+
+  const rect = element.getBoundingClientRect();
+  const styles = window.getComputedStyle(element);
+  const placeholder = document.createElement("div");
+  placeholder.className = "task-flow-placeholder";
+  placeholder.style.height = `${rect.height}px`;
+  placeholder.style.opacity = "1";
+  placeholder.style.overflow = "hidden";
+  placeholder.style.marginBottom = styles.marginBottom;
+  placeholder.style.transition = [
+    `height ${EXIT_ANIMATION_MS}ms ${EASE}`,
+    `opacity ${EXIT_ANIMATION_MS}ms ${EASE}`,
+    `margin-bottom ${EXIT_ANIMATION_MS}ms ${EASE}`,
+  ].join(", ");
+
+  element.replaceWith(placeholder);
+  document.body.appendChild(element);
+  resetInlineAnimation(element);
+  element.style.position = "fixed";
+  element.style.left = `${rect.left}px`;
+  element.style.top = `${rect.top}px`;
+  element.style.width = `${rect.width}px`;
+  element.style.height = `${rect.height}px`;
+  element.style.zIndex = "40";
+  element.style.margin = "0";
+  element.style.boxSizing = "border-box";
+  element.style.pointerEvents = "none";
+  element.style.transition = [
+    `opacity ${EXIT_ANIMATION_MS}ms ${EASE}`,
+    `transform ${EXIT_ANIMATION_MS}ms ${EASE}`,
+    `filter ${EXIT_ANIMATION_MS}ms ease`,
+  ].join(", ");
+
+  const cleanup = () => {
+    placeholder.remove();
+    element.remove();
+  };
+
+  const restore = () => {
+    if (!placeholder.isConnected) {
+      return;
+    }
+    resetInlineAnimation(element);
+    placeholder.replaceWith(element);
+  };
+
+  window.requestAnimationFrame(() => {
+    placeholder.style.height = "0px";
+    placeholder.style.opacity = "0";
+    placeholder.style.marginBottom = "0px";
+    element.style.opacity = "0";
+    element.style.transform = "translateY(-8px) scale(0.985)";
+    element.style.filter = "blur(0.9px)";
+  });
+
+  return {
+    restore,
+    done: wait(EXIT_ANIMATION_MS).then(() => {
+      cleanup();
+    }),
+  };
+}
+
+function clearEnterMetrics(element) {
+  if (!element) {
+    return;
+  }
+
+  delete element.dataset.enterHeight;
+  delete element.dataset.enterPaddingTop;
+  delete element.dataset.enterPaddingBottom;
+  delete element.dataset.enterBorderTopWidth;
+  delete element.dataset.enterBorderBottomWidth;
+  delete element.dataset.enterMarginBottom;
+}
+
+function stageEnter(element, collapseSpace = false) {
+  if (!element) {
+    return;
+  }
+
+  if (collapseSpace) {
+    const rect = element.getBoundingClientRect();
+    const styles = window.getComputedStyle(element);
+    element.dataset.enterHeight = `${rect.height}`;
+    element.dataset.enterPaddingTop = styles.paddingTop;
+    element.dataset.enterPaddingBottom = styles.paddingBottom;
+    element.dataset.enterBorderTopWidth = styles.borderTopWidth;
+    element.dataset.enterBorderBottomWidth = styles.borderBottomWidth;
+    element.dataset.enterMarginBottom = styles.marginBottom;
+    element.style.height = "0px";
+    element.style.overflow = "hidden";
+    element.style.paddingTop = "0px";
+    element.style.paddingBottom = "0px";
+    element.style.borderTopWidth = "0px";
+    element.style.borderBottomWidth = "0px";
+    element.style.marginBottom = "0px";
+  }
+
+  element.style.opacity = "0";
+  element.style.transform = "translateY(8px) scale(0.985)";
+  element.style.filter = "blur(0.8px)";
+}
+
+function expandEnterSpace(element) {
+  if (!element || !element.dataset.enterHeight) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    element.style.transition = [
+      `height ${MOVE_ANIMATION_MS}ms ${EASE}`,
+      `padding-top ${MOVE_ANIMATION_MS}ms ${EASE}`,
+      `padding-bottom ${MOVE_ANIMATION_MS}ms ${EASE}`,
+      `border-top-width ${MOVE_ANIMATION_MS}ms ${EASE}`,
+      `border-bottom-width ${MOVE_ANIMATION_MS}ms ${EASE}`,
+      `margin-bottom ${MOVE_ANIMATION_MS}ms ${EASE}`,
+    ].join(", ");
+    element.style.height = element.dataset.enterHeight;
+    element.style.paddingTop = element.dataset.enterPaddingTop;
+    element.style.paddingBottom = element.dataset.enterPaddingBottom;
+    element.style.borderTopWidth = element.dataset.enterBorderTopWidth;
+    element.style.borderBottomWidth = element.dataset.enterBorderBottomWidth;
+    element.style.marginBottom = element.dataset.enterMarginBottom;
+  });
+}
+
+function revealEnter(element, collapseSpace = false) {
+  if (!element) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    element.style.transition = [
+      collapseSpace ? element.style.transition : "",
+      `opacity ${ENTER_ANIMATION_MS}ms ${EASE}`,
+      `transform ${ENTER_ANIMATION_MS}ms ${EASE}`,
+      `filter ${ENTER_ANIMATION_MS}ms ease`,
+    ].filter(Boolean).join(", ");
+    element.style.opacity = "1";
+    element.style.transform = "translateY(0) scale(1)";
+    element.style.filter = "blur(0)";
+  });
+
+  element.addEventListener("transitionend", () => {
+    resetInlineAnimation(element);
+    clearEnterMetrics(element);
+  }, { once: true });
+}
+
+function animateMovedElements(container, selector, previousRects) {
+  if (!container) {
+    return;
+  }
+
+  container.querySelectorAll(selector).forEach((element) => {
+    const taskID = element.getAttribute("data-task-id");
+    if (!taskID) {
+      return;
+    }
+
+    const before = previousRects.get(taskID);
+    if (!before) {
+      return;
+    }
+
+    const after = element.getBoundingClientRect();
+    const deltaX = before.left - after.left;
+    const deltaY = before.top - after.top;
+    if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) {
+      return;
+    }
+
+    element.style.transition = "none";
+    element.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+    element.getBoundingClientRect();
+
+    window.requestAnimationFrame(() => {
+      element.style.transition = `transform ${MOVE_ANIMATION_MS}ms ${EASE}`;
+      element.style.transform = "";
+      element.addEventListener("transitionend", () => {
+        element.style.transition = "";
+      }, { once: true });
+    });
+  });
+}
+
+function buildFocusTaskCardHTML(card) {
+  return `
+    <article class="focus-card" data-task-card data-task-id="${escapeHtml(card.id)}" data-kind-label="${escapeHtml(card.kind_label)}" data-kind-class="${escapeHtml(card.kind_class)}">
+      <div class="focus-card-main">
+        <span class="task-kind task-kind-${escapeHtml(card.kind_class)}">${escapeHtml(card.kind_label)}</span>
+        <div class="task-body">
+          <h3>${escapeHtml(card.title)}</h3>
+          ${card.status_line ? `<p class="status">${escapeHtml(card.status_line)}</p>` : ""}
+          ${card.note ? `<p class="note">${escapeHtml(card.note)}</p>` : ""}
+        </div>
+      </div>
+      <div class="task-actions focus-actions">
+        ${card.can_postpone ? `
+          <details class="inline-postpone" data-postpone-panel data-task-id="${escapeHtml(card.id)}">
+            <summary>延期</summary>
+            <form action="/tasks/${escapeHtml(card.id)}/postpone" method="post" data-postpone-form data-async-task-form>
+              <input type="hidden" name="return_date" value="${escapeHtml(card.return_date)}">
+              <input type="date" name="target_date" value="${escapeHtml(card.postpone_value)}">
+              <button type="submit" class="secondary">确认</button>
+            </form>
+          </details>
+        ` : ""}
+        ${card.can_complete ? `
+          <form action="/tasks/${escapeHtml(card.id)}/complete" method="post" data-complete-form data-async-task-form>
+            <input type="hidden" name="return_date" value="${escapeHtml(card.return_date)}">
+            <button type="submit" class="complete-toggle" aria-label="确认完成" title="确认完成">
+              <span class="visually-hidden">确认完成</span>
+            </button>
+          </form>
+        ` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function buildCompletedTaskCardHTML(card) {
+  return `
+    <article class="archive-card" data-task-id="${escapeHtml(card.id)}">
+      <div class="archive-card-main">
+        <span class="task-kind task-kind-${escapeHtml(card.kind_class)}">${escapeHtml(card.kind_label)}</span>
+        <div class="task-body">
+          <h3>${escapeHtml(card.title)}</h3>
+          <p class="status">${escapeHtml(card.finished_line)}</p>
+          ${card.note ? `<p class="note">${escapeHtml(card.note)}</p>` : ""}
+        </div>
+        <form action="/tasks/${escapeHtml(card.id)}/restore" method="post" class="archive-actions" data-restore-form data-async-task-form>
+          <input type="hidden" name="return_date" value="${escapeHtml(card.return_date)}">
+          <button type="submit" class="secondary archive-restore">撤销</button>
+        </form>
+      </div>
+    </article>
+  `;
+}
+
+function buildFocusEmptyHTML(snapshot) {
+  const quote = snapshot.empty_quote;
+  if (quote?.text) {
+    return `
+      <div class="focus-empty">
+        <div class="empty-quote-block">
+          <p class="empty-quote">${escapeHtml(quote.text)}</p>
+          ${quote.has_meta ? `
+            <p class="empty-quote-meta">
+              ${quote.author ? `<span class="empty-quote-author">${escapeHtml(quote.author)}</span>` : ""}
+              ${quote.author && quote.source ? `<span class="empty-quote-sep">·</span>` : ""}
+              ${quote.source ? `<span class="empty-quote-source">${escapeHtml(quote.source)}</span>` : ""}
+            </p>
+          ` : ""}
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="focus-empty">
+      <p>这一天没有需要出现的任务。</p>
+      <p class="note">如果只是想先安静一点，现在这个视图就是空白的。</p>
+    </div>
+  `;
+}
+
+function reconcileList(container, nextCards, options) {
+  const {
+    selector,
+    buildHTML,
+    updateElement,
+    collapseEnteredSpace = false,
+  } = options;
+
+  const previousRects = captureRects(container, selector);
+  const existingMap = new Map();
+  container.querySelectorAll(selector).forEach((element) => {
+    const taskID = element.getAttribute("data-task-id");
+    if (taskID) {
+      existingMap.set(taskID, element);
+    }
+  });
+
+  const entered = [];
+  const nextNodes = [];
+
+  nextCards.forEach((card) => {
+    let element = existingMap.get(card.id);
+    if (!element) {
+      element = createElementFromHTML(buildHTML(card));
+      stageEnter(element, collapseEnteredSpace);
+      entered.push(element);
+    } else {
+      updateElement(element, card);
+      existingMap.delete(card.id);
+    }
+    nextNodes.push(element);
+  });
+
+  nextNodes.forEach((element) => {
+    container.appendChild(element);
+  });
+
+  existingMap.forEach((element) => {
+    element.remove();
+  });
+
+  initializeTaskCards(container);
+  animateMovedElements(container, selector, previousRects);
+  if (entered.length > 0) {
+    if (collapseEnteredSpace) {
+      entered.forEach((element) => expandEnterSpace(element));
+    }
+    window.setTimeout(() => {
+      entered.forEach((element) => revealEnter(element, collapseEnteredSpace));
+    }, MOVE_ANIMATION_MS);
+  }
+}
+
+function updateFocusTaskElement(element, card) {
+  const fresh = createElementFromHTML(buildFocusTaskCardHTML(card));
+  element.replaceChildren(...fresh.childNodes);
+  Array.from(fresh.attributes).forEach((attribute) => {
+    element.setAttribute(attribute.name, attribute.value);
+  });
+}
+
+function updateCompletedTaskElement(element, card) {
+  const fresh = createElementFromHTML(buildCompletedTaskCardHTML(card));
+  element.replaceChildren(...fresh.childNodes);
+  Array.from(fresh.attributes).forEach((attribute) => {
+    element.setAttribute(attribute.name, attribute.value);
+  });
+}
+
+function ensureFocusList(panel) {
+  let list = panel.querySelector(".focus-list");
+  if (list) {
+    return list;
+  }
+
+  const empty = panel.querySelector(".focus-empty");
+  list = document.createElement("div");
+  list.className = "focus-list";
+  if (empty) {
+    empty.replaceWith(list);
+  } else {
+    panel.appendChild(list);
+  }
+  return list;
+}
+
+function setFocusEmpty(panel, snapshot) {
+  const list = panel.querySelector(".focus-list");
+  const nextEmpty = createElementFromHTML(buildFocusEmptyHTML(snapshot));
+  if (list) {
+    list.replaceWith(nextEmpty);
+  } else {
+    const currentEmpty = panel.querySelector(".focus-empty");
+    if (currentEmpty) {
+      currentEmpty.replaceWith(nextEmpty);
+    } else {
+      panel.appendChild(nextEmpty);
+    }
+  }
+}
+
+function updateFocusPanel(snapshot) {
+  const panel = document.querySelector(".focus-panel");
+  if (!panel) {
+    return;
+  }
+
+  const counter = panel.querySelector(".focus-counter");
+  if (counter) {
+    counter.textContent = String(snapshot.focus_tasks.length);
+  }
+  const currentList = panel.querySelector(".focus-list");
+  const existingIDs = new Set();
+  currentList?.querySelectorAll("[data-task-card]").forEach((element) => {
+    const taskID = element.getAttribute("data-task-id");
+    if (taskID) {
+      existingIDs.add(taskID);
+    }
+  });
+  const hasEnteredCards = snapshot.focus_tasks.some((card) => !existingIDs.has(card.id));
+
+  const applyUpdate = () => {
+    if (snapshot.focus_tasks.length === 0) {
+      setFocusEmpty(panel, snapshot);
+      return;
+    }
+
+    const list = ensureFocusList(panel);
+    reconcileList(list, snapshot.focus_tasks, {
+      selector: "[data-task-card]",
+      buildHTML: buildFocusTaskCardHTML,
+      updateElement: updateFocusTaskElement,
+      collapseEnteredSpace: false,
+    });
+  };
+
+  if (snapshot.focus_tasks.length === 0) {
+    if (panel.querySelector(".focus-list")) {
+      animateHeightMutation(panel, applyUpdate);
+      return;
+    }
+    applyUpdate();
+    return;
+  }
+
+  if (panel.querySelector(".focus-empty")) {
+    animateHeightMutation(panel, applyUpdate);
+    return;
+  }
+
+  if (currentList && hasEnteredCards) {
+    const startHeight = panel.getBoundingClientRect().height;
+    panel.style.height = `${startHeight}px`;
+    panel.style.overflow = "hidden";
+    panel.style.transition = "none";
+    applyUpdate();
+    const endHeight = panel.scrollHeight;
+
+    if (Math.abs(endHeight - startHeight) < 0.5) {
+      panel.style.height = "";
+      panel.style.overflow = "";
+      panel.style.transition = "";
+      return;
+    }
+
+    panel.getBoundingClientRect();
+    window.requestAnimationFrame(() => {
+      panel.style.transition = `height ${MOVE_ANIMATION_MS}ms ${EASE}`;
+      panel.style.height = `${endHeight}px`;
+    });
+
+    afterTransition(MOVE_ANIMATION_MS, () => {
+      panel.style.height = "";
+      panel.style.overflow = "";
+      panel.style.transition = "";
+    });
+    return;
+  }
+
+  applyUpdate();
+}
+
+function ensureArchiveList(section) {
+  let list = section.querySelector("[data-archive-list]");
+  if (list) {
+    return list;
+  }
+
+  list = document.createElement("div");
+  list.className = "archive-list";
+  list.setAttribute("data-archive-list", "");
+  section.appendChild(list);
+  return list;
+}
+
+function updateArchiveSection(snapshot) {
+  const section = document.querySelector("[data-archive-section]");
+  if (!section) {
+    return;
+  }
+
+  const wasEmpty = section.classList.contains("is-empty");
+  const count = section.querySelector("[data-archive-count]");
+  if (count) {
+    count.textContent = String(snapshot.completed_tasks.length);
+  }
+
+  if (snapshot.completed_tasks.length === 0) {
+    if (wasEmpty) {
+      const list = section.querySelector("[data-archive-list]");
+      if (list) {
+        list.innerHTML = "";
+      }
+      return;
+    }
+
+    const startHeight = section.getBoundingClientRect().height;
+    const list = section.querySelector("[data-archive-list]");
+    if (list) {
+      list.innerHTML = "";
+    }
+
+    section.style.height = `${startHeight}px`;
+    section.style.overflow = "hidden";
+    section.style.transition = "none";
+    section.getBoundingClientRect();
+    window.requestAnimationFrame(() => {
+      section.style.transition = [
+        `height ${MOVE_ANIMATION_MS}ms ${EASE}`,
+        `opacity ${ENTER_ANIMATION_MS}ms ${EASE}`,
+        `padding-top ${MOVE_ANIMATION_MS}ms ${EASE}`,
+        `border-top-width ${MOVE_ANIMATION_MS}ms ${EASE}`,
+      ].join(", ");
+      section.style.height = "0px";
+      section.style.opacity = "0";
+      section.style.paddingTop = "0px";
+      section.style.borderTopWidth = "0px";
+    });
+
+    afterTransition(MOVE_ANIMATION_MS, () => {
+      section.classList.add("is-empty");
+      section.style.height = "";
+      section.style.overflow = "";
+      section.style.opacity = "";
+      section.style.paddingTop = "";
+      section.style.borderTopWidth = "";
+      section.style.transition = "";
+    });
+    return;
+  }
+
+  if (wasEmpty) {
+    section.classList.remove("is-empty");
+    section.style.height = "0px";
+    section.style.opacity = "0";
+    section.style.paddingTop = "0px";
+    section.style.borderTopWidth = "0px";
+    section.style.overflow = "hidden";
+    section.style.transition = "none";
+  } else {
+    section.style.height = `${section.getBoundingClientRect().height}px`;
+    section.style.overflow = "hidden";
+    section.style.transition = "none";
+  }
+
+  const list = ensureArchiveList(section);
+  reconcileList(list, snapshot.completed_tasks, {
+    selector: ".archive-card",
+    buildHTML: buildCompletedTaskCardHTML,
+    updateElement: updateCompletedTaskElement,
+  });
+
+  const targetHeight = section.scrollHeight;
+  section.getBoundingClientRect();
+  window.requestAnimationFrame(() => {
+    section.style.transition = [
+      `height ${MOVE_ANIMATION_MS}ms ${EASE}`,
+      `opacity ${ENTER_ANIMATION_MS}ms ${EASE}`,
+      `padding-top ${MOVE_ANIMATION_MS}ms ${EASE}`,
+      `border-top-width ${MOVE_ANIMATION_MS}ms ${EASE}`,
+    ].join(", ");
+    section.style.height = `${targetHeight}px`;
+    section.style.opacity = "1";
+    section.style.paddingTop = "";
+    section.style.borderTopWidth = "";
+  });
+
+  afterTransition(MOVE_ANIMATION_MS, () => {
+    section.style.height = "";
+    section.style.overflow = "";
+    section.style.opacity = "";
+    section.style.paddingTop = "";
+    section.style.borderTopWidth = "";
+    section.style.transition = "";
+  });
+}
+
+function applyTaskSnapshot(snapshot) {
+  updateFocusPanel(snapshot);
+  updateArchiveSection(snapshot);
+}
+
+function shouldAnimateTaskExit(form, snapshot) {
+  if (form.hasAttribute("data-complete-form") || form.hasAttribute("data-restore-form")) {
+    return true;
+  }
+
+  if (form.hasAttribute("data-postpone-form")) {
+    const taskID = taskIDForForm(form);
+    return !snapshot.focus_tasks.some((card) => card.id === taskID);
+  }
+
+  return false;
+}
+
+function bindAsyncTaskForm(form) {
+  if (form.dataset.bound === "1") {
+    return;
+  }
+  form.dataset.bound = "1";
+
+  form.addEventListener("submit", async (event) => {
+    if (form.dataset.submitting === "1") {
+      return;
+    }
+
+    event.preventDefault();
+    form.dataset.submitting = "1";
+
+    const submitButton = form.querySelector("button");
+    if (submitButton) {
+      submitButton.disabled = true;
+    }
+
+    const isTaskForm = form.hasAttribute("data-async-task-form");
+    const preservedState = window.captureFocusPageState
+      ? window.captureFocusPageState(document)
+      : null;
+    const immediateExit = form.hasAttribute("data-complete-form") || form.hasAttribute("data-restore-form");
+    let exitHandle = immediateExit ? detachForExit(actionTargetFor(form)) : null;
+
+    try {
+      const response = await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: {
+          "X-Requested-With": "fetch",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("request failed");
+      }
+
+      if (isTaskForm) {
+        const snapshot = await response.json();
+        if (!exitHandle && shouldAnimateTaskExit(form, snapshot)) {
+          exitHandle = detachForExit(actionTargetFor(form));
+        }
+
+        if (form.hasAttribute("data-restore-form")) {
+          updateFocusPanel(snapshot);
+          if (snapshot.completed_tasks.length > 0) {
+            updateArchiveSection(snapshot);
+            if (exitHandle) {
+              await exitHandle.done;
+            }
+          } else if (exitHandle) {
+            await exitHandle.done;
+            updateArchiveSection(snapshot);
+          } else {
+            updateArchiveSection(snapshot);
+          }
+          return;
+        }
+
+        if (form.hasAttribute("data-complete-form")) {
+          updateArchiveSection(snapshot);
+          if (snapshot.focus_tasks.length > 0) {
+            updateFocusPanel(snapshot);
+            if (exitHandle) {
+              await exitHandle.done;
+            }
+          } else if (exitHandle) {
+            await exitHandle.done;
+            updateFocusPanel(snapshot);
+          } else {
+            updateFocusPanel(snapshot);
+          }
+          return;
+        }
+
+        if (shouldAnimateTaskExit(form, snapshot) && exitHandle) {
+          if (snapshot.focus_tasks.length > 0) {
+            updateFocusPanel(snapshot);
+            await exitHandle.done;
+          } else {
+            await exitHandle.done;
+            updateFocusPanel(snapshot);
+          }
+          return;
+        }
+
+        applyTaskSnapshot(snapshot);
+        return;
+      }
+
+      if (response.redirected && window.loadFocusPage) {
+        const nextURL = new URL(response.url);
+        await window.loadFocusPage(nextURL.pathname + nextURL.search, "replace", {
+          state: preservedState,
+        });
+        return;
+      }
+
+      if (window.reloadFocusPage) {
+        await window.reloadFocusPage({
+          state: preservedState,
+        });
+        return;
+      }
+
+      window.location.reload();
+    } catch (_error) {
+      form.dataset.submitting = "0";
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
+      if (exitHandle) {
+        exitHandle.restore();
+      } else {
+        resetInlineAnimation(actionTargetFor(form));
+      }
+      form.submit();
+    }
+  });
+}
+
+function initializeTaskCards(root = document) {
+  root.querySelectorAll("[data-async-task-form], [data-async-focus-form]").forEach((form) => {
+    bindAsyncTaskForm(form);
+  });
+}
+
+window.initializeTaskCards = initializeTaskCards;
+document.addEventListener("DOMContentLoaded", () => initializeTaskCards(document));

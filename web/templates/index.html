@@ -31,7 +31,7 @@
             {{ if .FocusTasks }}
             <div class="focus-list">
                 {{ range .FocusTasks }}
-                <article class="focus-card" data-task-card data-kind-label="{{ .KindLabel }}" data-kind-class="{{ .KindClass }}">
+                <article class="focus-card" data-task-card data-task-id="{{ .ID }}" data-kind-label="{{ .KindLabel }}" data-kind-class="{{ .KindClass }}">
                     <div class="focus-card-main">
                         <span class="task-kind task-kind-{{ .KindClass }}">{{ .KindLabel }}</span>
                         <div class="task-body">
@@ -43,9 +43,9 @@
 
                     <div class="task-actions focus-actions">
                         {{ if .CanPostpone }}
-                        <details class="inline-postpone">
+                        <details class="inline-postpone" data-postpone-panel data-task-id="{{ .ID }}">
                             <summary>延期</summary>
-                            <form action="/tasks/{{ .ID }}/postpone" method="post">
+                            <form action="/tasks/{{ .ID }}/postpone" method="post" data-postpone-form data-async-task-form>
                                 <input type="hidden" name="return_date" value="{{ .ReturnDate }}">
                                 <input type="date" name="target_date" value="{{ .PostponeValue }}">
                                 <button type="submit" class="secondary">确认</button>
@@ -54,7 +54,7 @@
                         {{ end }}
 
                         {{ if .CanComplete }}
-                        <form action="/tasks/{{ .ID }}/complete" method="post" data-complete-form>
+                        <form action="/tasks/{{ .ID }}/complete" method="post" data-complete-form data-async-task-form>
                             <input type="hidden" name="return_date" value="{{ .ReturnDate }}">
                             <button type="submit" class="complete-toggle" aria-label="确认完成" title="确认完成">
                                 <span class="visually-hidden">确认完成</span>
@@ -87,16 +87,16 @@
         </section>
 
         <section class="focus-drawers">
-            <details class="utility-drawer">
+            <details class="utility-drawer" data-preserve-open="utility-drawer">
                 <summary>其它</summary>
                 <div class="drawer-body">
                     <div class="quick-links">
-                        <a href="{{ .YesterdayPath }}" class="secondary action-link date-chip">昨天</a>
-                        <a href="{{ .TodayPath }}" class="secondary action-link date-chip">今天</a>
-                        <a href="{{ .TomorrowPath }}" class="secondary action-link date-chip">明天</a>
-                        <a href="{{ .DayAfterTomorrowPath }}" class="secondary action-link date-chip">后天</a>
+                        <a href="{{ .YesterdayPath }}" class="secondary action-link date-chip" data-focus-nav-link>昨天</a>
+                        <a href="{{ .TodayPath }}" class="secondary action-link date-chip" data-focus-nav-link>今天</a>
+                        <a href="{{ .TomorrowPath }}" class="secondary action-link date-chip" data-focus-nav-link>明天</a>
+                        <a href="{{ .DayAfterTomorrowPath }}" class="secondary action-link date-chip" data-focus-nav-link>后天</a>
                     </div>
-                    <form action="/" method="get" class="mini-date-form" data-date-picker>
+                    <form action="/" method="get" class="mini-date-form" data-date-picker data-focus-nav-form>
                         <div class="wheel-date-picker" aria-label="选择日期">
                             <input type="hidden" name="year" value="{{ .FocusYear }}">
                             <input type="hidden" name="month" value="{{ .FocusMonth }}">
@@ -145,7 +145,7 @@
                         </div>
                         <div class="archive-list" data-archive-list>
                             {{ range .CompletedTasks }}
-                            <article class="archive-card">
+                            <article class="archive-card" data-task-id="{{ .ID }}">
                                 <div class="archive-card-main">
                                     <span class="task-kind task-kind-{{ .KindClass }}">{{ .KindLabel }}</span>
                                     <div class="task-body">
@@ -153,6 +153,10 @@
                                         <p class="status">{{ .FinishedLine }}</p>
                                         {{ if .Note }}<p class="note">{{ .Note }}</p>{{ end }}
                                     </div>
+                                    <form action="/tasks/{{ .ID }}/restore" method="post" class="archive-actions" data-restore-form data-async-task-form>
+                                        <input type="hidden" name="return_date" value="{{ .ReturnDate }}">
+                                        <button type="submit" class="secondary archive-restore">撤销</button>
+                                    </form>
                                 </div>
                             </article>
                             {{ end }}
@@ -162,7 +166,7 @@
             </details>
         </section>
 
-        <details class="composer-fab" id="composer">
+        <details class="composer-fab" id="composer" data-preserve-open="composer-fab">
             <summary title="添加任务">+</summary>
             <div class="panel composer-panel">
                 <div class="focus-panel-head composer-head">
@@ -172,7 +176,7 @@
                     </div>
                 </div>
 
-                <form action="/tasks" method="post" class="capture-form">
+                <form action="/tasks" method="post" class="capture-form" data-async-focus-form>
                     <input type="hidden" name="return_date" value="{{ .FocusDateISO }}">
                     <label for="task-input">快速输入</label>
                     <div class="capture-row">
@@ -181,7 +185,7 @@
                     </div>
                 </form>
 
-                <form action="/imports/ics" method="post" enctype="multipart/form-data" class="ics-form">
+                <form action="/imports/ics" method="post" enctype="multipart/form-data" class="ics-form" data-async-focus-form>
                     <input type="hidden" name="return_date" value="{{ .FocusDateISO }}">
                     <label for="ics-file">ICS 导入</label>
                     <div class="capture-row">
@@ -193,6 +197,7 @@
         </details>
     </main>
     <script src="/static/date-picker.js" defer></script>
+    <script src="/static/focus-page.js" defer></script>
     <script src="/static/task-cards.js" defer></script>
 </body>
 </html>

@@ -540,12 +540,22 @@
     })
   }
 
-  document.querySelectorAll("[data-date-picker]").forEach((form) => {
-    const picker = getPicker(form)
-    render(picker)
+  function initDatePickers(root = document) {
+    root.querySelectorAll("[data-date-picker]").forEach((form) => {
+      if (form.dataset.datePickerBound === "1") {
+        return
+      }
+      form.dataset.datePickerBound = "1"
 
-    PARTS.forEach((part) => {
-      bindColumn(picker, picker.columns[part])
+      const picker = getPicker(form)
+      render(picker)
+
+      PARTS.forEach((part) => {
+        bindColumn(picker, picker.columns[part])
+      })
     })
-  })
+  }
+
+  window.initializeDatePickers = initDatePickers
+  initDatePickers(document)
 })()

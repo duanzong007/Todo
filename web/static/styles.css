@@ -488,8 +488,12 @@ button.danger:hover {
 }
 
 .focus-list {
-    display: grid;
-    gap: 12px;
+    display: flex;
+    flex-direction: column;
+}
+
+.focus-list > *:not(:last-child) {
+    margin-bottom: 12px;
 }
 
 .focus-card {
@@ -502,15 +506,26 @@ button.danger:hover {
     background: var(--bg-panel-strong);
     border: 1px solid rgba(38, 33, 27, 0.08);
     transition:
-        opacity 120ms ease,
-        transform 120ms ease,
-        filter 120ms ease;
+        height 320ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        opacity 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        filter 220ms ease,
+        padding 320ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        margin-bottom 320ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        border-width 320ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
+.focus-card.is-leaving,
 .focus-card.is-completing {
     opacity: 0;
-    transform: translateY(-4px) scale(0.99);
-    filter: blur(0.6px);
+    transform: translateY(-8px) scale(0.985);
+    filter: blur(0.9px);
+    height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+    pointer-events: none;
 }
 
 .focus-card-main {
@@ -761,10 +776,20 @@ button.complete-toggle:hover {
     gap: 12px;
     padding-top: 8px;
     border-top: 1px solid rgba(38, 33, 27, 0.08);
+    overflow: hidden;
 }
 
 .archive-section.is-empty {
-    display: none;
+    height: 0;
+    opacity: 0;
+    padding-top: 0;
+    border-top-width: 0;
+    pointer-events: none;
+}
+
+.task-flow-placeholder {
+    width: 100%;
+    pointer-events: none;
 }
 
 .archive-head {
@@ -795,8 +820,12 @@ button.complete-toggle:hover {
 }
 
 .archive-list {
-    display: grid;
-    gap: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.archive-list > *:not(:last-child) {
+    margin-bottom: 10px;
 }
 
 .archive-card {
@@ -804,12 +833,50 @@ button.complete-toggle:hover {
     border-radius: 18px;
     background: rgba(255, 248, 238, 0.78);
     border: 1px solid rgba(38, 33, 27, 0.06);
+    transition:
+        height 320ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        opacity 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        filter 220ms ease,
+        padding 320ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        margin-bottom 320ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        border-width 320ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .archive-card-main {
     display: flex;
     gap: 12px;
-    align-items: flex-start;
+    align-items: center;
+}
+
+.archive-card.is-restoring {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.987);
+    filter: blur(0.8px);
+    height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+    pointer-events: none;
+}
+
+.archive-actions {
+    margin-left: auto;
+}
+
+.archive-restore {
+    min-height: 30px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: rgba(240, 219, 199, 0.58);
+    color: rgba(92, 48, 23, 0.82);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.archive-restore:hover {
+    background: rgba(240, 219, 199, 0.82);
 }
 
 .quick-links {
@@ -834,6 +901,16 @@ button.complete-toggle:hover {
     background: rgba(239, 227, 214, 0.92);
     color: #60361d;
     border-color: rgba(96, 54, 29, 0.08);
+}
+
+.focus-page.is-loading {
+    pointer-events: none;
+}
+
+.focus-panel.is-reloading,
+.focus-drawers.is-reloading {
+    opacity: 1;
+    transition: none;
 }
 
 .mini-date-form {
@@ -1156,6 +1233,15 @@ button.complete-toggle:hover {
 
     .mini-date-form button {
         flex: 0 0 auto;
+    }
+
+    .archive-card-main {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .archive-actions {
+        margin-left: 0;
     }
 
     .composer-fab {

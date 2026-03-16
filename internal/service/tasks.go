@@ -104,6 +104,15 @@ func (s *TaskService) Complete(ctx context.Context, userID uuid.UUID, rawID stri
 	return s.repo.CompleteTask(ctx, userID, taskID)
 }
 
+func (s *TaskService) Restore(ctx context.Context, userID uuid.UUID, rawID string) (domain.Task, error) {
+	taskID, err := uuid.Parse(rawID)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("invalid task id: %w", err)
+	}
+
+	return s.repo.RestoreTask(ctx, userID, taskID)
+}
+
 func (s *TaskService) Postpone(ctx context.Context, userID uuid.UUID, rawID, targetDate string) error {
 	taskID, err := uuid.Parse(rawID)
 	if err != nil {
