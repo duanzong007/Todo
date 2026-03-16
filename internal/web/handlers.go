@@ -37,6 +37,7 @@ type HandlerOptions struct {
 type Handler struct {
 	taskService       *service.TaskService
 	authService       *service.AuthService
+	quoteService      *service.QuoteService
 	templates         *template.Template
 	staticDir         string
 	maxUploadSize     int64
@@ -63,10 +64,19 @@ type DashboardPageData struct {
 	FocusMonth           string
 	FocusDay             string
 	FocusTasks           []TaskCard
+	EmptyQuote           *QuoteView
 	YesterdayPath        string
 	TodayPath            string
 	TomorrowPath         string
 	DayAfterTomorrowPath string
+}
+
+type QuoteView struct {
+	Text     string
+	Author   string
+	Source   string
+	HasMeta  bool
+	MetaLine string
 }
 
 type AccountPageData struct {
@@ -114,7 +124,7 @@ type PendingUserCard struct {
 	CreatedAt   string
 }
 
-func NewHandler(taskService *service.TaskService, authService *service.AuthService, options HandlerOptions) (*Handler, error) {
+func NewHandler(taskService *service.TaskService, authService *service.AuthService, quoteService *service.QuoteService, options HandlerOptions) (*Handler, error) {
 	templates, err := template.ParseGlob(filepath.Join(options.TemplateDir, "*.html"))
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
@@ -123,6 +133,7 @@ func NewHandler(taskService *service.TaskService, authService *service.AuthServi
 	return &Handler{
 		taskService:       taskService,
 		authService:       authService,
+		quoteService:      quoteService,
 		templates:         templates,
 		staticDir:         options.StaticDir,
 		maxUploadSize:     options.MaxUploadSize,
@@ -410,6 +421,7 @@ func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domai
 
 	today := normalizeDateForView(time.Now().In(h.location), h.location)
 	calendarMeta := service.CalendarMetaForDate(focusDate, h.location)
+	focusTasks := buildFocusTaskCards(dashboard, focusDate, h.location)
 	pageData := DashboardPageData{
 		CurrentUser:          buildUserView(user),
 		Error:                errorMessage,
@@ -420,11 +432,17 @@ func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domai
 		FocusYear:            focusDate.In(h.location).Format("2006"),
 		FocusMonth:           focusDate.In(h.location).Format("01"),
 		FocusDay:             focusDate.In(h.location).Format("02"),
-		FocusTasks:           buildFocusTaskCards(dashboard, focusDate, h.location),
+		FocusTasks:           focusTasks,
 		YesterdayPath:        buildDatePath(today.AddDate(0, 0, -1), h.location),
 		TodayPath:            buildDatePath(today, h.location),
 		TomorrowPath:         buildDatePath(today.AddDate(0, 0, 1), h.location),
 		DayAfterTomorrowPath: buildDatePath(today.AddDate(0, 0, 2), h.location),
+	}
+	if len(focusTasks) == 0 && h.quoteService != nil {
+		quote, err := h.quoteService.Random(r.Context())
+		if err == nil && strings.TrimSpace(quote.Text) != "" {
+			pageData.EmptyQuote = buildQuoteView(quote)
+		}
 	}
 	_ = message
 
@@ -652,6 +670,28 @@ func buildPendingUserCards(users []domain.User, location *time.Location) []Pendi
 		})
 	}
 	return cards
+}
+
+func buildQuoteView(quote service.Quote) *QuoteView {
+	view := &QuoteView{
+		Text:   quote.Text,
+		Author: quote.Author,
+		Source: quote.Source,
+	}
+
+	metaParts := make([]string, 0, 2)
+	if view.Author != "" {
+		metaParts = append(metaParts, view.Author)
+	}
+	if view.Source != "" {
+		metaParts = append(metaParts, view.Source)
+	}
+	if len(metaParts) > 0 {
+		view.HasMeta = true
+		view.MetaLine = strings.Join(metaParts, " · ")
+	}
+
+	return view
 }
 
 func buildFocusTaskCards(dashboard repository.Dashboard, focusDate time.Time, location *time.Location) []TaskCard {

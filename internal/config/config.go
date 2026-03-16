@@ -9,6 +9,7 @@ import (
 type Config struct {
 	Addr                 string
 	DatabaseURL          string
+	QuotesDatabaseURL    string
 	Timezone             string
 	AutoMigrate          bool
 	MigrationsDir        string
@@ -24,6 +25,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		Addr:                 env("APP_ADDR", ":8080"),
 		DatabaseURL:          env("DATABASE_URL", "postgres://todo:todo@localhost:5432/todo?sslmode=disable"),
+		QuotesDatabaseURL:    env("QUOTES_DATABASE_URL", ""),
 		Timezone:             env("APP_TIMEZONE", "Asia/Shanghai"),
 		AutoMigrate:          envBool("AUTO_MIGRATE", true),
 		MigrationsDir:        env("MIGRATIONS_DIR", "db/migrations"),

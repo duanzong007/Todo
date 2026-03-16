@@ -42,6 +42,23 @@ func main() {
 		log.Fatalf("ping database: %v", err)
 	}
 
+	var quotesPool *pgxpool.Pool
+	if cfg.QuotesDatabaseURL != "" {
+		quotesPool, err = pgxpool.New(ctx, cfg.QuotesDatabaseURL)
+		if err != nil {
+			log.Printf("connect quotes database: %v; quotes disabled", err)
+			quotesPool = nil
+		} else {
+			if err := quotesPool.Ping(ctx); err != nil {
+				log.Printf("ping quotes database: %v; quotes disabled", err)
+				quotesPool.Close()
+				quotesPool = nil
+			} else {
+				defer quotesPool.Close()
+			}
+		}
+	}
+
 	if cfg.AutoMigrate {
 		if err := database.ApplyMigrations(ctx, dbpool, cfg.MigrationsDir); err != nil {
 			log.Fatalf("apply migrations: %v", err)
@@ -50,6 +67,10 @@ func main() {
 
 	repo := repository.NewTaskRepository(dbpool)
 	authRepo := repository.NewAuthRepository(dbpool)
+	var quoteService *service.QuoteService
+	if quotesPool != nil {
+		quoteService = service.NewQuoteService(repository.NewQuoteRepository(quotesPool))
+	}
 	parser := service.NewTextParser(location)
 	icsImporter := service.NewICSImporter(location, cfg.ICSImportHorizonDays)
 	taskService := service.NewTaskService(repo, parser, icsImporter, location)
@@ -60,7 +81,7 @@ func main() {
 		cfg.AllowRegistration,
 	)
 
-	handler, err := web.NewHandler(taskService, authService, web.HandlerOptions{
+	handler, err := web.NewHandler(taskService, authService, quoteService, web.HandlerOptions{
 		TemplateDir:       "web/templates",
 		StaticDir:         "web/static",
 		MaxUploadSize:     cfg.MaxUploadSizeBytes,

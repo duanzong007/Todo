@@ -65,8 +65,21 @@
             </div>
             {{ else }}
             <div class="focus-empty">
+                {{ if .EmptyQuote }}
+                <div class="empty-quote-block">
+                    <p class="empty-quote">{{ .EmptyQuote.Text }}</p>
+                    {{ if .EmptyQuote.HasMeta }}
+                    <p class="empty-quote-meta">
+                        {{ if .EmptyQuote.Author }}<span class="empty-quote-author">{{ .EmptyQuote.Author }}</span>{{ end }}
+                        {{ if and .EmptyQuote.Author .EmptyQuote.Source }}<span class="empty-quote-sep">·</span>{{ end }}
+                        {{ if .EmptyQuote.Source }}<span class="empty-quote-source">{{ .EmptyQuote.Source }}</span>{{ end }}
+                    </p>
+                    {{ end }}
+                </div>
+                {{ else }}
                 <p>这一天没有需要出现的任务。</p>
                 <p class="note">如果只是想先安静一点，现在这个视图就是空白的。</p>
+                {{ end }}
             </div>
             {{ end }}
         </section>

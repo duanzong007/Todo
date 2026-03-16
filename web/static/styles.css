@@ -577,12 +577,59 @@ button.danger:hover {
 }
 
 .focus-empty {
-    padding: 22px 8px 6px;
+    padding: 32px 8px 18px;
 }
 
-.focus-empty p:first-child {
+.focus-empty > p:first-child {
     margin: 0 0 8px;
     font-size: 1rem;
+}
+
+.empty-quote-block {
+    display: grid;
+    gap: 10px;
+    justify-items: center;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 2px 8px 0;
+    text-align: center;
+}
+
+.empty-quote {
+    margin: 0;
+    max-width: 34ch;
+    padding: 0;
+    color: rgba(77, 57, 40, 0.88);
+    font-family: "Iowan Old Style", "Songti SC", serif;
+    font-size: clamp(0.96rem, 1.55vw, 1.08rem);
+    font-weight: 400;
+    line-height: 1.92;
+    text-align: center;
+    text-wrap: balance;
+}
+
+.empty-quote-meta {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    flex-wrap: wrap;
+    color: rgba(100, 79, 62, 0.82);
+    font-size: 0.78rem;
+    letter-spacing: 0.03em;
+}
+
+.empty-quote-author {
+    color: rgba(90, 67, 49, 0.86);
+}
+
+.empty-quote-sep {
+    color: rgba(128, 101, 79, 0.5);
+}
+
+.empty-quote-source {
+    color: rgba(110, 87, 67, 0.78);
 }
 
 .focus-drawers {
