@@ -11,3 +11,4 @@ tmp/
 vendor/
 coverage.out
 *.test
+__debug_bin*
