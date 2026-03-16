@@ -7,6 +7,8 @@
   const WHEEL_MIN_DELTA = 0.35
   const MAX_OFFSET = ROW_HEIGHT * 1.45
   const SNAP_DELAY_MS = 90
+  const COLLAPSE_DELAY_MS = 220
+  const INPUT_COMMIT_DELAY_MS = 900
   const EASE_ACTIVE = 0.34
   const EASE_SETTLE = 0.2
   const PARTS = ["year", "month", "day"]
@@ -131,9 +133,21 @@
 
     const picker = {
       form,
+      shell: form.querySelector(".wheel-date-picker"),
       hiddenInputs,
       columns,
       motions,
+      collapseTimer: 0,
+      inputBuffers: {
+        year: "",
+        month: "",
+        day: "",
+      },
+      inputTimers: {
+        year: 0,
+        month: 0,
+        day: 0,
+      },
       state: normalizeState({
         year: hiddenInputs.year.value,
         month: hiddenInputs.month.value,
@@ -151,7 +165,109 @@
     picker.hiddenInputs.day.value = pad2(picker.state.day)
   }
 
-  function syncColumn(column, part, state, offset) {
+  function setExpanded(picker, expanded) {
+    if (picker.collapseTimer) {
+      window.clearTimeout(picker.collapseTimer)
+      picker.collapseTimer = 0
+    }
+
+    picker.shell.classList.toggle("is-expanded", expanded)
+  }
+
+  function clearInputTimer(picker, part) {
+    if (picker.inputTimers[part]) {
+      window.clearTimeout(picker.inputTimers[part])
+      picker.inputTimers[part] = 0
+    }
+  }
+
+  function clearInputBuffer(picker, part) {
+    clearInputTimer(picker, part)
+    picker.inputBuffers[part] = ""
+    picker.columns[part].classList.remove("is-buffering")
+  }
+
+  function getBufferedDisplay(picker, part) {
+    const buffer = picker.inputBuffers[part]
+    if (!buffer) {
+      return formatPart(part, picker.state[part])
+    }
+    return buffer
+  }
+
+  function commitInputBuffer(picker, part) {
+    const buffer = picker.inputBuffers[part]
+    clearInputTimer(picker, part)
+    if (!buffer) {
+      return
+    }
+
+    const parsed = Number.parseInt(buffer, 10)
+    if (Number.isNaN(parsed)) {
+      clearInputBuffer(picker, part)
+      render(picker)
+      return
+    }
+
+    if (part === "year" && buffer.length < 4) {
+      clearInputBuffer(picker, part)
+      render(picker)
+      scheduleCollapse(picker)
+      return
+    }
+
+    picker.state = normalizeState({
+      year: part === "year" ? parsed : picker.state.year,
+      month: part === "month" ? parsed : picker.state.month,
+      day: part === "day" ? parsed : picker.state.day,
+    })
+
+    clearInputBuffer(picker, part)
+    render(picker)
+    scheduleCollapse(picker)
+  }
+
+  function queueInputCommit(picker, part) {
+    clearInputTimer(picker, part)
+    picker.inputTimers[part] = window.setTimeout(() => {
+      picker.inputTimers[part] = 0
+      commitInputBuffer(picker, part)
+    }, INPUT_COMMIT_DELAY_MS)
+  }
+
+  function hasActiveMotion(picker) {
+    return PARTS.some((part) => {
+      const motion = picker.motions[part]
+      return (
+        motion.dragging ||
+        motion.rafId !== 0 ||
+        motion.snapTimer !== 0 ||
+        Math.abs(motion.offset) > 0.18 ||
+        Math.abs(motion.targetOffset) > 0.18
+      )
+    })
+  }
+
+  function scheduleCollapse(picker) {
+    if (picker.collapseTimer) {
+      window.clearTimeout(picker.collapseTimer)
+    }
+
+    picker.collapseTimer = window.setTimeout(() => {
+      picker.collapseTimer = 0
+      if (PARTS.some((part) => picker.inputBuffers[part])) {
+        scheduleCollapse(picker)
+        return
+      }
+      if (hasActiveMotion(picker)) {
+        scheduleCollapse(picker)
+        return
+      }
+      setExpanded(picker, false)
+    }, COLLAPSE_DELAY_MS)
+  }
+
+  function syncColumn(picker, column, part, state, offset) {
     const prevTwo = applyDelta(state, part, -2)
     const prevOne = applyDelta(state, part, -1)
     const nextOne = applyDelta(state, part, 1)
@@ -159,7 +275,7 @@
 
     column.querySelector('[data-slot="far-prev"]').textContent = formatPart(part, prevTwo[part])
     column.querySelector('[data-slot="prev"]').textContent = formatPart(part, prevOne[part])
-    column.querySelector('[data-slot="current"]').textContent = formatPart(part, state[part])
+    column.querySelector('[data-slot="current"]').textContent = getBufferedDisplay(picker, part)
     column.querySelector('[data-slot="next"]').textContent = formatPart(part, nextOne[part])
     column.querySelector('[data-slot="far-next"]').textContent = formatPart(part, nextTwo[part])
     column.querySelector(".wheel-track").style.transform = `translateY(${offset}px)`
@@ -182,7 +298,7 @@
   function render(picker) {
     syncHiddenInputs(picker)
     PARTS.forEach((part) => {
-      syncColumn(picker.columns[part], part, picker.state, picker.motions[part].offset)
+      syncColumn(picker, picker.columns[part], part, picker.state, picker.motions[part].offset)
     })
   }
 
@@ -192,6 +308,7 @@
       window.clearTimeout(motion.snapTimer)
     }
     motion.snapTimer = window.setTimeout(() => {
+      motion.snapTimer = 0
       motion.targetOffset = 0
       startMotion(picker, part)
     }, SNAP_DELAY_MS)
@@ -230,6 +347,7 @@
     motion.targetOffset = 0
     motion.rafId = 0
     render(picker)
+    scheduleCollapse(picker)
     return true
   }
 
@@ -258,6 +376,8 @@
 
   function nudge(picker, part, delta) {
     const motion = picker.motions[part]
+    clearInputBuffer(picker, part)
+    setExpanded(picker, true)
     motion.targetOffset = clamp(
       motion.targetOffset + (delta > 0 ? -ROW_HEIGHT : ROW_HEIGHT),
       -MAX_OFFSET,
@@ -284,6 +404,8 @@
         return
       }
 
+      clearInputBuffer(picker, part)
+      setExpanded(picker, true)
       motion.targetOffset = clamp(
         motion.targetOffset - delta * WHEEL_SENSITIVITY,
         -MAX_OFFSET,
@@ -297,10 +419,45 @@
       if (event.key === "ArrowUp" || event.key === "PageUp") {
         event.preventDefault()
         nudge(picker, part, -1)
+        return
       }
       if (event.key === "ArrowDown" || event.key === "PageDown") {
         event.preventDefault()
         nudge(picker, part, 1)
+        return
+      }
+      if (/^\d$/.test(event.key)) {
+        event.preventDefault()
+        const maxLength = part === "year" ? 4 : 2
+        const nextBuffer = (picker.inputBuffers[part] + event.key).slice(-maxLength)
+        picker.inputBuffers[part] = nextBuffer
+        column.classList.add("is-buffering")
+        render(picker)
+        if (nextBuffer.length >= maxLength) {
+          commitInputBuffer(picker, part)
+          return
+        }
+        queueInputCommit(picker, part)
+        return
+      }
+      if (event.key === "Backspace") {
+        event.preventDefault()
+        if (!picker.inputBuffers[part]) {
+          return
+        }
+        picker.inputBuffers[part] = picker.inputBuffers[part].slice(0, -1)
+        if (!picker.inputBuffers[part]) {
+          clearInputBuffer(picker, part)
+        } else {
+          queueInputCommit(picker, part)
+        }
+        render(picker)
+        return
+      }
+      if (event.key === "Enter") {
+        event.preventDefault()
+        commitInputBuffer(picker, part)
+        return
       }
     })
 
@@ -309,14 +466,8 @@
       dragState.pointerId = event.pointerId
       dragState.lastY = event.clientY
       dragState.moved = false
-      motion.dragging = true
-      if (motion.snapTimer) {
-        window.clearTimeout(motion.snapTimer)
-        motion.snapTimer = 0
-      }
       column.setPointerCapture(event.pointerId)
       column.focus()
-      startMotion(picker, part)
     })
 
     column.addEventListener("pointermove", (event) => {
@@ -327,6 +478,17 @@
       const deltaY = event.clientY - dragState.lastY
       if (Math.abs(deltaY) < DRAG_THRESHOLD) {
         return
+      }
+
+      if (!motion.dragging) {
+        motion.dragging = true
+        clearInputBuffer(picker, part)
+        setExpanded(picker, true)
+        if (motion.snapTimer) {
+          window.clearTimeout(motion.snapTimer)
+          motion.snapTimer = 0
+        }
+        startMotion(picker, part)
       }
 
       motion.targetOffset = clamp(motion.targetOffset + deltaY, -MAX_OFFSET, MAX_OFFSET)
@@ -342,16 +504,29 @@
 
       dragState.active = false
       dragState.pointerId = null
-      motion.dragging = false
-      scheduleSnap(picker, part)
+      if (motion.dragging) {
+        motion.dragging = false
+        scheduleSnap(picker, part)
+      }
     }
 
     column.addEventListener("pointerup", clearPointer)
     column.addEventListener("pointercancel", clearPointer)
+    column.addEventListener("focus", () => {
+      column.classList.add("is-focused")
+    })
+    column.addEventListener("blur", () => {
+      column.classList.remove("is-focused")
+      commitInputBuffer(picker, part)
+    })
 
     column.addEventListener("click", (event) => {
       if (dragState.moved) {
         dragState.moved = false
+        return
+      }
+
+      if (!picker.shell.classList.contains("is-expanded")) {
         return
       }
 
