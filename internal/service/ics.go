@@ -66,7 +66,7 @@ func (i *ICSImporter) Parse(filename string, body []byte, now time.Time) (ICSImp
 			}
 			tasks = append(tasks, repository.TaskInput{
 				Title:        event.Summary,
-				Note:         formatICSNote(event, occurrence, i.location),
+				Note:         "",
 				Type:         domain.TaskTypeSchedule,
 				Importance:   domain.DefaultTaskImportance,
 				ScheduledFor: &scheduledDate,
