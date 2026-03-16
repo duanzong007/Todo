@@ -1,0 +1,13 @@
+.DS_Store
+.env
+.idea/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+bin/
+dist/
+tmp/
+vendor/
+coverage.out
+*.test

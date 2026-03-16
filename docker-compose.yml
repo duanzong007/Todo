@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: todo-db
+    environment:
+      POSTGRES_DB: todo
+      POSTGRES_USER: todo
+      POSTGRES_PASSWORD: todo
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - todo_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U todo -d todo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: todo-app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ADDR: ":8080"
+      APP_TIMEZONE: Asia/Shanghai
+      AUTO_MIGRATE: "true"
+      MIGRATIONS_DIR: db/migrations
+      ICS_IMPORT_HORIZON_DAYS: "180"
+      DATABASE_URL: postgres://todo:todo@db:5432/todo?sslmode=disable
+    ports:
+      - "8080:8080"
+
+volumes:
+  todo_pg_data:
+

@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Todo: Launch Server",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/server",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "preLaunchTask": "todo:check-db",
+      "console": "internalConsole",
+      "serverReadyAction": {
+        "pattern": "todo server listening on (:[0-9]+)",
+        "uriFormat": "http://localhost%s",
+        "action": "openExternally"
+      }
+    }
+  ]
+}

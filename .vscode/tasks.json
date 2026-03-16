@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "todo:check-db",
+      "type": "shell",
+      "command": "zsh",
+      "args": [
+        "-lc",
+        "set -a; source ./.env; set +a; pg_isready -d \"$DATABASE_URL\""
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    }
+  ]
+}

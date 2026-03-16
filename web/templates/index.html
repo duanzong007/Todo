@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo MVP</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <main class="page">
+        <section class="hero">
+            <div>
+                <p class="eyebrow">Todo MVP</p>
+                <h1>把输入直接变成持续提醒</h1>
+                <p class="hero-copy">一个输入框，三类任务。今天、DDL、Todo 分开展示，不做复杂日历。</p>
+            </div>
+            <div class="hero-date">{{ .TodayLabel }}</div>
+        </section>
+
+        {{ if .Message }}
+        <div class="flash flash-success">{{ .Message }}</div>
+        {{ end }}
+        {{ if .Error }}
+        <div class="flash flash-error">{{ .Error }}</div>
+        {{ end }}
+
+        <section class="panel input-panel">
+            <form action="/tasks" method="post" class="capture-form">
+                <label for="task-input">快速输入</label>
+                <div class="capture-row">
+                    <input id="task-input" name="input" type="text" placeholder="例如：买电池 / 明天上课 / 周五交作业" autocomplete="off" required>
+                    <button type="submit">添加任务</button>
+                </div>
+            </form>
+
+            <form action="/imports/ics" method="post" enctype="multipart/form-data" class="ics-form">
+                <label for="ics-file">ICS 导入</label>
+                <div class="capture-row">
+                    <input id="ics-file" name="ics_file" type="file" accept=".ics,text/calendar" required>
+                    <button type="submit" class="secondary">导入 ICS</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="grid">
+            <div class="panel">
+                <div class="section-head">
+                    <h2>今天</h2>
+                    <span>{{ len .TodayTasks }}</span>
+                </div>
+                {{ if .TodayTasks }}
+                    {{ range .TodayTasks }}
+                    <article class="task-card">
+                        <div class="task-body">
+                            <h3>{{ .Title }}</h3>
+                            <p class="status">{{ .StatusLine }}</p>
+                            {{ if .Note }}<p class="note">{{ .Note }}</p>{{ end }}
+                        </div>
+                        <form action="/tasks/{{ .ID }}/postpone" method="post" class="task-actions">
+                            <input type="date" name="target_date" value="{{ .PostponeValue }}">
+                            <button type="submit" class="secondary">延期</button>
+                        </form>
+                    </article>
+                    {{ end }}
+                {{ else }}
+                    <p class="empty">今天没有日程任务。</p>
+                {{ end }}
+            </div>
+
+            <div class="panel">
+                <div class="section-head">
+                    <h2>DDL</h2>
+                    <span>{{ len .DDLTasks }}</span>
+                </div>
+                {{ if .DDLTasks }}
+                    {{ range .DDLTasks }}
+                    <article class="task-card">
+                        <div class="task-body">
+                            <h3>{{ .Title }}</h3>
+                            <p class="status">{{ .StatusLine }}</p>
+                            {{ if .Note }}<p class="note">{{ .Note }}</p>{{ end }}
+                        </div>
+                        <div class="task-actions dual">
+                            <form action="/tasks/{{ .ID }}/complete" method="post">
+                                <button type="submit">完成</button>
+                            </form>
+                            <form action="/tasks/{{ .ID }}/postpone" method="post">
+                                <input type="date" name="target_date" value="{{ .PostponeValue }}">
+                                <button type="submit" class="secondary">延期</button>
+                            </form>
+                        </div>
+                    </article>
+                    {{ end }}
+                {{ else }}
+                    <p class="empty">没有活跃的 DDL。</p>
+                {{ end }}
+            </div>
+
+            <div class="panel">
+                <div class="section-head">
+                    <h2>Todo</h2>
+                    <span>{{ len .TodoTasks }}</span>
+                </div>
+                {{ if .TodoTasks }}
+                    {{ range .TodoTasks }}
+                    <article class="task-card">
+                        <div class="task-body">
+                            <h3>{{ .Title }}</h3>
+                            <p class="status">{{ .StatusLine }}</p>
+                            {{ if .Note }}<p class="note">{{ .Note }}</p>{{ end }}
+                        </div>
+                        <form action="/tasks/{{ .ID }}/complete" method="post" class="task-actions">
+                            <button type="submit">完成</button>
+                        </form>
+                    </article>
+                    {{ end }}
+                {{ else }}
+                    <p class="empty">没有待办。</p>
+                {{ end }}
+            </div>
+        </section>
+    </main>
+</body>
+</html>
+
