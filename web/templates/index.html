@@ -71,16 +71,23 @@
 
         <section class="focus-drawers">
             <details class="utility-drawer">
-                <summary>查看其它日期</summary>
+                <summary>其它</summary>
                 <div class="drawer-body">
                     <div class="quick-links">
-                        <a href="{{ .YesterdayPath }}" class="secondary action-link">昨天</a>
-                        <a href="{{ .TodayPath }}" class="secondary action-link">今天</a>
-                        <a href="{{ .TomorrowPath }}" class="secondary action-link">明天</a>
-                        <a href="{{ .DayAfterTomorrowPath }}" class="secondary action-link">后天</a>
+                        <a href="{{ .YesterdayPath }}" class="secondary action-link date-chip">昨天</a>
+                        <a href="{{ .TodayPath }}" class="secondary action-link date-chip">今天</a>
+                        <a href="{{ .TomorrowPath }}" class="secondary action-link date-chip">明天</a>
+                        <a href="{{ .DayAfterTomorrowPath }}" class="secondary action-link date-chip">后天</a>
                     </div>
                     <form action="/" method="get" class="mini-date-form">
-                        <input type="date" name="date" value="{{ .FocusDateISO }}" required>
+                        <div class="custom-date-input" aria-label="选择日期">
+                            <input type="text" name="year" inputmode="numeric" maxlength="4" value="{{ .FocusYear }}" aria-label="年" required>
+                            <span>年</span>
+                            <input type="text" name="month" inputmode="numeric" maxlength="2" value="{{ .FocusMonth }}" aria-label="月" required>
+                            <span>月</span>
+                            <input type="text" name="day" inputmode="numeric" maxlength="2" value="{{ .FocusDay }}" aria-label="日" required>
+                            <span>日</span>
+                        </div>
                         <button type="submit" class="secondary">打开</button>
                     </form>
                 </div>

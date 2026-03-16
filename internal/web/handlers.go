@@ -57,6 +57,9 @@ type DashboardPageData struct {
 	Error                string
 	FocusTitle           string
 	FocusDateISO         string
+	FocusYear            string
+	FocusMonth           string
+	FocusDay             string
 	FocusTasks           []TaskCard
 	YesterdayPath        string
 	TodayPath            string
@@ -283,7 +286,7 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	focusDate, err := h.resolveFocusDate(r.URL.Query().Get("date"))
+	focusDate, err := h.resolveFocusDate(r)
 	if err != nil {
 		h.redirectWithQuery(w, r, "/", "", "日期格式不正确", nil)
 		return
@@ -409,6 +412,9 @@ func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domai
 		Error:                errorMessage,
 		FocusTitle:           buildFocusTitle(focusDate, today, h.location),
 		FocusDateISO:         focusDate.In(h.location).Format("2006-01-02"),
+		FocusYear:            focusDate.In(h.location).Format("2006"),
+		FocusMonth:           focusDate.In(h.location).Format("01"),
+		FocusDay:             focusDate.In(h.location).Format("02"),
 		FocusTasks:           buildFocusTaskCards(dashboard, focusDate, h.location),
 		YesterdayPath:        buildDatePath(today.AddDate(0, 0, -1), h.location),
 		TodayPath:            buildDatePath(today, h.location),
@@ -716,8 +722,16 @@ func buildDatePath(targetDate time.Time, location *time.Location) string {
 	return "/?date=" + url.QueryEscape(date.Format("2006-01-02"))
 }
 
-func (h *Handler) resolveFocusDate(raw string) (time.Time, error) {
-	value := strings.TrimSpace(raw)
+func (h *Handler) resolveFocusDate(r *http.Request) (time.Time, error) {
+	value := strings.TrimSpace(r.URL.Query().Get("date"))
+	if value == "" {
+		year := strings.TrimSpace(r.URL.Query().Get("year"))
+		month := strings.TrimSpace(r.URL.Query().Get("month"))
+		day := strings.TrimSpace(r.URL.Query().Get("day"))
+		if year != "" || month != "" || day != "" {
+			value = fmt.Sprintf("%s-%s-%s", padDatePart(year, 4), padDatePart(month, 2), padDatePart(day, 2))
+		}
+	}
 	if value == "" {
 		return normalizeDateForView(time.Now().In(h.location), h.location), nil
 	}
@@ -749,6 +763,17 @@ func (h *Handler) currentViewDateParam(r *http.Request) string {
 		return ""
 	}
 	return date.Format("2006-01-02")
+}
+
+func padDatePart(value string, width int) string {
+	trimmed := strings.TrimSpace(value)
+	if width <= 0 {
+		return trimmed
+	}
+	if len(trimmed) >= width {
+		return trimmed
+	}
+	return strings.Repeat("0", width-len(trimmed)) + trimmed
 }
 
 func humanizeError(err error) string {
