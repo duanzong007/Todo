@@ -518,7 +518,7 @@ func (h *Handler) buildDashboardPageData(ctx context.Context, user domain.User, 
 	if err != nil {
 		return DashboardPageData{}, err
 	}
-	completedTasks, err := h.taskService.CompletedTasks(ctx, user.ID, 20)
+	completedTasks, err := h.taskService.CompletedTasksForDate(ctx, user.ID, focusDate, 20)
 	if err != nil {
 		return DashboardPageData{}, err
 	}

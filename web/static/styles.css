@@ -405,6 +405,9 @@ button.danger:hover {
 
 .focus-hero {
     margin: 10px 0 20px;
+    transition:
+        opacity 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .focus-hero h1 {
@@ -438,6 +441,9 @@ button.danger:hover {
 
 .focus-panel {
     padding: 22px;
+    transition:
+        opacity 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .focus-panel-head {
@@ -737,6 +743,30 @@ button.complete-toggle:hover {
 
 .focus-drawers {
     margin-top: 16px;
+    transition:
+        opacity 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.focus-hero.is-page-exit,
+.focus-panel.is-page-exit,
+.focus-drawers.is-page-exit {
+    opacity: 0.28;
+    transform: translateY(-4px);
+}
+
+.focus-hero.is-page-enter,
+.focus-panel.is-page-enter,
+.focus-drawers.is-page-enter {
+    opacity: 0.18;
+    transform: translateY(8px);
+}
+
+.focus-hero.is-page-enter-active,
+.focus-panel.is-page-enter-active,
+.focus-drawers.is-page-enter-active {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .utility-drawer {
@@ -745,6 +775,7 @@ button.complete-toggle:hover {
     background: rgba(255, 251, 245, 0.72);
     box-shadow: var(--shadow);
     overflow: hidden;
+    will-change: height;
 }
 
 .utility-drawer summary {
@@ -757,10 +788,15 @@ button.complete-toggle:hover {
     text-align: center;
     letter-spacing: 0.08em;
     list-style: none;
+    transition: background 180ms ease, color 180ms ease;
 }
 
 .utility-drawer summary::-webkit-details-marker {
     display: none;
+}
+
+.utility-drawer[open] summary {
+    background: rgba(255, 255, 255, 0.26);
 }
 
 .drawer-body {
@@ -768,6 +804,22 @@ button.complete-toggle:hover {
     gap: 14px;
     padding: 0 18px 18px;
     justify-items: center;
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+        opacity 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.utility-drawer.is-opening .drawer-body,
+.utility-drawer.is-closing .drawer-body {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+
+.utility-drawer.is-opening.is-opening-active .drawer-body {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .archive-section {

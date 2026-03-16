@@ -5,6 +5,12 @@ function cssEscape(value) {
   return String(value).replace(/["\\]/g, "\\$&");
 }
 
+const PAGE_SWAP_OUT_MS = 120;
+const PAGE_SWAP_IN_MS = 240;
+const PAGE_SWAP_EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
+const USE_PATCH_NAVIGATION = false;
+const DRAWER_TOGGLE_MS = 260;
+
 function captureFocusPageState(root = document) {
   const openDetails = {};
   root.querySelectorAll("[data-preserve-open]").forEach((element) => {
@@ -62,93 +68,157 @@ function hydrateFocusPage(root = document) {
   if (window.initializeTaskCards) {
     window.initializeTaskCards(root);
   }
+  initializeAnimatedDrawers(root);
   initializeFocusNavigation(root);
 }
 
-function collectTaskIDs(root, selector) {
-  const ids = new Set();
-  root.querySelectorAll(selector).forEach((element) => {
-    const taskID = element.getAttribute("data-task-id");
-    if (taskID) {
-      ids.add(taskID);
-    }
-  });
-  return ids;
+function syncDrawerState(details) {
+  const summary = details.querySelector("summary");
+  if (!summary) {
+    return;
+  }
+  summary.setAttribute("aria-expanded", details.hasAttribute("open") ? "true" : "false");
 }
 
-function prepareEnterAnimation(element) {
-  const rect = element.getBoundingClientRect();
-  if (rect.height <= 0) {
+function finishDrawerAnimation(details, keepOpen) {
+  if (!keepOpen) {
+    details.removeAttribute("open");
+  }
+  details.classList.remove("is-opening", "is-opening-active", "is-closing");
+  details.style.height = "";
+  details.style.overflow = "";
+  details.style.transition = "";
+  details.dataset.animating = "0";
+  syncDrawerState(details);
+}
+
+function bindAnimatedDrawer(details) {
+  if (details.dataset.drawerBound === "1") {
+    syncDrawerState(details);
+    return;
+  }
+  details.dataset.drawerBound = "1";
+  details.dataset.animating = "0";
+  syncDrawerState(details);
+
+  const summary = details.querySelector("summary");
+  if (!summary) {
     return;
   }
 
-  const styles = window.getComputedStyle(element);
-  element.dataset.enterHeight = `${rect.height}`;
-  element.dataset.enterPaddingTop = styles.paddingTop;
-  element.dataset.enterPaddingBottom = styles.paddingBottom;
-  element.dataset.enterBorderTopWidth = styles.borderTopWidth;
-  element.dataset.enterBorderBottomWidth = styles.borderBottomWidth;
-
-  element.style.height = "0px";
-  element.style.overflow = "hidden";
-  element.style.opacity = "0";
-  element.style.transform = "translateY(8px) scale(0.985)";
-  element.style.filter = "blur(0.8px)";
-  element.style.paddingTop = "0px";
-  element.style.paddingBottom = "0px";
-  element.style.borderTopWidth = "0px";
-  element.style.borderBottomWidth = "0px";
-}
-
-function playEnterAnimations(root, selector, previousIDs) {
-  const entering = [];
-  root.querySelectorAll(selector).forEach((element) => {
-    const taskID = element.getAttribute("data-task-id");
-    if (!taskID || previousIDs.has(taskID)) {
+  summary.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (details.dataset.animating === "1") {
       return;
     }
-    prepareEnterAnimation(element);
-    entering.push(element);
-  });
 
-  if (entering.length === 0) {
-    return;
-  }
+    const summaryHeight = summary.getBoundingClientRect().height;
+    const isOpen = details.hasAttribute("open");
+    details.dataset.animating = "1";
 
-  window.requestAnimationFrame(() => {
-    entering.forEach((element) => {
-      element.style.height = element.dataset.enterHeight || "";
-      element.style.opacity = "1";
-      element.style.transform = "translateY(0) scale(1)";
-      element.style.filter = "blur(0)";
-      element.style.paddingTop = element.dataset.enterPaddingTop || "";
-      element.style.paddingBottom = element.dataset.enterPaddingBottom || "";
-      element.style.borderTopWidth = element.dataset.enterBorderTopWidth || "";
-      element.style.borderBottomWidth = element.dataset.enterBorderBottomWidth || "";
+    if (isOpen) {
+      const startHeight = details.getBoundingClientRect().height;
+      details.classList.add("is-closing");
+      details.style.height = `${startHeight}px`;
+      details.style.overflow = "hidden";
+      details.style.transition = "none";
+      details.getBoundingClientRect();
 
-      const cleanup = () => {
-        element.style.height = "";
-        element.style.overflow = "";
-        element.style.opacity = "";
-        element.style.transform = "";
-        element.style.filter = "";
-        element.style.paddingTop = "";
-        element.style.paddingBottom = "";
-        element.style.borderTopWidth = "";
-        element.style.borderBottomWidth = "";
-        delete element.dataset.enterHeight;
-        delete element.dataset.enterPaddingTop;
-        delete element.dataset.enterPaddingBottom;
-        delete element.dataset.enterBorderTopWidth;
-        delete element.dataset.enterBorderBottomWidth;
-      };
+      window.requestAnimationFrame(() => {
+        details.style.transition = `height ${DRAWER_TOGGLE_MS}ms ${PAGE_SWAP_EASE}`;
+        details.style.height = `${summaryHeight}px`;
+      });
 
-      element.addEventListener("transitionend", cleanup, { once: true });
+      window.setTimeout(() => {
+        finishDrawerAnimation(details, false);
+      }, DRAWER_TOGGLE_MS);
+      return;
+    }
+
+    details.setAttribute("open", "");
+    syncDrawerState(details);
+    const endHeight = details.getBoundingClientRect().height;
+    details.classList.add("is-opening");
+    details.style.height = `${summaryHeight}px`;
+    details.style.overflow = "hidden";
+    details.style.transition = "none";
+    details.getBoundingClientRect();
+
+    window.requestAnimationFrame(() => {
+      details.style.transition = `height ${DRAWER_TOGGLE_MS}ms ${PAGE_SWAP_EASE}`;
+      details.style.height = `${endHeight}px`;
+      details.classList.add("is-opening-active");
     });
+
+    window.setTimeout(() => {
+      finishDrawerAnimation(details, true);
+    }, DRAWER_TOGGLE_MS);
   });
 }
 
-function patchFocusPage(currentMain, nextMain) {
+function initializeAnimatedDrawers(root = document) {
+  root.querySelectorAll("[data-animated-drawer]").forEach((details) => {
+    bindAnimatedDrawer(details);
+  });
+}
+
+function animatePageSwapOut(sections) {
+  sections.forEach((section) => {
+    if (!section) {
+      return;
+    }
+    section.classList.add("is-page-exit");
+  });
+
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, PAGE_SWAP_OUT_MS);
+  });
+}
+
+function replaceSectionChildren(currentSection, nextSection) {
+  currentSection.replaceChildren(...Array.from(nextSection.childNodes).map((node) => node.cloneNode(true)));
+}
+
+async function transitionSectionContent(currentSection, nextSection) {
+  if (!currentSection || !nextSection) {
+    return false;
+  }
+
+  const startHeight = currentSection.getBoundingClientRect().height;
+  currentSection.style.height = `${startHeight}px`;
+  currentSection.style.overflow = "hidden";
+  currentSection.style.transition = "none";
+  currentSection.classList.add("is-page-exit");
+
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, PAGE_SWAP_OUT_MS);
+  });
+
+  currentSection.classList.remove("is-page-exit");
+  currentSection.classList.add("is-page-enter");
+  replaceSectionChildren(currentSection, nextSection);
+
+  const endHeight = currentSection.scrollHeight;
+  currentSection.getBoundingClientRect();
+
+  window.requestAnimationFrame(() => {
+    currentSection.style.transition = `height ${PAGE_SWAP_IN_MS}ms ${PAGE_SWAP_EASE}`;
+    currentSection.style.height = `${endHeight}px`;
+    currentSection.classList.add("is-page-enter-active");
+  });
+
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, PAGE_SWAP_IN_MS);
+  });
+
+  currentSection.classList.remove("is-page-enter", "is-page-enter-active");
+  currentSection.style.height = "";
+  currentSection.style.overflow = "";
+  currentSection.style.transition = "";
+  return true;
+}
+
+async function patchFocusPage(currentMain, nextMain) {
   const currentPanel = currentMain.querySelector(".focus-panel");
   const nextPanel = nextMain.querySelector(".focus-panel");
   const currentDrawers = currentMain.querySelector(".focus-drawers");
@@ -160,14 +230,16 @@ function patchFocusPage(currentMain, nextMain) {
     return false;
   }
 
-  const previousFocusIDs = collectTaskIDs(currentPanel, "[data-task-card]");
-  const previousArchiveIDs = collectTaskIDs(currentDrawers, ".archive-card");
+  const startHeight = currentMain.getBoundingClientRect().height;
+  currentMain.style.minHeight = `${startHeight}px`;
 
-  currentHero.replaceWith(nextHero);
-  currentPanel.replaceWith(nextPanel);
-  currentDrawers.replaceWith(nextDrawers);
-  playEnterAnimations(nextPanel, "[data-task-card]", previousFocusIDs);
-  playEnterAnimations(nextDrawers, ".archive-card", previousArchiveIDs);
+  await Promise.all([
+    transitionSectionContent(currentHero, nextHero),
+    transitionSectionContent(currentPanel, nextPanel),
+    transitionSectionContent(currentDrawers, nextDrawers),
+  ]);
+
+  currentMain.style.minHeight = "";
   return true;
 }
 
@@ -184,8 +256,17 @@ function setFocusPageLoading(loading) {
 }
 
 async function loadFocusPage(url, historyMode = "push", options = {}) {
+  if (!USE_PATCH_NAVIGATION) {
+    if (historyMode === "replace") {
+      window.location.replace(url);
+      return;
+    }
+    window.location.assign(url);
+    return;
+  }
+
   const state = options.state || captureFocusPageState(document);
-  const mode = options.mode || "full";
+  const mode = options.mode || "patch";
   setFocusPageLoading(true);
 
   try {
@@ -207,7 +288,7 @@ async function loadFocusPage(url, historyMode = "push", options = {}) {
     restoreFocusPageState(nextMain, state);
 
     if (mode === "patch") {
-      if (!patchFocusPage(currentMain, nextMain)) {
+      if (!await patchFocusPage(currentMain, nextMain)) {
         currentMain.replaceWith(nextMain);
       }
     } else {
@@ -237,6 +318,10 @@ function reloadFocusPage(options = {}) {
 }
 
 function initializeFocusNavigation(root = document) {
+  if (!USE_PATCH_NAVIGATION) {
+    return;
+  }
+
   root.querySelectorAll("[data-focus-nav-link]").forEach((link) => {
     if (link.dataset.bound === "1") {
       return;
@@ -245,7 +330,9 @@ function initializeFocusNavigation(root = document) {
 
     link.addEventListener("click", (event) => {
       event.preventDefault();
-      loadFocusPage(link.href, "push");
+      loadFocusPage(link.href, "push", {
+        mode: "patch",
+      });
     });
   });
 
@@ -267,7 +354,9 @@ function initializeFocusNavigation(root = document) {
         }
       }
 
-      loadFocusPage(url.pathname + url.search, "push");
+      loadFocusPage(url.pathname + url.search, "push", {
+        mode: "patch",
+      });
     });
   });
 }
@@ -282,5 +371,11 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 window.addEventListener("popstate", () => {
-  loadFocusPage(window.location.pathname + window.location.search, "replace");
+  if (!USE_PATCH_NAVIGATION) {
+    return;
+  }
+
+  loadFocusPage(window.location.pathname + window.location.search, "replace", {
+    mode: "patch",
+  });
 });

@@ -43,8 +43,10 @@ func (s *TaskService) DashboardForDate(ctx context.Context, userID uuid.UUID, fo
 	return s.repo.ListDashboard(ctx, userID, focusDate.In(s.location))
 }
 
-func (s *TaskService) CompletedTasks(ctx context.Context, userID uuid.UUID, limit int) ([]domain.Task, error) {
-	return s.repo.ListCompletedTasks(ctx, userID, limit)
+func (s *TaskService) CompletedTasksForDate(ctx context.Context, userID uuid.UUID, focusDate time.Time, limit int) ([]domain.Task, error) {
+	dayStart := normalizeDateInLocation(focusDate, s.location)
+	dayEnd := dayStart.AddDate(0, 0, 1)
+	return s.repo.ListCompletedTasksForDate(ctx, userID, dayStart, dayEnd, limit)
 }
 
 func (s *TaskService) CreateFromInput(ctx context.Context, userID uuid.UUID, input string) (domain.Task, error) {

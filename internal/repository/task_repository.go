@@ -167,7 +167,7 @@ func (r *TaskRepository) ListDashboard(ctx context.Context, userID uuid.UUID, to
 	}, nil
 }
 
-func (r *TaskRepository) ListCompletedTasks(ctx context.Context, userID uuid.UUID, limit int) ([]domain.Task, error) {
+func (r *TaskRepository) ListCompletedTasksForDate(ctx context.Context, userID uuid.UUID, dayStart, dayEnd time.Time, limit int) ([]domain.Task, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -175,10 +175,10 @@ func (r *TaskRepository) ListCompletedTasks(ctx context.Context, userID uuid.UUI
 	return r.listTasks(ctx, `
 		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
-		WHERE user_id = $1 AND status = 'done'
+		WHERE user_id = $1 AND status = 'done' AND completed_at >= $2 AND completed_at < $3
 		ORDER BY completed_at DESC, updated_at DESC
-		LIMIT $2
-	`, userID, limit)
+		LIMIT $4
+	`, userID, dayStart, dayEnd, limit)
 }
 
 func (r *TaskRepository) GetTask(ctx context.Context, userID, id uuid.UUID) (domain.Task, error) {
