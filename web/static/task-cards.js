@@ -2,6 +2,17 @@ const EXIT_ANIMATION_MS = 320;
 const MOVE_ANIMATION_MS = 320;
 const ENTER_ANIMATION_MS = 320;
 const EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
+const TODO_CLIENT_ID = (() => {
+  if (window.todoClientID) {
+    return window.todoClientID;
+  }
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    window.todoClientID = window.crypto.randomUUID();
+    return window.todoClientID;
+  }
+  window.todoClientID = `todo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return window.todoClientID;
+})();
 let taskMutationQueue = Promise.resolve();
 let pendingTaskRequestCount = 0;
 let requiresSnapshotResync = false;
@@ -61,6 +72,11 @@ function currentFocusDateValue() {
 }
 
 async function resyncDashboardSnapshot() {
+  const snapshot = await fetchDashboardSnapshot();
+  applyTaskSnapshot(snapshot);
+}
+
+async function fetchDashboardSnapshot() {
   const url = new URL("/dashboard/snapshot", window.location.origin);
   const focusDate = currentFocusDateValue();
   if (focusDate) {
@@ -68,6 +84,7 @@ async function resyncDashboardSnapshot() {
   }
 
   const response = await fetch(url.pathname + url.search, {
+    cache: "no-store",
     headers: {
       "X-Requested-With": "fetch",
     },
@@ -76,8 +93,7 @@ async function resyncDashboardSnapshot() {
     throw new Error("snapshot sync failed");
   }
 
-  const snapshot = await response.json();
-  applyTaskSnapshot(snapshot);
+  return response.json();
 }
 
 function endPendingTaskRequest() {
@@ -85,12 +101,17 @@ function endPendingTaskRequest() {
   updatePendingCounterState();
 
   if (pendingTaskRequestCount !== 0 || !requiresSnapshotResync) {
+    if (pendingTaskRequestCount === 0) {
+      window.dispatchEvent(new CustomEvent("todo:pending-drained"));
+    }
     return Promise.resolve();
   }
 
   requiresSnapshotResync = false;
   return resyncDashboardSnapshot().catch(() => {
     window.location.reload();
+  }).finally(() => {
+    window.dispatchEvent(new CustomEvent("todo:pending-drained"));
   });
 }
 
@@ -993,6 +1014,64 @@ function applyTaskSnapshot(snapshot) {
   updatePendingCounterState();
 }
 
+function applyTaskSnapshotQuietly(snapshot) {
+  const panel = document.querySelector(".focus-panel");
+  const section = document.querySelector("[data-archive-section]");
+  const openPostponeTaskIDs = Array.from(document.querySelectorAll("[data-postpone-panel][open]"))
+    .map((element) => element.getAttribute("data-task-id"))
+    .filter(Boolean);
+
+  if (panel) {
+    const counter = panel.querySelector(".focus-counter");
+    if (counter) {
+      counter.textContent = String(snapshot.focus_tasks.length);
+    }
+
+    if (snapshot.focus_tasks.length === 0) {
+      setFocusEmpty(panel, snapshot);
+    } else {
+      const list = ensureFocusList(panel);
+      const nextCards = snapshot.focus_tasks
+        .map((card) => createElementFromHTML(buildFocusTaskCardHTML(card)))
+        .filter(Boolean);
+      list.replaceChildren(...nextCards);
+      initializeTaskCards(list);
+    }
+  }
+
+  if (section) {
+    const count = section.querySelector("[data-archive-count]");
+    if (count) {
+      count.textContent = String(snapshot.completed_tasks.length);
+    }
+
+    if (snapshot.completed_tasks.length === 0) {
+      section.classList.add("is-empty");
+      const list = section.querySelector("[data-archive-list]");
+      if (list) {
+        list.replaceChildren();
+      }
+    } else {
+      section.classList.remove("is-empty");
+      const list = ensureArchiveList(section);
+      const nextCards = snapshot.completed_tasks
+        .map((card) => createElementFromHTML(buildCompletedTaskCardHTML(card)))
+        .filter(Boolean);
+      list.replaceChildren(...nextCards);
+      initializeTaskCards(list);
+    }
+  }
+
+  openPostponeTaskIDs.forEach((taskID) => {
+    const panel = document.querySelector(`[data-postpone-panel][data-task-id="${cssEscape(taskID)}"]`);
+    if (panel) {
+      panel.setAttribute("open", "");
+    }
+  });
+
+  updatePendingCounterState();
+}
+
 function enqueueTaskMutation(run) {
   const queued = taskMutationQueue.then(run, run);
   taskMutationQueue = queued.catch(() => {});
@@ -1033,6 +1112,7 @@ function fetchTaskRequestSnapshot(request) {
     body: request.formData,
     headers: {
       "X-Requested-With": "fetch",
+      "X-Todo-Client-ID": TODO_CLIENT_ID,
     },
   }).then(async (response) => {
     if (!response.ok) {
@@ -1223,6 +1303,7 @@ function bindAsyncTaskForm(form) {
         body: new FormData(form),
         headers: {
           "X-Requested-With": "fetch",
+          "X-Todo-Client-ID": TODO_CLIENT_ID,
         },
       });
 
@@ -1268,4 +1349,8 @@ function initializeTaskCards(root = document) {
 }
 
 window.initializeTaskCards = initializeTaskCards;
+window.applyTaskSnapshot = applyTaskSnapshot;
+window.applyTaskSnapshotQuietly = applyTaskSnapshotQuietly;
+window.fetchDashboardSnapshot = fetchDashboardSnapshot;
+window.todoHasPendingTaskRequests = () => pendingTaskRequestCount > 0;
 document.addEventListener("DOMContentLoaded", () => initializeTaskCards(document));

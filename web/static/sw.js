@@ -1,19 +1,14 @@
-const CACHE_NAME = "todo-pwa-v1";
+const CACHE_NAME = "todo-pwa-v3";
 const OFFLINE_URL = "/static/pwa/offline.html";
 const STATIC_ASSETS = [
-  "/static/styles.css",
-  "/static/date-picker.js",
-  "/static/focus-page.js",
-  "/static/task-cards.js",
-  "/static/postpone-picker.js",
-  "/static/composer-panel.js",
-  "/static/pwa-register.js",
-  "/manifest.webmanifest",
   "/static/pwa/favicon-64.png",
+  "/static/pwa/favicon-32.png",
+  "/static/pwa/favicon-16.png",
   "/static/pwa/apple-touch-icon.png",
   "/static/pwa/icon-192.png",
   "/static/pwa/icon-512.png",
   "/static/pwa/maskable-512.png",
+  "/favicon.ico",
   OFFLINE_URL
 ];
 
@@ -46,6 +41,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (url.pathname === "/events" || url.pathname === "/dashboard/snapshot") {
+    event.respondWith(fetch(request));
+    return;
+  }
+
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request).catch(() => caches.match(OFFLINE_URL))
@@ -53,13 +53,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
+  const isStaticAsset =
+    url.pathname.startsWith("/static/") ||
+    url.pathname === "/manifest.webmanifest" ||
+    url.pathname === "/favicon.ico";
 
-      return fetch(request).then((networkResponse) => {
+  if (!isStaticAsset) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  event.respondWith(
+    fetch(request)
+      .then((networkResponse) => {
         if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== "basic") {
           return networkResponse;
         }
@@ -67,7 +73,7 @@ self.addEventListener("fetch", (event) => {
         const responseClone = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
         return networkResponse;
-      });
-    })
+      })
+      .catch(() => caches.match(request))
   );
 });

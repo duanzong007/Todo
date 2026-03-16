@@ -41,6 +41,7 @@ type Handler struct {
 	taskService       *service.TaskService
 	authService       *service.AuthService
 	quoteService      *service.QuoteService
+	eventHub          *dashboardEventHub
 	templates         *template.Template
 	staticDir         string
 	maxUploadSize     int64
@@ -164,6 +165,7 @@ func NewHandler(taskService *service.TaskService, authService *service.AuthServi
 		taskService:       taskService,
 		authService:       authService,
 		quoteService:      quoteService,
+		eventHub:          newDashboardEventHub(),
 		templates:         templates,
 		staticDir:         options.StaticDir,
 		maxUploadSize:     options.MaxUploadSize,
@@ -194,6 +196,7 @@ func (h *Handler) Router() http.Handler {
 
 		r.Get("/", h.handleIndex)
 		r.Get("/dashboard/snapshot", h.handleDashboardSnapshot)
+		r.Get("/events", h.handleEventStream)
 		r.Get("/me", h.handleAccountPage)
 		r.Post("/tasks", h.handleCreateTask)
 		r.Post("/tasks/manual", h.handleCreateManualTask)
@@ -397,6 +400,8 @@ func (h *Handler) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
+
 	if wantsAsyncResponse(r) {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -435,6 +440,8 @@ func (h *Handler) handleCreateManualTask(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
+
 	if wantsAsyncResponse(r) {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -469,6 +476,8 @@ func (h *Handler) handleParseSMS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
+
 	if wantsAsyncResponse(r) {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -494,6 +503,8 @@ func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 		h.redirectHome(w, r, "", humanizeError(err))
 		return
 	}
+
+	h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
 
 	if wantsAsyncResponse(r) {
 		h.writeDashboardSnapshot(w, r, user)
@@ -533,6 +544,8 @@ func (h *Handler) handlePostponeTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
+
 	if wantsAsyncResponse(r) {
 		h.writeDashboardSnapshot(w, r, user)
 		return
@@ -557,6 +570,8 @@ func (h *Handler) handleRestoreTask(w http.ResponseWriter, r *http.Request) {
 		h.redirectHome(w, r, "", humanizeError(err))
 		return
 	}
+
+	h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
 
 	if wantsAsyncResponse(r) {
 		h.writeDashboardSnapshot(w, r, user)
@@ -603,6 +618,7 @@ func (h *Handler) handleImportICS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = inserted
+	h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
 	if wantsAsyncResponse(r) {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -673,6 +689,7 @@ func (h *Handler) writeDashboardSnapshot(w http.ResponseWriter, r *http.Request,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
 	_ = json.NewEncoder(w).Encode(DashboardSnapshot{
 		FocusTasks:     pageData.FocusTasks,
 		CompletedTasks: pageData.CompletedTasks,
@@ -768,6 +785,10 @@ func (h *Handler) requireAuth(next http.Handler) http.Handler {
 		user, err := h.authService.Authenticate(r.Context(), h.sessionToken(r))
 		if err != nil {
 			h.clearSessionCookie(w)
+			if wantsAsyncResponse(r) || wantsEventStream(r) {
+				http.Error(w, "请先登录", http.StatusUnauthorized)
+				return
+			}
 			h.redirectToLogin(w, r, "", "请先登录")
 			return
 		}
@@ -1495,6 +1516,10 @@ func (h *Handler) actionFocusDate(r *http.Request) time.Time {
 
 func wantsAsyncResponse(r *http.Request) bool {
 	return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Requested-With")), "fetch")
+}
+
+func wantsEventStream(r *http.Request) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(r.Header.Get("Accept"))), "text/event-stream")
 }
 
 func padDatePart(value string, width int) string {
