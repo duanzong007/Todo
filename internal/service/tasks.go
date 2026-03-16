@@ -38,6 +38,10 @@ func (s *TaskService) Dashboard(ctx context.Context, userID uuid.UUID) (reposito
 	return dashboard, now, nil
 }
 
+func (s *TaskService) DashboardForDate(ctx context.Context, userID uuid.UUID, focusDate time.Time) (repository.Dashboard, error) {
+	return s.repo.ListDashboard(ctx, userID, focusDate.In(s.location))
+}
+
 func (s *TaskService) CreateFromInput(ctx context.Context, userID uuid.UUID, input string) (domain.Task, error) {
 	parsed, err := s.parser.Parse(input, time.Now().In(s.location))
 	if err != nil {

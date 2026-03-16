@@ -53,13 +53,15 @@ type UserView struct {
 }
 
 type DashboardPageData struct {
-	CurrentUser *UserView
-	TodayLabel  string
-	Message     string
-	Error       string
-	TodayTasks  []TaskCard
-	DDLTasks    []TaskCard
-	TodoTasks   []TaskCard
+	CurrentUser   *UserView
+	Message       string
+	Error         string
+	FocusTitle    string
+	FocusSubtitle string
+	FocusDateISO  string
+	FocusTasks    []TaskCard
+	TodayPath     string
+	TomorrowPath  string
 }
 
 type AdminPageData struct {
@@ -86,11 +88,14 @@ type AuthPageData struct {
 type TaskCard struct {
 	ID            string
 	Title         string
+	KindLabel     string
+	KindClass     string
 	StatusLine    string
 	Note          string
 	CanComplete   bool
 	CanPostpone   bool
 	PostponeValue string
+	ReturnDate    string
 }
 
 type PendingUserCard struct {
@@ -273,7 +278,13 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.renderIndex(w, r, user, r.URL.Query().Get("msg"), r.URL.Query().Get("err")); err != nil {
+	focusDate, err := h.resolveFocusDate(r.URL.Query().Get("date"))
+	if err != nil {
+		h.redirectWithQuery(w, r, "/", "", "日期格式不正确", nil)
+		return
+	}
+
+	if err := h.renderIndex(w, r, user, focusDate, r.URL.Query().Get("msg"), r.URL.Query().Get("err")); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -380,20 +391,23 @@ func (h *Handler) handleImportICS(w http.ResponseWriter, r *http.Request) {
 	h.redirectHome(w, r, fmt.Sprintf("ICS 导入完成，新增 %d 条日程", inserted), "")
 }
 
-func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domain.User, message, errorMessage string) error {
-	dashboard, now, err := h.taskService.Dashboard(r.Context(), user.ID)
+func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domain.User, focusDate time.Time, message, errorMessage string) error {
+	dashboard, err := h.taskService.DashboardForDate(r.Context(), user.ID, focusDate)
 	if err != nil {
 		return err
 	}
 
+	today := normalizeDateForView(time.Now().In(h.location), h.location)
 	pageData := DashboardPageData{
-		CurrentUser: buildUserView(user),
-		TodayLabel:  now.In(h.location).Format("2006-01-02"),
-		Message:     message,
-		Error:       errorMessage,
-		TodayTasks:  buildTaskCards(dashboard.Today, now, h.location),
-		DDLTasks:    buildTaskCards(dashboard.DDL, now, h.location),
-		TodoTasks:   buildTaskCards(dashboard.Todo, now, h.location),
+		CurrentUser:   buildUserView(user),
+		Message:       message,
+		Error:         errorMessage,
+		FocusTitle:    buildFocusTitle(focusDate, today, h.location),
+		FocusSubtitle: buildFocusSubtitle(focusDate, today, h.location),
+		FocusDateISO:  focusDate.In(h.location).Format("2006-01-02"),
+		FocusTasks:    buildFocusTaskCards(dashboard, focusDate, h.location),
+		TodayPath:     buildDatePath(today, h.location),
+		TomorrowPath:  buildDatePath(today.AddDate(0, 0, 1), h.location),
 	}
 
 	return h.templates.ExecuteTemplate(w, "index.html", pageData)
@@ -539,7 +553,11 @@ func (h *Handler) sessionToken(r *http.Request) string {
 }
 
 func (h *Handler) redirectHome(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
-	h.redirectWithQuery(w, r, "/", message, errorMessage, nil)
+	extra := map[string]string{}
+	if date := h.currentViewDateParam(r); date != "" {
+		extra["date"] = date
+	}
+	h.redirectWithQuery(w, r, "/", message, errorMessage, extra)
 }
 
 func (h *Handler) redirectToAdminUsers(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
@@ -604,51 +622,126 @@ func buildPendingUserCards(users []domain.User, location *time.Location) []Pendi
 	return cards
 }
 
-func buildTaskCards(tasks []domain.Task, now time.Time, location *time.Location) []TaskCard {
+func buildFocusTaskCards(dashboard repository.Dashboard, focusDate time.Time, location *time.Location) []TaskCard {
 	var cards []TaskCard
-	today := normalizeDateForView(now, location)
 
-	for _, task := range tasks {
-		card := TaskCard{
-			ID:          task.ID.String(),
-			Title:       task.Title,
-			Note:        task.Note,
-			CanComplete: task.SupportsCompletion(),
-			CanPostpone: task.SupportsPostpone(),
-		}
+	for _, task := range dashboard.Today {
+		cards = append(cards, buildTaskCard(task, focusDate, location))
+	}
+	for _, task := range dashboard.DDL {
+		cards = append(cards, buildTaskCard(task, focusDate, location))
+	}
+	for _, task := range dashboard.Todo {
+		cards = append(cards, buildTaskCard(task, focusDate, location))
+	}
+	return cards
+}
 
-		switch task.Type {
-		case domain.TaskTypeSchedule:
-			card.StatusLine = "今天"
-			if task.ScheduledFor != nil {
-				card.PostponeValue = task.ScheduledFor.AddDate(0, 0, 1).Format("2006-01-02")
-			}
-		case domain.TaskTypeDDL:
-			if task.Deadline != nil {
-				deadline := normalizeDateForView(*task.Deadline, location)
-				diffDays := int(deadline.Sub(today).Hours() / 24)
-				switch {
-				case diffDays < 0:
-					card.StatusLine = fmt.Sprintf("已过期 %d 天", -diffDays)
-				case diffDays == 0:
-					card.StatusLine = "今天截止"
-				default:
-					card.StatusLine = fmt.Sprintf("DDL 还有 %d 天", diffDays)
-				}
-				card.PostponeValue = deadline.AddDate(0, 0, 1).Format("2006-01-02")
-			}
-		case domain.TaskTypeTodo:
-			card.StatusLine = "持续提醒"
-		}
-
-		if card.PostponeValue == "" {
-			card.PostponeValue = today.AddDate(0, 0, 1).Format("2006-01-02")
-		}
-
-		cards = append(cards, card)
+func buildTaskCard(task domain.Task, focusDate time.Time, location *time.Location) TaskCard {
+	card := TaskCard{
+		ID:          task.ID.String(),
+		Title:       task.Title,
+		Note:        task.Note,
+		CanComplete: task.SupportsCompletion(),
+		CanPostpone: task.SupportsPostpone(),
+		ReturnDate:  focusDate.In(location).Format("2006-01-02"),
 	}
 
-	return cards
+	focusDate = normalizeDateForView(focusDate, location)
+
+	switch task.Type {
+	case domain.TaskTypeSchedule:
+		card.KindLabel = "日程"
+		card.KindClass = "schedule"
+		card.StatusLine = "这一天出现"
+		if task.ScheduledFor != nil {
+			card.PostponeValue = normalizeDateForView(*task.ScheduledFor, location).AddDate(0, 0, 1).Format("2006-01-02")
+		}
+	case domain.TaskTypeDDL:
+		card.KindLabel = "DDL"
+		card.KindClass = "ddl"
+		if task.Deadline != nil {
+			deadline := normalizeDateForView(*task.Deadline, location)
+			diffDays := int(deadline.Sub(focusDate).Hours() / 24)
+			switch {
+			case diffDays < 0:
+				card.StatusLine = fmt.Sprintf("已过期 %d 天", -diffDays)
+			case diffDays == 0:
+				card.StatusLine = "这一天截止"
+			default:
+				card.StatusLine = fmt.Sprintf("还有 %d 天截止", diffDays)
+			}
+			card.PostponeValue = deadline.AddDate(0, 0, 1).Format("2006-01-02")
+		}
+	case domain.TaskTypeTodo:
+		card.KindLabel = "Todo"
+		card.KindClass = "todo"
+		card.StatusLine = "持续提醒"
+	}
+
+	if card.PostponeValue == "" {
+		card.PostponeValue = focusDate.AddDate(0, 0, 1).Format("2006-01-02")
+	}
+
+	return card
+}
+
+func buildFocusTitle(focusDate, today time.Time, location *time.Location) string {
+	if normalizeDateForView(focusDate, location).Equal(normalizeDateForView(today, location)) {
+		return "今天"
+	}
+	return focusDate.In(location).Format("2006-01-02")
+}
+
+func buildFocusSubtitle(focusDate, today time.Time, location *time.Location) string {
+	if normalizeDateForView(focusDate, location).Equal(normalizeDateForView(today, location)) {
+		return "默认只显示今天真正会出现的任务。其它日期和添加操作都收在下面。"
+	}
+	return fmt.Sprintf("当前只查看 %s 这一天会出现的任务。", focusDate.In(location).Format("2006-01-02"))
+}
+
+func buildDatePath(targetDate time.Time, location *time.Location) string {
+	date := normalizeDateForView(targetDate, location)
+	today := normalizeDateForView(time.Now().In(location), location)
+	if date.Equal(today) {
+		return "/"
+	}
+	return "/?date=" + url.QueryEscape(date.Format("2006-01-02"))
+}
+
+func (h *Handler) resolveFocusDate(raw string) (time.Time, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return normalizeDateForView(time.Now().In(h.location), h.location), nil
+	}
+
+	parsed, err := time.ParseInLocation("2006-01-02", value, h.location)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return normalizeDateForView(parsed, h.location), nil
+}
+
+func (h *Handler) currentViewDateParam(r *http.Request) string {
+	raw := strings.TrimSpace(r.FormValue("return_date"))
+	if raw == "" {
+		raw = strings.TrimSpace(r.URL.Query().Get("date"))
+	}
+	if raw == "" {
+		return ""
+	}
+
+	parsed, err := time.ParseInLocation("2006-01-02", raw, h.location)
+	if err != nil {
+		return ""
+	}
+
+	date := normalizeDateForView(parsed, h.location)
+	today := normalizeDateForView(time.Now().In(h.location), h.location)
+	if date.Equal(today) {
+		return ""
+	}
+	return date.Format("2006-01-02")
 }
 
 func humanizeError(err error) string {
