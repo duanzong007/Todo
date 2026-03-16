@@ -1,4 +1,21 @@
 (() => {
+  function activateScheduleMode(form, nextMode) {
+    const mode = nextMode === "batch" ? "batch" : "single";
+    const hiddenInput = form.querySelector("[data-schedule-mode-input]");
+    if (hiddenInput) {
+      hiddenInput.value = mode;
+    }
+
+    form.querySelectorAll("[data-schedule-mode-button]").forEach((button) => {
+      button.classList.toggle("is-active", button.getAttribute("data-schedule-mode-value") === mode);
+    });
+
+    form.querySelectorAll("[data-schedule-mode-panel]").forEach((panel) => {
+      const active = panel.getAttribute("data-schedule-mode-panel") === mode;
+      panel.hidden = !active;
+    });
+  }
+
   function activateComposerTab(root, nextMode) {
     root.querySelectorAll("[data-composer-tab]").forEach((button) => {
       button.classList.toggle("is-active", button.getAttribute("data-composer-tab") === nextMode);
@@ -20,6 +37,14 @@
     root.querySelectorAll("[data-composer-tab]").forEach((button) => {
       button.addEventListener("click", () => {
         activateComposerTab(root, button.getAttribute("data-composer-tab") || "todo");
+      });
+    });
+
+    root.querySelectorAll("form[data-composer-section='schedule']").forEach((form) => {
+      form.querySelectorAll("[data-schedule-mode-button]").forEach((button) => {
+        button.addEventListener("click", () => {
+          activateScheduleMode(form, button.getAttribute("data-schedule-mode-value") || "single");
+        });
       });
     });
 
@@ -72,6 +97,14 @@
       bindComposerPanel(root);
       const activeButton = root.querySelector("[data-composer-tab].is-active") || root.querySelector("[data-composer-tab]");
       activateComposerTab(root, activeButton?.getAttribute("data-composer-tab") || "todo");
+
+      root.querySelectorAll("form[data-composer-section='schedule']").forEach((form) => {
+        const activeMode =
+          form.querySelector("[data-schedule-mode-button].is-active")?.getAttribute("data-schedule-mode-value") ||
+          form.querySelector("[data-schedule-mode-input]")?.value ||
+          "single";
+        activateScheduleMode(form, activeMode);
+      });
     });
   }
 

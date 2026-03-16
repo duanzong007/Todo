@@ -536,6 +536,60 @@ button.danger:hover {
     gap: 8px;
 }
 
+.composer-field-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.composer-field-head label {
+    margin: 0;
+}
+
+.composer-inline-tabs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.composer-inline-tab {
+    min-height: 28px;
+    padding: 0 11px;
+    border-radius: 999px;
+    border: 1px solid rgba(92, 48, 23, 0.08);
+    background: rgba(255, 255, 255, 0.7);
+    color: rgba(92, 48, 23, 0.74);
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
+.composer-inline-tab:hover {
+    background: rgba(240, 219, 199, 0.44);
+}
+
+.composer-inline-tab.is-active {
+    background: rgba(197, 109, 58, 0.14);
+    color: #7c431f;
+}
+
+.composer-date-stack,
+.composer-batch-stack {
+    display: grid;
+    gap: 10px;
+}
+
+.composer-date-stack[hidden],
+.composer-batch-stack[hidden] {
+    display: none !important;
+}
+
+.composer-batch-grid {
+    display: grid;
+    gap: 10px;
+}
+
 .composer-shortcuts {
     display: flex;
     gap: 6px;
@@ -563,6 +617,44 @@ button.danger:hover {
 
 .composer-field-full {
     grid-column: 1 / -1;
+}
+
+.weekday-picker {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.weekday-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.weekday-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(92, 48, 23, 0.08);
+    background: rgba(255, 255, 255, 0.7);
+    color: rgba(92, 48, 23, 0.76);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.weekday-chip:hover {
+    background: rgba(240, 219, 199, 0.46);
+}
+
+.weekday-input:checked + .weekday-chip {
+    border-color: rgba(197, 109, 58, 0.18);
+    background: rgba(197, 109, 58, 0.14);
+    color: #7c431f;
 }
 
 .composer-actions {

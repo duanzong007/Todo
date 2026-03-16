@@ -86,6 +86,47 @@ func (r *TaskRepository) CreateTask(ctx context.Context, userID uuid.UUID, sourc
 	return task, nil
 }
 
+func (r *TaskRepository) CreateTasks(ctx context.Context, userID uuid.UUID, source SourceInput, inputs []TaskInput) (int, error) {
+	if len(inputs) == 0 {
+		return 0, nil
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	sourceID, err := createSourceTx(ctx, tx, userID, source)
+	if err != nil {
+		return 0, err
+	}
+
+	createdCount := 0
+	for _, input := range inputs {
+		task, inserted, err := insertTaskTx(ctx, tx, userID, &sourceID, input, false)
+		if err != nil {
+			return 0, err
+		}
+		if !inserted {
+			continue
+		}
+
+		createdCount++
+		if err := createTaskEventTx(ctx, tx, task.ID, "created", map[string]any{
+			"source_type": source.Type,
+		}); err != nil {
+			return 0, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit create tasks: %w", err)
+	}
+
+	return createdCount, nil
+}
+
 func (r *TaskRepository) ImportTasks(ctx context.Context, userID uuid.UUID, source SourceInput, inputs []TaskInput) (int, error) {
 	if len(inputs) == 0 {
 		return 0, nil

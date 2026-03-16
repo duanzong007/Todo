@@ -80,14 +80,71 @@ func (s *TaskService) CreateFromInputWithImportance(ctx context.Context, userID 
 }
 
 func (s *TaskService) CreateManualTask(ctx context.Context, userID uuid.UUID, input repository.TaskInput) (domain.Task, error) {
+	cleanInput, err := s.normalizeManualTaskInput(input)
+	if err != nil {
+		return domain.Task{}, err
+	}
+
+	source := repository.SourceInput{
+		Type:       domain.SourceTypeManualText,
+		RawContent: manualSourceRawContent(cleanInput),
+		Summary:    cleanInput.Title,
+		Checksum:   checksumString(manualSourceRawContent(cleanInput)),
+		Metadata: map[string]any{
+			"entry":     "manual_form",
+			"task_type": string(cleanInput.Type),
+		},
+	}
+
+	return s.repo.CreateTask(ctx, userID, source, cleanInput)
+}
+
+func (s *TaskService) CreateManualTasks(ctx context.Context, userID uuid.UUID, inputs []repository.TaskInput) (int, error) {
+	if len(inputs) == 0 {
+		return 0, fmt.Errorf("没有可创建的任务")
+	}
+	if len(inputs) == 1 {
+		if _, err := s.CreateManualTask(ctx, userID, inputs[0]); err != nil {
+			return 0, err
+		}
+		return 1, nil
+	}
+
+	cleanInputs := make([]repository.TaskInput, 0, len(inputs))
+	for _, input := range inputs {
+		cleanInput, err := s.normalizeManualTaskInput(input)
+		if err != nil {
+			return 0, err
+		}
+		cleanInputs = append(cleanInputs, cleanInput)
+	}
+
+	rawContent := manualBatchSourceRawContent(cleanInputs)
+	source := repository.SourceInput{
+		Type:       domain.SourceTypeManualText,
+		RawContent: rawContent,
+		Summary:    cleanInputs[0].Title,
+		Checksum:   checksumString(rawContent),
+		Metadata: map[string]any{
+			"entry":      "manual_form",
+			"task_type":  string(cleanInputs[0].Type),
+			"mode":       "batch",
+			"task_count": len(cleanInputs),
+		},
+	}
+
+	return s.repo.CreateTasks(ctx, userID, source, cleanInputs)
+}
+
+func (s *TaskService) normalizeManualTaskInput(input repository.TaskInput) (repository.TaskInput, error) {
 	title := strings.TrimSpace(input.Title)
 	if title == "" {
-		return domain.Task{}, fmt.Errorf("标题不能为空")
+		return repository.TaskInput{}, fmt.Errorf("标题不能为空")
 	}
 
 	normalizedImportance, err := normalizeImportanceValue(input.Importance)
 	if err != nil {
-		return domain.Task{}, err
+		return repository.TaskInput{}, err
 	}
 
 	cleanInput := repository.TaskInput{
@@ -104,13 +161,13 @@ func (s *TaskService) CreateManualTask(ctx context.Context, userID uuid.UUID, in
 	case domain.TaskTypeTodo:
 	case domain.TaskTypeSchedule:
 		if input.ScheduledFor == nil {
-			return domain.Task{}, fmt.Errorf("请选择日程日期")
+			return repository.TaskInput{}, fmt.Errorf("请选择日程日期")
 		}
 		dateValue := normalizeDateInLocation(*input.ScheduledFor, s.location)
 		cleanInput.ScheduledFor = &dateValue
 	case domain.TaskTypeDDL:
 		if input.Deadline == nil {
-			return domain.Task{}, fmt.Errorf("请选择截止时间")
+			return repository.TaskInput{}, fmt.Errorf("请选择截止时间")
 		}
 		deadline := time.Date(
 			input.Deadline.In(s.location).Year(),
@@ -124,21 +181,10 @@ func (s *TaskService) CreateManualTask(ctx context.Context, userID uuid.UUID, in
 		)
 		cleanInput.Deadline = &deadline
 	default:
-		return domain.Task{}, repository.ErrUnsupportedOperation
+		return repository.TaskInput{}, repository.ErrUnsupportedOperation
 	}
 
-	source := repository.SourceInput{
-		Type:       domain.SourceTypeManualText,
-		RawContent: manualSourceRawContent(cleanInput),
-		Summary:    cleanInput.Title,
-		Checksum:   checksumString(manualSourceRawContent(cleanInput)),
-		Metadata: map[string]any{
-			"entry":     "manual_form",
-			"task_type": string(cleanInput.Type),
-		},
-	}
-
-	return s.repo.CreateTask(ctx, userID, source, cleanInput)
+	return cleanInput, nil
 }
 
 func (s *TaskService) CreateFromSMSParse(ctx context.Context, userID uuid.UUID, input string, importance int) (domain.Task, error) {
@@ -260,6 +306,14 @@ func manualSourceRawContent(input repository.TaskInput) string {
 		lines = append(lines, "deadline="+input.Deadline.In(time.UTC).Format(time.RFC3339))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func manualBatchSourceRawContent(inputs []repository.TaskInput) string {
+	blocks := make([]string, 0, len(inputs))
+	for index, input := range inputs {
+		blocks = append(blocks, fmt.Sprintf("[task %d]\n%s", index+1, manualSourceRawContent(input)))
+	}
+	return strings.Join(blocks, "\n\n")
 }
 
 func mergeDeadlineDateWithExistingClock(targetDate time.Time, existing *time.Time, location *time.Location) time.Time {

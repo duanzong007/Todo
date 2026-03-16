@@ -395,7 +395,7 @@ func (h *Handler) handleCreateManualTask(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	input, err := h.parseManualTaskForm(r)
+	inputs, err := h.parseManualTaskForm(r)
 	if err != nil {
 		if wantsAsyncResponse(r) {
 			http.Error(w, humanizeError(err), http.StatusBadRequest)
@@ -405,7 +405,7 @@ func (h *Handler) handleCreateManualTask(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if _, err := h.taskService.CreateManualTask(r.Context(), user.ID, input); err != nil {
+	if _, err := h.taskService.CreateManualTasks(r.Context(), user.ID, inputs); err != nil {
 		if wantsAsyncResponse(r) {
 			http.Error(w, humanizeError(err), http.StatusBadRequest)
 			return
@@ -1264,14 +1264,14 @@ func parseOptionalImportance(raw string) (int, error) {
 	return normalized, nil
 }
 
-func (h *Handler) parseManualTaskForm(r *http.Request) (repository.TaskInput, error) {
+func (h *Handler) parseManualTaskForm(r *http.Request) ([]repository.TaskInput, error) {
 	taskType := domain.TaskType(strings.TrimSpace(r.FormValue("task_type")))
 	title := strings.TrimSpace(r.FormValue("title"))
 	note := strings.TrimSpace(r.FormValue("note"))
 
 	importance, err := parseOptionalImportance(r.FormValue("importance"))
 	if err != nil {
-		return repository.TaskInput{}, err
+		return nil, err
 	}
 
 	input := repository.TaskInput{
@@ -1283,40 +1283,123 @@ func (h *Handler) parseManualTaskForm(r *http.Request) (repository.TaskInput, er
 
 	switch taskType {
 	case domain.TaskTypeTodo:
-		return input, nil
+		return []repository.TaskInput{input}, nil
 	case domain.TaskTypeSchedule:
+		mode := strings.TrimSpace(r.FormValue("schedule_mode"))
+		if mode == "" {
+			mode = "single"
+		}
+		if mode == "batch" {
+			return h.parseManualScheduleBatchForm(input, r)
+		}
+
 		rawDate := strings.TrimSpace(r.FormValue("scheduled_value"))
 		if rawDate == "" {
 			rawDate = strings.TrimSpace(r.FormValue("scheduled_date"))
 		}
 		if rawDate == "" {
-			return repository.TaskInput{}, fmt.Errorf("请选择日程日期")
+			return nil, fmt.Errorf("请选择日程日期")
 		}
 		dateValue, err := time.ParseInLocation("2006-01-02", rawDate, h.location)
 		if err != nil {
-			return repository.TaskInput{}, fmt.Errorf("日程日期格式不正确")
+			return nil, fmt.Errorf("日程日期格式不正确")
 		}
 		input.ScheduledFor = &dateValue
-		return input, nil
+		return []repository.TaskInput{input}, nil
 	case domain.TaskTypeDDL:
 		rawDateTime := strings.TrimSpace(r.FormValue("deadline_value"))
 		if rawDateTime == "" {
 			rawDate := strings.TrimSpace(r.FormValue("deadline_date"))
 			rawTime := strings.TrimSpace(r.FormValue("deadline_time"))
 			if rawDate == "" || rawTime == "" {
-				return repository.TaskInput{}, fmt.Errorf("请选择截止日期和时间")
+				return nil, fmt.Errorf("请选择截止日期和时间")
 			}
 			rawDateTime = rawDate + "T" + rawTime
 		}
 		deadline, err := time.ParseInLocation("2006-01-02T15:04", rawDateTime, h.location)
 		if err != nil {
-			return repository.TaskInput{}, fmt.Errorf("截止时间格式不正确")
+			return nil, fmt.Errorf("截止时间格式不正确")
 		}
 		input.Deadline = &deadline
-		return input, nil
+		return []repository.TaskInput{input}, nil
 	default:
-		return repository.TaskInput{}, fmt.Errorf("任务类型不正确")
+		return nil, fmt.Errorf("任务类型不正确")
 	}
+}
+
+func (h *Handler) parseManualScheduleBatchForm(base repository.TaskInput, r *http.Request) ([]repository.TaskInput, error) {
+	rawStart := strings.TrimSpace(r.FormValue("batch_start_value"))
+	rawEnd := strings.TrimSpace(r.FormValue("batch_end_value"))
+	if rawStart == "" || rawEnd == "" {
+		return nil, fmt.Errorf("请选择起始日期和截止日期")
+	}
+
+	startDate, err := time.ParseInLocation("2006-01-02", rawStart, h.location)
+	if err != nil {
+		return nil, fmt.Errorf("起始日期格式不正确")
+	}
+	endDate, err := time.ParseInLocation("2006-01-02", rawEnd, h.location)
+	if err != nil {
+		return nil, fmt.Errorf("截止日期格式不正确")
+	}
+
+	startDate = normalizeDateForView(startDate, h.location)
+	endDate = normalizeDateForView(endDate, h.location)
+	if endDate.Before(startDate) {
+		return nil, fmt.Errorf("截止日期不能早于起始日期")
+	}
+
+	selectedWeekdays, err := parseBatchWeekdays(r.Form["batch_weekdays"])
+	if err != nil {
+		return nil, err
+	}
+	if len(selectedWeekdays) == 0 {
+		return nil, fmt.Errorf("请至少选择一个星期")
+	}
+
+	inputs := make([]repository.TaskInput, 0, 8)
+	for current := startDate; !current.After(endDate); current = current.AddDate(0, 0, 1) {
+		if !selectedWeekdays[current.Weekday()] {
+			continue
+		}
+
+		dateValue := current
+		input := base
+		input.ScheduledFor = &dateValue
+		inputs = append(inputs, input)
+	}
+
+	if len(inputs) == 0 {
+		return nil, fmt.Errorf("所选区间内没有匹配的日期")
+	}
+
+	return inputs, nil
+}
+
+func parseBatchWeekdays(values []string) (map[time.Weekday]bool, error) {
+	weekdays := make(map[time.Weekday]bool, len(values))
+	for _, raw := range values {
+		switch strings.TrimSpace(raw) {
+		case "mon":
+			weekdays[time.Monday] = true
+		case "tue":
+			weekdays[time.Tuesday] = true
+		case "wed":
+			weekdays[time.Wednesday] = true
+		case "thu":
+			weekdays[time.Thursday] = true
+		case "fri":
+			weekdays[time.Friday] = true
+		case "sat":
+			weekdays[time.Saturday] = true
+		case "sun":
+			weekdays[time.Sunday] = true
+		case "":
+		default:
+			return nil, fmt.Errorf("星期选择不正确")
+		}
+	}
+	return weekdays, nil
 }
 
 func buildDatePath(targetDate time.Time, location *time.Location) string {

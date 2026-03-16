@@ -1,6 +1,9 @@
 package web
 
 import (
+	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -151,5 +154,56 @@ func TestFormatDDLCountdownUsesFocusDateForNonTodayViews(t *testing.T) {
 
 	if got := formatDDLCountdown(deadline, now, time.Date(2026, 3, 21, 0, 0, 0, 0, location), location); got != "今天" {
 		t.Fatalf("focused same-day countdown = %q, want %q", got, "今天")
+	}
+}
+
+func TestParseManualTaskFormExpandsScheduleBatchInclusively(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	handler := &Handler{location: location}
+
+	form := url.Values{
+		"task_type":         {"schedule"},
+		"title":             {"固定组会"},
+		"importance":        {"2"},
+		"schedule_mode":     {"batch"},
+		"batch_start_value": {"2026-03-16"},
+		"batch_end_value":   {"2026-03-22"},
+		"batch_weekdays":    {"mon", "wed", "sun"},
+	}
+
+	request := httptest.NewRequest("POST", "/tasks/manual", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := request.ParseForm(); err != nil {
+		t.Fatalf("ParseForm() error = %v", err)
+	}
+
+	inputs, err := handler.parseManualTaskForm(request)
+	if err != nil {
+		t.Fatalf("parseManualTaskForm() error = %v", err)
+	}
+	if len(inputs) != 3 {
+		t.Fatalf("len(inputs) = %d, want 3", len(inputs))
+	}
+
+	wantDates := []time.Time{
+		time.Date(2026, 3, 16, 0, 0, 0, 0, location),
+		time.Date(2026, 3, 18, 0, 0, 0, 0, location),
+		time.Date(2026, 3, 22, 0, 0, 0, 0, location),
+	}
+	for index, want := range wantDates {
+		if inputs[index].ScheduledFor == nil {
+			t.Fatalf("inputs[%d].ScheduledFor is nil", index)
+		}
+		if !inputs[index].ScheduledFor.Equal(want) {
+			t.Fatalf(
+				"inputs[%d].ScheduledFor = %s, want %s",
+				index,
+				inputs[index].ScheduledFor.Format("2006-01-02"),
+				want.Format("2006-01-02"),
+			)
+		}
+		if inputs[index].Title != "固定组会" {
+			t.Fatalf("inputs[%d].Title = %q, want %q", index, inputs[index].Title, "固定组会")
+		}
 	}
 }

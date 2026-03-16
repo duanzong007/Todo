@@ -312,47 +312,160 @@
                                     </div>
                                 </div>
                                 <div class="composer-field">
-                                    <label>日期</label>
-                                    <div class="composer-shortcuts">
-                                        <button type="button" class="composer-shortcut" data-composer-date-shortcut data-target-mode="date" data-shortcut-value="{{ .TodayDateISO }}">今天</button>
-                                        <button type="button" class="composer-shortcut" data-composer-date-shortcut data-target-mode="date" data-shortcut-value="{{ .TomorrowDateISO }}">明天</button>
-                                        <button type="button" class="composer-shortcut" data-composer-date-shortcut data-target-mode="date" data-shortcut-value="{{ .DayAfterDateISO }}">后天</button>
+                                    <div class="composer-field-head">
+                                        <label>日期</label>
+                                        <div class="composer-inline-tabs" role="tablist" aria-label="日程添加模式">
+                                            <input type="hidden" name="schedule_mode" value="single" data-schedule-mode-input>
+                                            <button type="button" class="composer-inline-tab is-active" data-schedule-mode-button data-schedule-mode-value="single">单次</button>
+                                            <button type="button" class="composer-inline-tab" data-schedule-mode-button data-schedule-mode-value="batch">批量</button>
+                                        </div>
                                     </div>
-                                    <div class="wheel-date-picker composer-wheel-picker" data-composer-picker data-picker-mode="date" data-initial-value="{{ .TodayDateISO }}">
-                                        <input type="hidden" name="scheduled_value" value="{{ .TodayDateISO }}" data-picker-value>
+                                    <div class="composer-date-stack" data-schedule-mode-panel="single">
+                                        <div class="composer-shortcuts">
+                                            <button type="button" class="composer-shortcut" data-composer-date-shortcut data-target-mode="date" data-shortcut-value="{{ .TodayDateISO }}">今天</button>
+                                            <button type="button" class="composer-shortcut" data-composer-date-shortcut data-target-mode="date" data-shortcut-value="{{ .TomorrowDateISO }}">明天</button>
+                                            <button type="button" class="composer-shortcut" data-composer-date-shortcut data-target-mode="date" data-shortcut-value="{{ .DayAfterDateISO }}">后天</button>
+                                        </div>
+                                        <div class="wheel-date-picker composer-wheel-picker" data-composer-picker data-picker-mode="date" data-initial-value="{{ .TodayDateISO }}">
+                                            <input type="hidden" name="scheduled_value" value="{{ .TodayDateISO }}" data-picker-value>
 
-                                        <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="年份">
-                                            <div class="wheel-track">
-                                                <span class="wheel-item" data-slot="far-prev"></span>
-                                                <span class="wheel-item" data-slot="prev"></span>
-                                                <span class="wheel-item" data-slot="current"></span>
-                                                <span class="wheel-item" data-slot="next"></span>
-                                                <span class="wheel-item" data-slot="far-next"></span>
+                                            <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="年份">
+                                                <div class="wheel-track">
+                                                    <span class="wheel-item" data-slot="far-prev"></span>
+                                                    <span class="wheel-item" data-slot="prev"></span>
+                                                    <span class="wheel-item" data-slot="current"></span>
+                                                    <span class="wheel-item" data-slot="next"></span>
+                                                    <span class="wheel-item" data-slot="far-next"></span>
+                                                </div>
+                                            </div>
+                                            <span class="date-unit">年</span>
+
+                                            <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="月份">
+                                                <div class="wheel-track">
+                                                    <span class="wheel-item" data-slot="far-prev"></span>
+                                                    <span class="wheel-item" data-slot="prev"></span>
+                                                    <span class="wheel-item" data-slot="current"></span>
+                                                    <span class="wheel-item" data-slot="next"></span>
+                                                    <span class="wheel-item" data-slot="far-next"></span>
+                                                </div>
+                                            </div>
+                                            <span class="date-unit">月</span>
+
+                                            <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="日期">
+                                                <div class="wheel-track">
+                                                    <span class="wheel-item" data-slot="far-prev"></span>
+                                                    <span class="wheel-item" data-slot="prev"></span>
+                                                    <span class="wheel-item" data-slot="current"></span>
+                                                    <span class="wheel-item" data-slot="next"></span>
+                                                    <span class="wheel-item" data-slot="far-next"></span>
+                                                </div>
+                                            </div>
+                                            <span class="date-unit">日</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="composer-batch-stack" data-schedule-mode-panel="batch" hidden>
+                                        <div class="composer-batch-grid">
+                                            <div class="composer-field composer-field-compact">
+                                                <label>起始日期</label>
+                                                <div class="wheel-date-picker composer-wheel-picker" data-composer-picker data-picker-mode="date" data-initial-value="{{ .TodayDateISO }}">
+                                                    <input type="hidden" name="batch_start_value" value="{{ .TodayDateISO }}" data-picker-value>
+
+                                                    <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="起始年份">
+                                                        <div class="wheel-track">
+                                                            <span class="wheel-item" data-slot="far-prev"></span>
+                                                            <span class="wheel-item" data-slot="prev"></span>
+                                                            <span class="wheel-item" data-slot="current"></span>
+                                                            <span class="wheel-item" data-slot="next"></span>
+                                                            <span class="wheel-item" data-slot="far-next"></span>
+                                                        </div>
+                                                    </div>
+                                                    <span class="date-unit">年</span>
+
+                                                    <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="起始月份">
+                                                        <div class="wheel-track">
+                                                            <span class="wheel-item" data-slot="far-prev"></span>
+                                                            <span class="wheel-item" data-slot="prev"></span>
+                                                            <span class="wheel-item" data-slot="current"></span>
+                                                            <span class="wheel-item" data-slot="next"></span>
+                                                            <span class="wheel-item" data-slot="far-next"></span>
+                                                        </div>
+                                                    </div>
+                                                    <span class="date-unit">月</span>
+
+                                                    <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="起始日期">
+                                                        <div class="wheel-track">
+                                                            <span class="wheel-item" data-slot="far-prev"></span>
+                                                            <span class="wheel-item" data-slot="prev"></span>
+                                                            <span class="wheel-item" data-slot="current"></span>
+                                                            <span class="wheel-item" data-slot="next"></span>
+                                                            <span class="wheel-item" data-slot="far-next"></span>
+                                                        </div>
+                                                    </div>
+                                                    <span class="date-unit">日</span>
+                                                </div>
+                                            </div>
+
+                                            <div class="composer-field composer-field-compact">
+                                                <label>截止日期</label>
+                                                <div class="wheel-date-picker composer-wheel-picker" data-composer-picker data-picker-mode="date" data-initial-value="{{ .TodayDateISO }}">
+                                                    <input type="hidden" name="batch_end_value" value="{{ .TodayDateISO }}" data-picker-value>
+
+                                                    <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="截止年份">
+                                                        <div class="wheel-track">
+                                                            <span class="wheel-item" data-slot="far-prev"></span>
+                                                            <span class="wheel-item" data-slot="prev"></span>
+                                                            <span class="wheel-item" data-slot="current"></span>
+                                                            <span class="wheel-item" data-slot="next"></span>
+                                                            <span class="wheel-item" data-slot="far-next"></span>
+                                                        </div>
+                                                    </div>
+                                                    <span class="date-unit">年</span>
+
+                                                    <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="截止月份">
+                                                        <div class="wheel-track">
+                                                            <span class="wheel-item" data-slot="far-prev"></span>
+                                                            <span class="wheel-item" data-slot="prev"></span>
+                                                            <span class="wheel-item" data-slot="current"></span>
+                                                            <span class="wheel-item" data-slot="next"></span>
+                                                            <span class="wheel-item" data-slot="far-next"></span>
+                                                        </div>
+                                                    </div>
+                                                    <span class="date-unit">月</span>
+
+                                                    <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="截止日期">
+                                                        <div class="wheel-track">
+                                                            <span class="wheel-item" data-slot="far-prev"></span>
+                                                            <span class="wheel-item" data-slot="prev"></span>
+                                                            <span class="wheel-item" data-slot="current"></span>
+                                                            <span class="wheel-item" data-slot="next"></span>
+                                                            <span class="wheel-item" data-slot="far-next"></span>
+                                                        </div>
+                                                    </div>
+                                                    <span class="date-unit">日</span>
+                                                </div>
                                             </div>
                                         </div>
-                                        <span class="date-unit">年</span>
 
-                                        <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="月份">
-                                            <div class="wheel-track">
-                                                <span class="wheel-item" data-slot="far-prev"></span>
-                                                <span class="wheel-item" data-slot="prev"></span>
-                                                <span class="wheel-item" data-slot="current"></span>
-                                                <span class="wheel-item" data-slot="next"></span>
-                                                <span class="wheel-item" data-slot="far-next"></span>
+                                        <div class="composer-field">
+                                            <label>重复周次</label>
+                                            <div class="weekday-picker" aria-label="选择重复的星期">
+                                                <input id="schedule-weekday-mon" class="weekday-input" type="checkbox" name="batch_weekdays" value="mon">
+                                                <label for="schedule-weekday-mon" class="weekday-chip">周一</label>
+                                                <input id="schedule-weekday-tue" class="weekday-input" type="checkbox" name="batch_weekdays" value="tue">
+                                                <label for="schedule-weekday-tue" class="weekday-chip">周二</label>
+                                                <input id="schedule-weekday-wed" class="weekday-input" type="checkbox" name="batch_weekdays" value="wed">
+                                                <label for="schedule-weekday-wed" class="weekday-chip">周三</label>
+                                                <input id="schedule-weekday-thu" class="weekday-input" type="checkbox" name="batch_weekdays" value="thu">
+                                                <label for="schedule-weekday-thu" class="weekday-chip">周四</label>
+                                                <input id="schedule-weekday-fri" class="weekday-input" type="checkbox" name="batch_weekdays" value="fri">
+                                                <label for="schedule-weekday-fri" class="weekday-chip">周五</label>
+                                                <input id="schedule-weekday-sat" class="weekday-input" type="checkbox" name="batch_weekdays" value="sat">
+                                                <label for="schedule-weekday-sat" class="weekday-chip">周六</label>
+                                                <input id="schedule-weekday-sun" class="weekday-input" type="checkbox" name="batch_weekdays" value="sun">
+                                                <label for="schedule-weekday-sun" class="weekday-chip">周日</label>
                                             </div>
                                         </div>
-                                        <span class="date-unit">月</span>
-
-                                        <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="日期">
-                                            <div class="wheel-track">
-                                                <span class="wheel-item" data-slot="far-prev"></span>
-                                                <span class="wheel-item" data-slot="prev"></span>
-                                                <span class="wheel-item" data-slot="current"></span>
-                                                <span class="wheel-item" data-slot="next"></span>
-                                                <span class="wheel-item" data-slot="far-next"></span>
-                                            </div>
-                                        </div>
-                                        <span class="date-unit">日</span>
                                     </div>
                                 </div>
                             </div>
