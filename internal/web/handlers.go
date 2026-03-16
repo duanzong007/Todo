@@ -53,15 +53,19 @@ type UserView struct {
 }
 
 type DashboardPageData struct {
-	CurrentUser   *UserView
-	Message       string
-	Error         string
-	FocusTitle    string
-	FocusSubtitle string
-	FocusDateISO  string
-	FocusTasks    []TaskCard
-	TodayPath     string
-	TomorrowPath  string
+	CurrentUser          *UserView
+	Error                string
+	FocusTitle           string
+	FocusDateISO         string
+	FocusTasks           []TaskCard
+	YesterdayPath        string
+	TodayPath            string
+	TomorrowPath         string
+	DayAfterTomorrowPath string
+}
+
+type AccountPageData struct {
+	CurrentUser *UserView
 }
 
 type AdminPageData struct {
@@ -140,6 +144,7 @@ func (h *Handler) Router() http.Handler {
 		r.Use(h.requireAuth)
 
 		r.Get("/", h.handleIndex)
+		r.Get("/me", h.handleAccountPage)
 		r.Post("/tasks", h.handleCreateTask)
 		r.Post("/tasks/{taskID}/complete", h.handleCompleteTask)
 		r.Post("/tasks/{taskID}/postpone", h.handlePostponeTask)
@@ -311,7 +316,7 @@ func (h *Handler) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.redirectHome(w, r, "任务已创建", "")
+	h.redirectHome(w, r, "", "")
 }
 
 func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
@@ -327,7 +332,7 @@ func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.redirectHome(w, r, "任务已完成", "")
+	h.redirectHome(w, r, "", "")
 }
 
 func (h *Handler) handlePostponeTask(w http.ResponseWriter, r *http.Request) {
@@ -353,7 +358,7 @@ func (h *Handler) handlePostponeTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.redirectHome(w, r, "任务已延期", "")
+	h.redirectHome(w, r, "", "")
 }
 
 func (h *Handler) handleImportICS(w http.ResponseWriter, r *http.Request) {
@@ -388,7 +393,8 @@ func (h *Handler) handleImportICS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.redirectHome(w, r, fmt.Sprintf("ICS 导入完成，新增 %d 条日程", inserted), "")
+	_ = inserted
+	h.redirectHome(w, r, "", "")
 }
 
 func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domain.User, focusDate time.Time, message, errorMessage string) error {
@@ -399,18 +405,33 @@ func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domai
 
 	today := normalizeDateForView(time.Now().In(h.location), h.location)
 	pageData := DashboardPageData{
-		CurrentUser:   buildUserView(user),
-		Message:       message,
-		Error:         errorMessage,
-		FocusTitle:    buildFocusTitle(focusDate, today, h.location),
-		FocusSubtitle: buildFocusSubtitle(focusDate, today, h.location),
-		FocusDateISO:  focusDate.In(h.location).Format("2006-01-02"),
-		FocusTasks:    buildFocusTaskCards(dashboard, focusDate, h.location),
-		TodayPath:     buildDatePath(today, h.location),
-		TomorrowPath:  buildDatePath(today.AddDate(0, 0, 1), h.location),
+		CurrentUser:          buildUserView(user),
+		Error:                errorMessage,
+		FocusTitle:           buildFocusTitle(focusDate, today, h.location),
+		FocusDateISO:         focusDate.In(h.location).Format("2006-01-02"),
+		FocusTasks:           buildFocusTaskCards(dashboard, focusDate, h.location),
+		YesterdayPath:        buildDatePath(today.AddDate(0, 0, -1), h.location),
+		TodayPath:            buildDatePath(today, h.location),
+		TomorrowPath:         buildDatePath(today.AddDate(0, 0, 1), h.location),
+		DayAfterTomorrowPath: buildDatePath(today.AddDate(0, 0, 2), h.location),
 	}
+	_ = message
 
 	return h.templates.ExecuteTemplate(w, "index.html", pageData)
+}
+
+func (h *Handler) handleAccountPage(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "account.html", AccountPageData{
+		CurrentUser: buildUserView(user),
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (h *Handler) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
@@ -686,20 +707,6 @@ func buildTaskCard(task domain.Task, focusDate time.Time, location *time.Locatio
 	return card
 }
 
-func buildFocusTitle(focusDate, today time.Time, location *time.Location) string {
-	if normalizeDateForView(focusDate, location).Equal(normalizeDateForView(today, location)) {
-		return "今天"
-	}
-	return focusDate.In(location).Format("2006-01-02")
-}
-
-func buildFocusSubtitle(focusDate, today time.Time, location *time.Location) string {
-	if normalizeDateForView(focusDate, location).Equal(normalizeDateForView(today, location)) {
-		return "默认只显示今天真正会出现的任务。其它日期和添加操作都收在下面。"
-	}
-	return fmt.Sprintf("当前只查看 %s 这一天会出现的任务。", focusDate.In(location).Format("2006-01-02"))
-}
-
 func buildDatePath(targetDate time.Time, location *time.Location) string {
 	date := normalizeDateForView(targetDate, location)
 	today := normalizeDateForView(time.Now().In(location), location)
@@ -780,6 +787,25 @@ func humanizeError(err error) string {
 		return "延期日期格式不正确"
 	default:
 		return err.Error()
+	}
+}
+
+func buildFocusTitle(focusDate, today time.Time, location *time.Location) string {
+	focus := normalizeDateForView(focusDate, location)
+	base := normalizeDateForView(today, location)
+	diffDays := int(focus.Sub(base).Hours() / 24)
+
+	switch diffDays {
+	case -1:
+		return "昨天"
+	case 0:
+		return "今天"
+	case 1:
+		return "明天"
+	case 2:
+		return "后天"
+	default:
+		return focus.In(location).Format("2006年1月2日")
 	}
 }
 

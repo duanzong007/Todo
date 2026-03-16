@@ -8,33 +8,11 @@
 </head>
 <body>
     <main class="focus-page">
-        <section class="topbar">
-            <div class="user-badge">
-                <strong>{{ .CurrentUser.DisplayName }}</strong>
-                <span>@{{ .CurrentUser.Username }}</span>
-                {{ if .CurrentUser.IsAdmin }}
-                <span class="role-chip">admin</span>
-                {{ end }}
-            </div>
-            <div class="topbar-actions">
-                {{ if .CurrentUser.IsAdmin }}
-                <a href="/admin/users" class="secondary action-link">用户审批</a>
-                {{ end }}
-                <form action="/logout" method="post">
-                    <button type="submit" class="secondary">退出登录</button>
-                </form>
-            </div>
-        </section>
-
         <section class="focus-hero">
-            <p class="eyebrow">Quiet View</p>
+            <a href="/me" class="focus-user-link">{{ .CurrentUser.DisplayName }}</a>
             <h1>{{ .FocusTitle }}</h1>
-            <p class="focus-copy">{{ .FocusSubtitle }}</p>
         </section>
 
-        {{ if .Message }}
-        <div class="flash flash-success">{{ .Message }}</div>
-        {{ end }}
         {{ if .Error }}
         <div class="flash flash-error">{{ .Error }}</div>
         {{ end }}
@@ -96,8 +74,10 @@
                 <summary>查看其它日期</summary>
                 <div class="drawer-body">
                     <div class="quick-links">
+                        <a href="{{ .YesterdayPath }}" class="secondary action-link">昨天</a>
                         <a href="{{ .TodayPath }}" class="secondary action-link">今天</a>
                         <a href="{{ .TomorrowPath }}" class="secondary action-link">明天</a>
+                        <a href="{{ .DayAfterTomorrowPath }}" class="secondary action-link">后天</a>
                     </div>
                     <form action="/" method="get" class="mini-date-form">
                         <input type="date" name="date" value="{{ .FocusDateISO }}" required>
