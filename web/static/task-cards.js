@@ -2,6 +2,7 @@ const EXIT_ANIMATION_MS = 320;
 const MOVE_ANIMATION_MS = 320;
 const ENTER_ANIMATION_MS = 320;
 const EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
+let taskMutationQueue = Promise.resolve();
 
 function wait(ms) {
   return new Promise((resolve) => {
@@ -20,6 +21,13 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function cssEscape(value) {
+  if (window.CSS && typeof window.CSS.escape === "function") {
+    return window.CSS.escape(value);
+  }
+  return String(value ?? "").replace(/["\\]/g, "\\$&");
 }
 
 function createElementFromHTML(html) {
@@ -682,17 +690,146 @@ function applyTaskSnapshot(snapshot) {
   updateArchiveSection(snapshot);
 }
 
-function shouldAnimateTaskExit(form, snapshot) {
-  if (form.hasAttribute("data-complete-form") || form.hasAttribute("data-restore-form")) {
+function enqueueTaskMutation(run) {
+  const queued = taskMutationQueue.then(run, run);
+  taskMutationQueue = queued.catch(() => {});
+  return queued;
+}
+
+function buildTaskRequest(form) {
+  return {
+    action: form.action,
+    formData: new FormData(form),
+    taskID: taskIDForForm(form),
+    isComplete: form.hasAttribute("data-complete-form"),
+    isRestore: form.hasAttribute("data-restore-form"),
+    isPostpone: form.hasAttribute("data-postpone-form"),
+  };
+}
+
+function actionTargetForRequest(request) {
+  if (!request.taskID) {
+    return null;
+  }
+
+  if (request.isRestore) {
+    return document.querySelector(`.archive-card[data-task-id="${cssEscape(request.taskID)}"]`);
+  }
+
+  return document.querySelector(`[data-task-card][data-task-id="${cssEscape(request.taskID)}"]`);
+}
+
+function currentFormForRequest(request) {
+  const target = actionTargetForRequest(request);
+  if (!target) {
+    return null;
+  }
+
+  if (request.isRestore) {
+    return target.querySelector("[data-restore-form]");
+  }
+  if (request.isComplete) {
+    return target.querySelector("[data-complete-form]");
+  }
+  if (request.isPostpone) {
+    return target.querySelector("[data-postpone-form]");
+  }
+  return null;
+}
+
+function shouldAnimateTaskExitRequest(request, snapshot) {
+  if (request.isComplete || request.isRestore) {
     return true;
   }
 
-  if (form.hasAttribute("data-postpone-form")) {
-    const taskID = taskIDForForm(form);
-    return !snapshot.focus_tasks.some((card) => card.id === taskID);
+  if (request.isPostpone) {
+    return !snapshot.focus_tasks.some((card) => card.id === request.taskID);
   }
 
   return false;
+}
+
+async function processTaskRequest(request) {
+  const immediateExit = request.isComplete || request.isRestore;
+  let exitHandle = immediateExit ? detachForExit(actionTargetForRequest(request)) : null;
+
+  try {
+    const response = await fetch(request.action, {
+      method: "POST",
+      body: request.formData,
+      headers: {
+        "X-Requested-With": "fetch",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("request failed");
+    }
+
+    const snapshot = await response.json();
+    if (!exitHandle && shouldAnimateTaskExitRequest(request, snapshot)) {
+      exitHandle = detachForExit(actionTargetForRequest(request));
+    }
+
+    if (request.isRestore) {
+      updateFocusPanel(snapshot);
+      if (snapshot.completed_tasks.length > 0) {
+        updateArchiveSection(snapshot);
+        if (exitHandle) {
+          await exitHandle.done;
+        }
+      } else if (exitHandle) {
+        await exitHandle.done;
+        updateArchiveSection(snapshot);
+      } else {
+        updateArchiveSection(snapshot);
+      }
+      return;
+    }
+
+    if (request.isComplete) {
+      updateArchiveSection(snapshot);
+      if (snapshot.focus_tasks.length > 0) {
+        updateFocusPanel(snapshot);
+        if (exitHandle) {
+          await exitHandle.done;
+        }
+      } else if (exitHandle) {
+        await exitHandle.done;
+        updateFocusPanel(snapshot);
+      } else {
+        updateFocusPanel(snapshot);
+      }
+      return;
+    }
+
+    if (shouldAnimateTaskExitRequest(request, snapshot) && exitHandle) {
+      if (snapshot.focus_tasks.length > 0) {
+        updateFocusPanel(snapshot);
+        await exitHandle.done;
+      } else {
+        await exitHandle.done;
+        updateFocusPanel(snapshot);
+      }
+      return;
+    }
+
+    applyTaskSnapshot(snapshot);
+  } catch (_error) {
+    if (exitHandle) {
+      exitHandle.restore();
+    } else {
+      resetInlineAnimation(actionTargetForRequest(request));
+    }
+
+    const currentForm = currentFormForRequest(request);
+    if (currentForm) {
+      currentForm.submit();
+      return;
+    }
+
+    window.location.reload();
+  }
 }
 
 function bindAsyncTaskForm(form) {
@@ -715,11 +852,21 @@ function bindAsyncTaskForm(form) {
     }
 
     const isTaskForm = form.hasAttribute("data-async-task-form");
+    if (isTaskForm) {
+      const request = buildTaskRequest(form);
+      enqueueTaskMutation(() => processTaskRequest(request))
+        .finally(() => {
+          form.dataset.submitting = "0";
+          if (submitButton && submitButton.isConnected) {
+            submitButton.disabled = false;
+          }
+        });
+      return;
+    }
+
     const preservedState = window.captureFocusPageState
       ? window.captureFocusPageState(document)
       : null;
-    const immediateExit = form.hasAttribute("data-complete-form") || form.hasAttribute("data-restore-form");
-    let exitHandle = immediateExit ? detachForExit(actionTargetFor(form)) : null;
 
     try {
       const response = await fetch(form.action, {
@@ -732,59 +879,6 @@ function bindAsyncTaskForm(form) {
 
       if (!response.ok) {
         throw new Error("request failed");
-      }
-
-      if (isTaskForm) {
-        const snapshot = await response.json();
-        if (!exitHandle && shouldAnimateTaskExit(form, snapshot)) {
-          exitHandle = detachForExit(actionTargetFor(form));
-        }
-
-        if (form.hasAttribute("data-restore-form")) {
-          updateFocusPanel(snapshot);
-          if (snapshot.completed_tasks.length > 0) {
-            updateArchiveSection(snapshot);
-            if (exitHandle) {
-              await exitHandle.done;
-            }
-          } else if (exitHandle) {
-            await exitHandle.done;
-            updateArchiveSection(snapshot);
-          } else {
-            updateArchiveSection(snapshot);
-          }
-          return;
-        }
-
-        if (form.hasAttribute("data-complete-form")) {
-          updateArchiveSection(snapshot);
-          if (snapshot.focus_tasks.length > 0) {
-            updateFocusPanel(snapshot);
-            if (exitHandle) {
-              await exitHandle.done;
-            }
-          } else if (exitHandle) {
-            await exitHandle.done;
-            updateFocusPanel(snapshot);
-          } else {
-            updateFocusPanel(snapshot);
-          }
-          return;
-        }
-
-        if (shouldAnimateTaskExit(form, snapshot) && exitHandle) {
-          if (snapshot.focus_tasks.length > 0) {
-            updateFocusPanel(snapshot);
-            await exitHandle.done;
-          } else {
-            await exitHandle.done;
-            updateFocusPanel(snapshot);
-          }
-          return;
-        }
-
-        applyTaskSnapshot(snapshot);
-        return;
       }
 
       if (response.redirected && window.loadFocusPage) {
@@ -807,11 +901,6 @@ function bindAsyncTaskForm(form) {
       form.dataset.submitting = "0";
       if (submitButton) {
         submitButton.disabled = false;
-      }
-      if (exitHandle) {
-        exitHandle.restore();
-      } else {
-        resetInlineAnimation(actionTargetFor(form));
       }
       form.submit();
     }
