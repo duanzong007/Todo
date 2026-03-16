@@ -232,6 +232,31 @@ func (r *AuthRepository) ApproveUser(ctx context.Context, adminID, userID uuid.U
 	return user, nil
 }
 
+func (r *AuthRepository) DeletePendingUser(ctx context.Context, userID uuid.UUID) (domain.User, error) {
+	row := r.db.QueryRow(ctx, `
+		DELETE FROM app_users
+		WHERE id = $1
+			AND approval_status = 'pending'
+		RETURNING id, username, display_name, password_hash, role, approval_status, is_active, last_login_at, approved_at, approved_by, created_at, updated_at
+	`, userID)
+
+	user, err := scanUser(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			var exists bool
+			if queryErr := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM app_users WHERE id = $1)`, userID).Scan(&exists); queryErr != nil {
+				return domain.User{}, fmt.Errorf("check user existence: %w", queryErr)
+			}
+			if !exists {
+				return domain.User{}, ErrUserNotFound
+			}
+			return domain.User{}, ErrUserNotPending
+		}
+		return domain.User{}, err
+	}
+	return user, nil
+}
+
 func (r *AuthRepository) RevokeSession(ctx context.Context, tokenHash string) error {
 	commandTag, err := r.db.Exec(ctx, `
 		UPDATE user_sessions

@@ -208,6 +208,15 @@ button.secondary:hover {
     background: #e6cfba;
 }
 
+button.danger {
+    background: #c84b3f;
+    color: #fff8f6;
+}
+
+button.danger:hover {
+    background: #a73a30;
+}
+
 .action-link {
     display: inline-flex;
     align-items: center;

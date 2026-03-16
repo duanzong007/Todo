@@ -51,9 +51,14 @@
                         <p class="status">@{{ .Username }}</p>
                         <p class="note">注册时间 {{ .CreatedAt }}</p>
                     </div>
-                    <form action="/admin/users/{{ .ID }}/approve" method="post" class="task-actions">
-                        <button type="submit">批准使用</button>
-                    </form>
+                    <div class="task-actions dual">
+                        <form action="/admin/users/{{ .ID }}/approve" method="post">
+                            <button type="submit">批准使用</button>
+                        </form>
+                        <form action="/admin/users/{{ .ID }}/reject" method="post">
+                            <button type="submit" class="danger">拒绝并删除</button>
+                        </form>
+                    </div>
                 </article>
                 {{ end }}
             {{ else }}

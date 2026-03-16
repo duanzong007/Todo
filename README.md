@@ -132,7 +132,7 @@ docker compose up --build
 - 注册：`/register`
 - 登录：`/login`
 - 登出：`POST /logout`
-- 用户审批：`GET /admin/users`、`POST /admin/users/{id}/approve`
+- 用户审批：`GET /admin/users`、`POST /admin/users/{id}/approve`、`POST /admin/users/{id}/reject`
 - 会话：HttpOnly Cookie + 数据库存储的哈希 token
 
 旧版单用户模式遗留的无归属数据，会在首个注册账号创建时自动归属给该账号。

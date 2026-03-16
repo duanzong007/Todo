@@ -27,6 +27,7 @@ var (
 	ErrUserPendingApproval  = errors.New("user pending approval")
 	ErrPermissionDenied     = errors.New("permission denied")
 	ErrUserAlreadyApproved  = errors.New("user already approved")
+	ErrUserNotPendingReview = errors.New("user not pending review")
 )
 
 var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$`)
@@ -196,6 +197,26 @@ func (s *AuthService) ApproveUser(ctx context.Context, actor domain.User, userID
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotPending) {
 			return domain.User{}, ErrUserAlreadyApproved
+		}
+		return domain.User{}, err
+	}
+	return user, nil
+}
+
+func (s *AuthService) RejectUser(ctx context.Context, actor domain.User, userID string) (domain.User, error) {
+	if !actor.CanUseSystem() || !actor.IsAdmin() {
+		return domain.User{}, ErrPermissionDenied
+	}
+
+	parsedUserID, err := parseUUID(userID)
+	if err != nil {
+		return domain.User{}, fmt.Errorf("invalid user id: %w", err)
+	}
+
+	user, err := s.repo.DeletePendingUser(ctx, parsedUserID)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotPending) {
+			return domain.User{}, ErrUserNotPendingReview
 		}
 		return domain.User{}, err
 	}

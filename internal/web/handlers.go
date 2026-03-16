@@ -144,6 +144,7 @@ func (h *Handler) Router() http.Handler {
 			r.Use(h.requireAdmin)
 			r.Get("/admin/users", h.handleAdminUsers)
 			r.Post("/admin/users/{userID}/approve", h.handleApproveUser)
+			r.Post("/admin/users/{userID}/reject", h.handleRejectUser)
 		})
 	})
 
@@ -440,6 +441,23 @@ func (h *Handler) handleApproveUser(w http.ResponseWriter, r *http.Request) {
 	h.redirectToAdminUsers(w, r, fmt.Sprintf("已批准 @%s", approvedUser.Username), "")
 }
 
+func (h *Handler) handleRejectUser(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+
+	userID := chi.URLParam(r, "userID")
+	rejectedUser, err := h.authService.RejectUser(r.Context(), user, userID)
+	if err != nil {
+		h.redirectToAdminUsers(w, r, "", humanizeError(err))
+		return
+	}
+
+	h.redirectToAdminUsers(w, r, fmt.Sprintf("已拒绝并删除 @%s", rejectedUser.Username), "")
+}
+
 func (h *Handler) requireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, err := h.authService.Authenticate(r.Context(), h.sessionToken(r))
@@ -659,6 +677,8 @@ func humanizeError(err error) string {
 		return "你没有管理员权限"
 	case errors.Is(err, service.ErrUserAlreadyApproved):
 		return "这个账号已经审批过了"
+	case errors.Is(err, service.ErrUserNotPendingReview):
+		return "这个账号已不在待审批列表"
 	case strings.Contains(err.Error(), "invalid user id"):
 		return "用户 ID 无效"
 	case strings.Contains(err.Error(), "invalid task id"):
