@@ -31,24 +31,17 @@
             {{ if .FocusTasks }}
             <div class="focus-list">
                 {{ range .FocusTasks }}
-                <article class="focus-card">
+                <article class="focus-card" data-task-card data-kind-label="{{ .KindLabel }}" data-kind-class="{{ .KindClass }}">
                     <div class="focus-card-main">
                         <span class="task-kind task-kind-{{ .KindClass }}">{{ .KindLabel }}</span>
                         <div class="task-body">
                             <h3>{{ .Title }}</h3>
-                            <p class="status">{{ .StatusLine }}</p>
+                            {{ if .StatusLine }}<p class="status">{{ .StatusLine }}</p>{{ end }}
                             {{ if .Note }}<p class="note">{{ .Note }}</p>{{ end }}
                         </div>
                     </div>
 
                     <div class="task-actions focus-actions">
-                        {{ if .CanComplete }}
-                        <form action="/tasks/{{ .ID }}/complete" method="post">
-                            <input type="hidden" name="return_date" value="{{ .ReturnDate }}">
-                            <button type="submit">完成</button>
-                        </form>
-                        {{ end }}
-
                         {{ if .CanPostpone }}
                         <details class="inline-postpone">
                             <summary>延期</summary>
@@ -58,6 +51,15 @@
                                 <button type="submit" class="secondary">确认</button>
                             </form>
                         </details>
+                        {{ end }}
+
+                        {{ if .CanComplete }}
+                        <form action="/tasks/{{ .ID }}/complete" method="post" data-complete-form>
+                            <input type="hidden" name="return_date" value="{{ .ReturnDate }}">
+                            <button type="submit" class="complete-toggle" aria-label="确认完成" title="确认完成">
+                                <span class="visually-hidden">确认完成</span>
+                            </button>
+                        </form>
                         {{ end }}
                     </div>
                 </article>
@@ -135,6 +137,27 @@
                         </div>
                         <button type="submit" class="secondary">确定</button>
                     </form>
+
+                    <div class="archive-section{{ if not .CompletedTasks }} is-empty{{ end }}" data-archive-section>
+                        <div class="archive-head">
+                            <p>已完成</p>
+                            <span data-archive-count>{{ len .CompletedTasks }}</span>
+                        </div>
+                        <div class="archive-list" data-archive-list>
+                            {{ range .CompletedTasks }}
+                            <article class="archive-card">
+                                <div class="archive-card-main">
+                                    <span class="task-kind task-kind-{{ .KindClass }}">{{ .KindLabel }}</span>
+                                    <div class="task-body">
+                                        <h3>{{ .Title }}</h3>
+                                        <p class="status">{{ .FinishedLine }}</p>
+                                        {{ if .Note }}<p class="note">{{ .Note }}</p>{{ end }}
+                                    </div>
+                                </div>
+                            </article>
+                            {{ end }}
+                        </div>
+                    </div>
                 </div>
             </details>
         </section>
@@ -170,5 +193,6 @@
         </details>
     </main>
     <script src="/static/date-picker.js" defer></script>
+    <script src="/static/task-cards.js" defer></script>
 </body>
 </html>

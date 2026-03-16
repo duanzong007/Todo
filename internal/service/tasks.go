@@ -43,6 +43,10 @@ func (s *TaskService) DashboardForDate(ctx context.Context, userID uuid.UUID, fo
 	return s.repo.ListDashboard(ctx, userID, focusDate.In(s.location))
 }
 
+func (s *TaskService) CompletedTasks(ctx context.Context, userID uuid.UUID, limit int) ([]domain.Task, error) {
+	return s.repo.ListCompletedTasks(ctx, userID, limit)
+}
+
 func (s *TaskService) CreateFromInput(ctx context.Context, userID uuid.UUID, input string) (domain.Task, error) {
 	return s.CreateFromInputWithImportance(ctx, userID, input, 0)
 }
@@ -91,14 +95,13 @@ func (s *TaskService) ImportICS(ctx context.Context, userID uuid.UUID, filename 
 	return s.repo.ImportTasks(ctx, userID, source, result.Tasks)
 }
 
-func (s *TaskService) Complete(ctx context.Context, userID uuid.UUID, rawID string) error {
+func (s *TaskService) Complete(ctx context.Context, userID uuid.UUID, rawID string) (domain.Task, error) {
 	taskID, err := uuid.Parse(rawID)
 	if err != nil {
-		return fmt.Errorf("invalid task id: %w", err)
+		return domain.Task{}, fmt.Errorf("invalid task id: %w", err)
 	}
 
-	_, err = s.repo.CompleteTask(ctx, userID, taskID)
-	return err
+	return s.repo.CompleteTask(ctx, userID, taskID)
 }
 
 func (s *TaskService) Postpone(ctx context.Context, userID uuid.UUID, rawID, targetDate string) error {
@@ -112,7 +115,17 @@ func (s *TaskService) Postpone(ctx context.Context, userID uuid.UUID, rawID, tar
 		return fmt.Errorf("invalid target date: %w", err)
 	}
 
-	_, err = s.repo.PostponeTask(ctx, userID, taskID, parsedDate)
+	task, err := s.repo.GetTask(ctx, userID, taskID)
+	if err != nil {
+		return err
+	}
+
+	targetValue := normalizeDateInLocation(parsedDate, s.location)
+	if task.Type == domain.TaskTypeDDL {
+		targetValue = mergeDeadlineDateWithExistingClock(parsedDate.In(s.location), task.Deadline, s.location)
+	}
+
+	_, err = s.repo.PostponeTask(ctx, userID, taskID, targetValue)
 	return err
 }
 
@@ -123,4 +136,23 @@ func checksumString(input string) string {
 func checksumBytes(body []byte) string {
 	sum := sha256.Sum256(body)
 	return hex.EncodeToString(sum[:])
+}
+
+func mergeDeadlineDateWithExistingClock(targetDate time.Time, existing *time.Time, location *time.Location) time.Time {
+	dateValue := normalizeDateInLocation(targetDate, location)
+	if existing == nil {
+		return time.Date(dateValue.Year(), dateValue.Month(), dateValue.Day(), 23, 59, 0, 0, location)
+	}
+
+	existingLocal := existing.In(location)
+	return time.Date(
+		dateValue.Year(),
+		dateValue.Month(),
+		dateValue.Day(),
+		existingLocal.Hour(),
+		existingLocal.Minute(),
+		0,
+		0,
+		location,
+	)
 }

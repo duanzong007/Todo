@@ -12,12 +12,14 @@ import (
 
 func TestBuildFocusTaskCardsSortsByImportanceThenUrgency(t *testing.T) {
 	location := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 3, 16, 10, 15, 0, 0, location)
 	focusDate := time.Date(2026, 3, 16, 9, 0, 0, 0, location)
 	createdAt := time.Date(2026, 3, 1, 8, 0, 0, 0, time.UTC)
 
 	scheduleToday := time.Date(2026, 3, 16, 0, 0, 0, 0, location)
-	ddlToday := time.Date(2026, 3, 16, 0, 0, 0, 0, location)
-	ddlTomorrow := time.Date(2026, 3, 17, 0, 0, 0, 0, location)
+	ddlToday := time.Date(2026, 3, 16, 18, 0, 0, 0, location)
+	ddlTodayHigh := time.Date(2026, 3, 16, 20, 0, 0, 0, location)
+	ddlTomorrow := time.Date(2026, 3, 17, 18, 0, 0, 0, location)
 
 	dashboard := repository.Dashboard{
 		Today: []domain.Task{
@@ -33,11 +35,19 @@ func TestBuildFocusTaskCardsSortsByImportanceThenUrgency(t *testing.T) {
 		DDL: []domain.Task{
 			{
 				ID:         uuid.New(),
-				Title:      "今天截止",
+				Title:      "今天截止低优先",
 				Type:       domain.TaskTypeDDL,
-				Importance: 5,
+				Importance: 2,
 				Deadline:   &ddlToday,
 				CreatedAt:  createdAt.Add(2 * time.Minute),
+			},
+			{
+				ID:         uuid.New(),
+				Title:      "今天截止高优先",
+				Type:       domain.TaskTypeDDL,
+				Importance: 5,
+				Deadline:   &ddlTodayHigh,
+				CreatedAt:  createdAt.Add(3 * time.Minute),
 			},
 			{
 				ID:         uuid.New(),
@@ -45,7 +55,7 @@ func TestBuildFocusTaskCardsSortsByImportanceThenUrgency(t *testing.T) {
 				Type:       domain.TaskTypeDDL,
 				Importance: 5,
 				Deadline:   &ddlTomorrow,
-				CreatedAt:  createdAt.Add(3 * time.Minute),
+				CreatedAt:  createdAt.Add(4 * time.Minute),
 			},
 		},
 		Todo: []domain.Task{
@@ -59,16 +69,33 @@ func TestBuildFocusTaskCardsSortsByImportanceThenUrgency(t *testing.T) {
 		},
 	}
 
-	cards := buildFocusTaskCards(dashboard, focusDate, location)
-	if len(cards) != 4 {
-		t.Fatalf("len(cards) = %d, want 4", len(cards))
+	cards := buildFocusTaskCards(dashboard, now, focusDate, location)
+	if len(cards) != 5 {
+		t.Fatalf("len(cards) = %d, want 5", len(cards))
 	}
 
-	gotTitles := []string{cards[0].Title, cards[1].Title, cards[2].Title, cards[3].Title}
-	wantTitles := []string{"今天截止", "明天截止", "高优先待办", "普通日程"}
+	gotTitles := []string{cards[0].Title, cards[1].Title, cards[2].Title, cards[3].Title, cards[4].Title}
+	wantTitles := []string{"今天截止高优先", "今天截止低优先", "明天截止", "高优先待办", "普通日程"}
 	for index := range wantTitles {
 		if gotTitles[index] != wantTitles[index] {
 			t.Fatalf("cards[%d] = %q, want %q", index, gotTitles[index], wantTitles[index])
 		}
+	}
+}
+
+func TestFormatDDLCountdownSwitchesFromDaysToHoursToMinutes(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	deadline := time.Date(2026, 3, 1, 20, 0, 0, 0, location)
+
+	if got := formatDDLCountdown(deadline, time.Date(2026, 2, 28, 9, 0, 0, 0, location), location); got != "还有 1 天" {
+		t.Fatalf("day countdown = %q, want %q", got, "还有 1 天")
+	}
+
+	if got := formatDDLCountdown(deadline, time.Date(2026, 3, 1, 0, 30, 0, 0, location), location); got != "还有 20 小时" {
+		t.Fatalf("hour countdown = %q, want %q", got, "还有 20 小时")
+	}
+
+	if got := formatDDLCountdown(deadline, time.Date(2026, 3, 1, 19, 21, 0, 0, location), location); got != "还有 39 分钟" {
+		t.Fatalf("minute countdown = %q, want %q", got, "还有 39 分钟")
 	}
 }

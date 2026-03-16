@@ -53,7 +53,7 @@ type Task struct {
 }
 
 func (t Task) SupportsCompletion() bool {
-	return t.Type == TaskTypeTodo || t.Type == TaskTypeDDL
+	return true
 }
 
 func (t Task) SupportsPostpone() bool {

@@ -2,11 +2,11 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"io"
-	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -67,6 +67,7 @@ type DashboardPageData struct {
 	FocusMonth           string
 	FocusDay             string
 	FocusTasks           []TaskCard
+	CompletedTasks       []CompletedTaskCard
 	EmptyQuote           *QuoteView
 	YesterdayPath        string
 	TodayPath            string
@@ -118,6 +119,14 @@ type TaskCard struct {
 	CanPostpone   bool
 	PostponeValue string
 	ReturnDate    string
+}
+
+type CompletedTaskCard struct {
+	Title        string
+	KindLabel    string
+	KindClass    string
+	FinishedLine string
+	Note         string
 }
 
 type PendingUserCard struct {
@@ -352,8 +361,25 @@ func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	taskID := chi.URLParam(r, "taskID")
-	if err := h.taskService.Complete(r.Context(), user.ID, taskID); err != nil {
+	task, err := h.taskService.Complete(r.Context(), user.ID, taskID)
+	if err != nil {
+		if wantsAsyncResponse(r) {
+			http.Error(w, humanizeError(err), http.StatusBadRequest)
+			return
+		}
 		h.redirectHome(w, r, "", humanizeError(err))
+		return
+	}
+
+	if wantsAsyncResponse(r) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"title":         task.Title,
+			"note":          task.Note,
+			"kind_label":    kindLabel(task.Type),
+			"kind_class":    string(task.Type),
+			"finished_line": formatCompletedAt(task, h.location),
+		})
 		return
 	}
 
@@ -423,14 +449,19 @@ func (h *Handler) handleImportICS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domain.User, focusDate time.Time, message, errorMessage string) error {
+	now := time.Now().In(h.location)
 	dashboard, err := h.taskService.DashboardForDate(r.Context(), user.ID, focusDate)
 	if err != nil {
 		return err
 	}
+	completedTasks, err := h.taskService.CompletedTasks(r.Context(), user.ID, 20)
+	if err != nil {
+		return err
+	}
 
-	today := normalizeDateForView(time.Now().In(h.location), h.location)
+	today := normalizeDateForView(now, h.location)
 	calendarMeta := service.CalendarMetaForDate(focusDate, h.location)
-	focusTasks := buildFocusTaskCards(dashboard, focusDate, h.location)
+	focusTasks := buildFocusTaskCards(dashboard, now, focusDate, h.location)
 	pageData := DashboardPageData{
 		CurrentUser:          buildUserView(user),
 		Error:                errorMessage,
@@ -442,6 +473,7 @@ func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domai
 		FocusMonth:           focusDate.In(h.location).Format("01"),
 		FocusDay:             focusDate.In(h.location).Format("02"),
 		FocusTasks:           focusTasks,
+		CompletedTasks:       buildCompletedTaskCards(completedTasks, h.location),
 		YesterdayPath:        buildDatePath(today.AddDate(0, 0, -1), h.location),
 		TodayPath:            buildDatePath(today, h.location),
 		TomorrowPath:         buildDatePath(today.AddDate(0, 0, 1), h.location),
@@ -703,7 +735,7 @@ func buildQuoteView(quote service.Quote) *QuoteView {
 	return view
 }
 
-func buildFocusTaskCards(dashboard repository.Dashboard, focusDate time.Time, location *time.Location) []TaskCard {
+func buildFocusTaskCards(dashboard repository.Dashboard, now, focusDate time.Time, location *time.Location) []TaskCard {
 	var tasks []domain.Task
 
 	for _, task := range dashboard.Today {
@@ -716,17 +748,17 @@ func buildFocusTaskCards(dashboard repository.Dashboard, focusDate time.Time, lo
 		tasks = append(tasks, task)
 	}
 
-	sortTasksForFocus(tasks, focusDate, location)
+	sortTasksForFocus(tasks, now, focusDate, location)
 
 	cards := make([]TaskCard, 0, len(tasks))
 	for _, task := range tasks {
-		cards = append(cards, buildTaskCard(task, focusDate, location))
+		cards = append(cards, buildTaskCard(task, now, focusDate, location))
 	}
 
 	return cards
 }
 
-func buildTaskCard(task domain.Task, focusDate time.Time, location *time.Location) TaskCard {
+func buildTaskCard(task domain.Task, now, focusDate time.Time, location *time.Location) TaskCard {
 	card := TaskCard{
 		ID:          task.ID.String(),
 		Title:       task.Title,
@@ -742,7 +774,6 @@ func buildTaskCard(task domain.Task, focusDate time.Time, location *time.Locatio
 	case domain.TaskTypeSchedule:
 		card.KindLabel = "日程"
 		card.KindClass = "schedule"
-		card.StatusLine = "这一天出现"
 		if task.ScheduledFor != nil {
 			card.PostponeValue = normalizeDateForView(*task.ScheduledFor, location).AddDate(0, 0, 1).Format("2006-01-02")
 		}
@@ -750,22 +781,12 @@ func buildTaskCard(task domain.Task, focusDate time.Time, location *time.Locatio
 		card.KindLabel = "DDL"
 		card.KindClass = "ddl"
 		if task.Deadline != nil {
-			deadline := normalizeDateForView(*task.Deadline, location)
-			diffDays := int(deadline.Sub(focusDate).Hours() / 24)
-			switch {
-			case diffDays < 0:
-				card.StatusLine = fmt.Sprintf("已过期 %d 天", -diffDays)
-			case diffDays == 0:
-				card.StatusLine = "这一天截止"
-			default:
-				card.StatusLine = fmt.Sprintf("还有 %d 天截止", diffDays)
-			}
-			card.PostponeValue = deadline.AddDate(0, 0, 1).Format("2006-01-02")
+			card.StatusLine = formatDDLCountdown(*task.Deadline, now, location)
+			card.PostponeValue = normalizeDateForView(*task.Deadline, location).AddDate(0, 0, 1).Format("2006-01-02")
 		}
 	case domain.TaskTypeTodo:
 		card.KindLabel = "Todo"
 		card.KindClass = "todo"
-		card.StatusLine = "持续提醒"
 	}
 
 	if card.PostponeValue == "" {
@@ -775,21 +796,31 @@ func buildTaskCard(task domain.Task, focusDate time.Time, location *time.Locatio
 	return card
 }
 
-func sortTasksForFocus(tasks []domain.Task, focusDate time.Time, location *time.Location) {
+func sortTasksForFocus(tasks []domain.Task, now, focusDate time.Time, location *time.Location) {
+	now = now.In(location)
 	focusDate = normalizeDateForView(focusDate, location)
 
 	sort.SliceStable(tasks, func(i, j int) bool {
 		left := tasks[i]
 		right := tasks[j]
 
+		leftHourlyDDL := isHourlyCountdownDDL(left, now, location)
+		rightHourlyDDL := isHourlyCountdownDDL(right, now, location)
+		if leftHourlyDDL != rightHourlyDDL {
+			return leftHourlyDDL
+		}
+
 		if left.Importance != right.Importance {
 			return left.Importance > right.Importance
 		}
 
-		leftUrgency := taskUrgencyDays(left, focusDate, location)
-		rightUrgency := taskUrgencyDays(right, focusDate, location)
-		if leftUrgency != rightUrgency {
-			return leftUrgency < rightUrgency
+		leftTime, leftHasTime := taskSortTime(left, focusDate, location)
+		rightTime, rightHasTime := taskSortTime(right, focusDate, location)
+		if leftHasTime != rightHasTime {
+			return leftHasTime
+		}
+		if leftHasTime && !leftTime.Equal(rightTime) {
+			return leftTime.Before(rightTime)
 		}
 
 		leftTypeRank := taskTypeSortRank(left.Type)
@@ -806,22 +837,21 @@ func sortTasksForFocus(tasks []domain.Task, focusDate time.Time, location *time.
 	})
 }
 
-func taskUrgencyDays(task domain.Task, focusDate time.Time, location *time.Location) int {
+func taskSortTime(task domain.Task, focusDate time.Time, location *time.Location) (time.Time, bool) {
 	switch task.Type {
 	case domain.TaskTypeSchedule:
 		if task.ScheduledFor == nil {
-			return math.MaxInt / 4
+			return time.Time{}, false
 		}
-		dateValue := normalizeDateForView(*task.ScheduledFor, location)
-		return int(dateValue.Sub(focusDate).Hours() / 24)
+		return normalizeDateForView(*task.ScheduledFor, location), true
 	case domain.TaskTypeDDL:
 		if task.Deadline == nil {
-			return math.MaxInt / 4
+			return time.Time{}, false
 		}
-		dateValue := normalizeDateForView(*task.Deadline, location)
-		return int(dateValue.Sub(focusDate).Hours() / 24)
+		return task.Deadline.In(location), true
 	default:
-		return math.MaxInt / 2
+		_ = focusDate
+		return time.Time{}, false
 	}
 }
 
@@ -834,6 +864,97 @@ func taskTypeSortRank(taskType domain.TaskType) int {
 	default:
 		return 2
 	}
+}
+
+func isHourlyCountdownDDL(task domain.Task, now time.Time, location *time.Location) bool {
+	if task.Type != domain.TaskTypeDDL || task.Deadline == nil {
+		return false
+	}
+	return normalizeDateForView(*task.Deadline, location).Equal(normalizeDateForView(now, location))
+}
+
+func formatDDLCountdown(deadline, now time.Time, location *time.Location) string {
+	deadlineLocal := deadline.In(location)
+	nowLocal := now.In(location)
+	deadlineDay := normalizeDateForView(deadlineLocal, location)
+	today := normalizeDateForView(nowLocal, location)
+
+	switch {
+	case deadlineDay.After(today):
+		diffDays := int(deadlineDay.Sub(today).Hours() / 24)
+		return fmt.Sprintf("还有 %d 天", diffDays)
+	case deadlineDay.Before(today):
+		diffDays := int(today.Sub(deadlineDay).Hours() / 24)
+		return fmt.Sprintf("已过期 %d 天", diffDays)
+	}
+
+	remaining := deadlineLocal.Sub(nowLocal)
+	if remaining <= 0 {
+		overdue := -remaining
+		if overdue >= time.Hour {
+			return fmt.Sprintf("已超时 %d 小时", ceilDuration(overdue, time.Hour))
+		}
+		return fmt.Sprintf("已超时 %d 分钟", maxInt(1, ceilDuration(overdue, time.Minute)))
+	}
+	if remaining >= time.Hour {
+		return fmt.Sprintf("还有 %d 小时", ceilDuration(remaining, time.Hour))
+	}
+	return fmt.Sprintf("还有 %d 分钟", maxInt(1, ceilDuration(remaining, time.Minute)))
+}
+
+func buildCompletedTaskCards(tasks []domain.Task, location *time.Location) []CompletedTaskCard {
+	cards := make([]CompletedTaskCard, 0, len(tasks))
+	for _, task := range tasks {
+		cards = append(cards, CompletedTaskCard{
+			Title:        task.Title,
+			KindLabel:    kindLabel(task.Type),
+			KindClass:    string(task.Type),
+			FinishedLine: formatCompletedAt(task, location),
+			Note:         task.Note,
+		})
+	}
+	return cards
+}
+
+func kindLabel(taskType domain.TaskType) string {
+	switch taskType {
+	case domain.TaskTypeSchedule:
+		return "日程"
+	case domain.TaskTypeDDL:
+		return "DDL"
+	default:
+		return "Todo"
+	}
+}
+
+func formatCompletedAt(task domain.Task, location *time.Location) string {
+	if task.CompletedAt == nil {
+		return "已完成"
+	}
+
+	completedAt := task.CompletedAt.In(location)
+	if task.Type == domain.TaskTypeDDL {
+		return "完成于 " + completedAt.Format("1月2日 15:04")
+	}
+	return "完成于 " + completedAt.Format("1月2日")
+}
+
+func ceilDuration(value, unit time.Duration) int {
+	if unit <= 0 {
+		return 0
+	}
+	quotient := value / unit
+	if value%unit != 0 {
+		quotient++
+	}
+	return int(quotient)
+}
+
+func maxInt(left, right int) int {
+	if left > right {
+		return left
+	}
+	return right
 }
 
 func parseOptionalImportance(raw string) (int, error) {
@@ -904,6 +1025,10 @@ func (h *Handler) currentViewDateParam(r *http.Request) string {
 		return ""
 	}
 	return date.Format("2006-01-02")
+}
+
+func wantsAsyncResponse(r *http.Request) bool {
+	return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Requested-With")), "fetch")
 }
 
 func padDatePart(value string, width int) string {

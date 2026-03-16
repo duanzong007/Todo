@@ -19,6 +19,7 @@ func TestTextParserParse(t *testing.T) {
 		wantTitle     string
 		wantNote      string
 		wantDate      string
+		wantClock     string
 		wantSource    domain.SourceType
 		checkDeadline bool
 	}{
@@ -43,6 +44,17 @@ func TestTextParserParse(t *testing.T) {
 			wantType:      domain.TaskTypeDDL,
 			wantTitle:     "交作业",
 			wantDate:      "2026-03-20",
+			wantClock:     "23:59",
+			wantSource:    domain.SourceTypeManualText,
+			checkDeadline: true,
+		},
+		{
+			name:          "ddl with explicit clock",
+			input:         "3月20日20:00交报告",
+			wantType:      domain.TaskTypeDDL,
+			wantTitle:     "交报告",
+			wantDate:      "2026-03-20",
+			wantClock:     "20:00",
 			wantSource:    domain.SourceTypeManualText,
 			checkDeadline: true,
 		},
@@ -106,6 +118,9 @@ func TestTextParserParse(t *testing.T) {
 			}
 			if dateValue.Format("2006-01-02") != tt.wantDate {
 				t.Fatalf("parsed date = %s, want %s", dateValue.Format("2006-01-02"), tt.wantDate)
+			}
+			if tt.wantClock != "" && dateValue.In(location).Format("15:04") != tt.wantClock {
+				t.Fatalf("parsed time = %s, want %s", dateValue.In(location).Format("15:04"), tt.wantClock)
 			}
 		})
 	}

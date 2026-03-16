@@ -16,6 +16,7 @@ var errEmptyInput = errors.New("input cannot be empty")
 var (
 	pickupCodeRegex     = regexp.MustCompile(`取件码[:：\s]*([A-Za-z0-9]+)`)
 	explicitDateRegex   = regexp.MustCompile(`(?:(\d{4})[年/-])?(\d{1,2})[月/-](\d{1,2})(?:日|号)?`)
+	clockTimeRegex      = regexp.MustCompile(`(?i)(凌晨|早上|上午|中午|下午|晚上)?\s*(\d{1,2})(?:[:：点时](\d{1,2}))?\s*(?:分)?`)
 	relativeDateRegex   = regexp.MustCompile(`(今天|明天|后天)`)
 	weekdayDateRegex    = regexp.MustCompile(`((?:下周|本周)?周[一二三四五六日天])`)
 	dayPeriodRegex      = regexp.MustCompile(`(今天上午|今天下午|今天晚上|今天中午|今天早上|今早|今晚|上午|下午|晚上|中午)`)
@@ -71,7 +72,12 @@ func (p *TextParser) Parse(input string, now time.Time) (ParsedTask, error) {
 
 		if isDeadlineText(cleaned) {
 			taskType = domain.TaskTypeDDL
-			dateValue := match.Date
+			dateValue := endOfDeadlineDay(match.Date, p.location)
+			if clock, found := extractClockTime(strings.Replace(cleaned, match.Raw, "", 1), p.location); found {
+				dateValue = combineDateAndClock(match.Date, clock, p.location)
+				title = cleanTaskTitle(title, clock.Raw)
+				metadata["parsed_time"] = dateValue.In(p.location).Format("15:04")
+			}
 			deadline = &dateValue
 		} else {
 			taskType = domain.TaskTypeSchedule
@@ -101,6 +107,12 @@ func (p *TextParser) Parse(input string, now time.Time) (ParsedTask, error) {
 type dateMatch struct {
 	Raw  string
 	Date time.Time
+}
+
+type clockTime struct {
+	Raw    string
+	Hour   int
+	Minute int
 }
 
 func (p *TextParser) parsePickupSMS(input string) (ParsedTask, bool) {
@@ -335,4 +347,67 @@ func weekdayToChineseIndex(day time.Weekday) int {
 func normalizeDateInLocation(value time.Time, location *time.Location) time.Time {
 	local := value.In(location)
 	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
+}
+
+func extractClockTime(input string, location *time.Location) (clockTime, bool) {
+	matched := clockTimeRegex.FindStringSubmatch(input)
+	if len(matched) == 0 {
+		return clockTime{}, false
+	}
+
+	hour, err := parsePositiveInt(matched[2])
+	if err != nil {
+		return clockTime{}, false
+	}
+	minute := 0
+	if matched[3] != "" {
+		minute, err = parsePositiveIntAllowZero(matched[3])
+		if err != nil {
+			return clockTime{}, false
+		}
+	}
+
+	switch matched[1] {
+	case "凌晨":
+		if hour == 12 {
+			hour = 0
+		}
+	case "下午", "晚上":
+		if hour < 12 {
+			hour += 12
+		}
+	case "中午":
+		if hour < 11 {
+			hour += 12
+		}
+	}
+
+	if hour < 0 || hour > 23 || minute < 0 || minute > 59 {
+		return clockTime{}, false
+	}
+
+	_ = location
+	return clockTime{Raw: matched[0], Hour: hour, Minute: minute}, true
+}
+
+func combineDateAndClock(dateValue time.Time, clock clockTime, location *time.Location) time.Time {
+	localDate := normalizeDateInLocation(dateValue, location)
+	return time.Date(localDate.Year(), localDate.Month(), localDate.Day(), clock.Hour, clock.Minute, 0, 0, location)
+}
+
+func endOfDeadlineDay(dateValue time.Time, location *time.Location) time.Time {
+	localDate := normalizeDateInLocation(dateValue, location)
+	return time.Date(localDate.Year(), localDate.Month(), localDate.Day(), 23, 59, 0, 0, location)
+}
+
+func parsePositiveIntAllowZero(value string) (int, error) {
+	var number int
+	_, err := fmt.Sscanf(value, "%d", &number)
+	if err != nil {
+		return 0, err
+	}
+	if number < 0 {
+		return 0, fmt.Errorf("invalid integer: %s", value)
+	}
+	return number, nil
 }

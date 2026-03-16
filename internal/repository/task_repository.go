@@ -144,7 +144,7 @@ func (r *TaskRepository) ListDashboard(ctx context.Context, userID uuid.UUID, to
 		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1 AND status = 'active' AND task_type = 'ddl'
-		ORDER BY importance DESC, deadline, created_at
+		ORDER BY importance DESC, deadline ASC, created_at ASC
 	`, userID)
 	if err != nil {
 		return Dashboard{}, err
@@ -154,7 +154,7 @@ func (r *TaskRepository) ListDashboard(ctx context.Context, userID uuid.UUID, to
 		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1 AND status = 'active' AND task_type = 'todo'
-		ORDER BY importance DESC, created_at
+		ORDER BY importance DESC, created_at ASC
 	`, userID)
 	if err != nil {
 		return Dashboard{}, err
@@ -165,6 +165,37 @@ func (r *TaskRepository) ListDashboard(ctx context.Context, userID uuid.UUID, to
 		DDL:   ddlTasks,
 		Todo:  todoTasks,
 	}, nil
+}
+
+func (r *TaskRepository) ListCompletedTasks(ctx context.Context, userID uuid.UUID, limit int) ([]domain.Task, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	return r.listTasks(ctx, `
+		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
+		FROM tasks
+		WHERE user_id = $1 AND status = 'done'
+		ORDER BY completed_at DESC, updated_at DESC
+		LIMIT $2
+	`, userID, limit)
+}
+
+func (r *TaskRepository) GetTask(ctx context.Context, userID, id uuid.UUID) (domain.Task, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
+		FROM tasks
+		WHERE id = $1 AND user_id = $2
+	`, id, userID)
+
+	task, err := scanTask(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.Task{}, ErrTaskNotFound
+		}
+		return domain.Task{}, err
+	}
+	return task, nil
 }
 
 func (r *TaskRepository) CompleteTask(ctx context.Context, userID, id uuid.UUID) (domain.Task, error) {
@@ -228,39 +259,45 @@ func (r *TaskRepository) PostponeTask(ctx context.Context, userID, id uuid.UUID,
 		return domain.Task{}, ErrInvalidTaskTransition
 	}
 
-	targetDate = normalizeDate(targetDate)
-
-	var previousDate string
+	scheduleTarget := normalizeDate(targetDate)
+	deadlineTarget := normalizeDeadlineTime(targetDate)
+	var eventPayload map[string]any
 	switch task.Type {
 	case domain.TaskTypeSchedule:
 		if task.ScheduledFor != nil {
-			previousDate = task.ScheduledFor.Format("2006-01-02")
+			eventPayload = map[string]any{
+				"previous_date": task.ScheduledFor.Format("2006-01-02"),
+				"target_date":   scheduleTarget.Format("2006-01-02"),
+			}
 		}
 	case domain.TaskTypeDDL:
 		if task.Deadline != nil {
-			previousDate = task.Deadline.Format("2006-01-02")
+			eventPayload = map[string]any{
+				"previous_at": task.Deadline.UTC().Format(time.RFC3339),
+				"target_at":   deadlineTarget.UTC().Format(time.RFC3339),
+			}
 		}
+	}
+	if eventPayload == nil {
+		eventPayload = map[string]any{}
 	}
 
 	row := tx.QueryRow(ctx, `
 		UPDATE tasks
 		SET
 			scheduled_for = CASE WHEN task_type = 'schedule' THEN $3 ELSE scheduled_for END,
-			deadline = CASE WHEN task_type = 'ddl' THEN $3 ELSE deadline END,
+			deadline = CASE WHEN task_type = 'ddl' THEN $4 ELSE deadline END,
 			postponed_count = postponed_count + 1
 		WHERE id = $1 AND user_id = $2
 		RETURNING id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
-	`, id, userID, targetDate)
+	`, id, userID, scheduleTarget, deadlineTarget)
 
 	updatedTask, err := scanTask(row)
 	if err != nil {
 		return domain.Task{}, err
 	}
 
-	if err := createTaskEventTx(ctx, tx, id, "postponed", map[string]any{
-		"previous_date": previousDate,
-		"target_date":   targetDate.Format("2006-01-02"),
-	}); err != nil {
+	if err := createTaskEventTx(ctx, tx, id, "postponed", eventPayload); err != nil {
 		return domain.Task{}, err
 	}
 
@@ -335,7 +372,19 @@ func insertTaskTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, sourceID *uu
 		return domain.Task{}, false, err
 	}
 
-	row := tx.QueryRow(ctx, query, userID, sourceID, input.Title, input.Note, input.Type, importance, normalizeDatePtr(input.ScheduledFor), normalizeDatePtr(input.Deadline), metadata)
+	row := tx.QueryRow(
+		ctx,
+		query,
+		userID,
+		sourceID,
+		input.Title,
+		input.Note,
+		input.Type,
+		importance,
+		normalizeSchedulePtr(input.ScheduledFor),
+		normalizeDeadlinePtr(input.Deadline),
+		metadata,
+	)
 	task, err := scanTask(row)
 	if err != nil {
 		if skipOnConflict && errors.Is(err, pgx.ErrNoRows) {
@@ -388,7 +437,7 @@ func scanTask(row interface{ Scan(dest ...any) error }) (domain.Task, error) {
 	var task domain.Task
 	var sourceID pgtype.UUID
 	var scheduledFor pgtype.Date
-	var deadline pgtype.Date
+	var deadline pgtype.Timestamptz
 	var completedAt pgtype.Timestamptz
 	var metadata []byte
 
@@ -421,7 +470,7 @@ func scanTask(row interface{ Scan(dest ...any) error }) (domain.Task, error) {
 		task.ScheduledFor = &value
 	}
 	if deadline.Valid {
-		value := normalizeDate(deadline.Time)
+		value := deadline.Time.UTC()
 		task.Deadline = &value
 	}
 	if completedAt.Valid {
@@ -447,7 +496,7 @@ func marshalMetadata(metadata map[string]any) ([]byte, error) {
 	return json.Marshal(metadata)
 }
 
-func normalizeDatePtr(value *time.Time) any {
+func normalizeSchedulePtr(value *time.Time) any {
 	if value == nil {
 		return nil
 	}
@@ -455,6 +504,19 @@ func normalizeDatePtr(value *time.Time) any {
 	return normalized
 }
 
+func normalizeDeadlinePtr(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	normalized := normalizeDeadlineTime(*value)
+	return normalized
+}
+
 func normalizeDate(value time.Time) time.Time {
 	return time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func normalizeDeadlineTime(value time.Time) time.Time {
+	local := value.In(value.Location())
+	return time.Date(local.Year(), local.Month(), local.Day(), local.Hour(), local.Minute(), 0, 0, local.Location()).UTC()
 }
