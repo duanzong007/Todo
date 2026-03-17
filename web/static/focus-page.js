@@ -73,6 +73,7 @@ function hydrateFocusPage(root = document) {
   }
   initializeAnimatedDrawers(root);
   initializeFocusNavigation(root);
+  initializeFocusRefresh(root);
 }
 
 function syncDrawerState(details) {
@@ -360,6 +361,34 @@ function initializeFocusNavigation(root = document) {
       loadFocusPage(url.pathname + url.search, "push", {
         mode: "patch",
       });
+    });
+  });
+}
+
+function initializeFocusRefresh(root = document) {
+  root.querySelectorAll("[data-focus-refresh]").forEach((button) => {
+    if (button.dataset.bound === "1") {
+      return;
+    }
+    button.dataset.bound = "1";
+
+    button.addEventListener("click", async () => {
+      if (button.disabled) {
+        return;
+      }
+
+      button.disabled = true;
+      try {
+        if (window.reloadFocusPage) {
+          await window.reloadFocusPage();
+          return;
+        }
+        window.location.reload();
+      } finally {
+        window.setTimeout(() => {
+          button.disabled = false;
+        }, 320);
+      }
     });
   });
 }

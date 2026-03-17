@@ -408,6 +408,39 @@ button.danger:hover {
     font-family: "Iowan Old Style", "Songti SC", serif;
 }
 
+.focus-title-reload {
+    display: block;
+    width: fit-content;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: none;
+    transform: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.focus-title-reload:hover,
+.focus-title-reload:active {
+    background: none;
+    transform: none;
+}
+
+.focus-title-reload:focus-visible {
+    outline: none;
+}
+
+.focus-title-reload:disabled {
+    cursor: wait;
+}
+
 .focus-user-link {
     display: inline-flex;
     margin-bottom: 10px;
