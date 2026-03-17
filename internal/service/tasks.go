@@ -255,6 +255,20 @@ func (s *TaskService) Restore(ctx context.Context, userID uuid.UUID, rawID strin
 	return s.repo.RestoreTask(ctx, userID, taskID)
 }
 
+func (s *TaskService) Rename(ctx context.Context, userID uuid.UUID, rawID, title string) (domain.Task, error) {
+	taskID, err := uuid.Parse(rawID)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("invalid task id: %w", err)
+	}
+
+	trimmedTitle := strings.TrimSpace(title)
+	if trimmedTitle == "" {
+		return domain.Task{}, fmt.Errorf("标题不能为空")
+	}
+
+	return s.repo.RenameTask(ctx, userID, taskID, trimmedTitle)
+}
+
 func (s *TaskService) Postpone(ctx context.Context, userID uuid.UUID, rawID, targetDate string) error {
 	taskID, err := uuid.Parse(rawID)
 	if err != nil {

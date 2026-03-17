@@ -1,4 +1,4 @@
-const CACHE_NAME = "todo-pwa-v4";
+const CACHE_NAME = "todo-pwa-v7";
 const OFFLINE_URL = "/static/pwa/offline.html";
 const STATIC_ASSETS = [
   "/static/styles.css",

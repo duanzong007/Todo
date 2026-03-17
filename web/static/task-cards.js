@@ -1,6 +1,7 @@
 const EXIT_ANIMATION_MS = 320;
 const MOVE_ANIMATION_MS = 320;
 const ENTER_ANIMATION_MS = 320;
+const TITLE_SYNC_ANIMATION_MS = 220;
 const EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
 const TODO_CLIENT_ID = (() => {
   if (window.todoClientID) {
@@ -133,6 +134,43 @@ function actionTargetFor(form) {
     return form.closest(".archive-card");
   }
   return form.closest("[data-task-card]");
+}
+
+function cardTitleElement(card) {
+  return card?.querySelector(".task-body h3") || null;
+}
+
+function cardTitleSlot(card) {
+  return card?.querySelector(".task-body h3, .task-body [data-rename-form]") || null;
+}
+
+function replaceCardTitle(card, title) {
+  const current = cardTitleSlot(card);
+  if (!current) {
+    return;
+  }
+  const nextHeading = document.createElement("h3");
+  nextHeading.textContent = title;
+  current.replaceWith(nextHeading);
+}
+
+function animateSyncedTitle(card) {
+  const heading = cardTitleElement(card);
+  if (!heading) {
+    return;
+  }
+
+  if (heading._syncTitleTimer) {
+    window.clearTimeout(heading._syncTitleTimer);
+  }
+
+  heading.classList.remove("is-sync-updated");
+  void heading.offsetWidth;
+  heading.classList.add("is-sync-updated");
+  heading._syncTitleTimer = window.setTimeout(() => {
+    heading.classList.remove("is-sync-updated");
+    heading._syncTitleTimer = 0;
+  }, TITLE_SYNC_ANIMATION_MS);
 }
 
 function taskIDForForm(form) {
@@ -764,20 +802,31 @@ function reconcileList(container, nextCards, options) {
   }
 }
 
-function updateFocusTaskElement(element, card) {
+function updateFocusTaskElement(element, card, options = {}) {
+  const { animateTitle = false } = options;
+  const previousTitle = extractCardText(element, ".task-body h3");
   const fresh = createElementFromHTML(buildFocusTaskCardHTML(card));
   element.replaceChildren(...fresh.childNodes);
   Array.from(fresh.attributes).forEach((attribute) => {
     element.setAttribute(attribute.name, attribute.value);
   });
+  delete element.dataset.renameBound;
+  if (animateTitle && previousTitle && previousTitle !== card.title) {
+    animateSyncedTitle(element);
+  }
 }
 
-function updateCompletedTaskElement(element, card) {
+function updateCompletedTaskElement(element, card, options = {}) {
+  const { animateTitle = false } = options;
+  const previousTitle = extractCardText(element, ".task-body h3");
   const fresh = createElementFromHTML(buildCompletedTaskCardHTML(card));
   element.replaceChildren(...fresh.childNodes);
   Array.from(fresh.attributes).forEach((attribute) => {
     element.setAttribute(attribute.name, attribute.value);
   });
+  if (animateTitle && previousTitle && previousTitle !== card.title) {
+    animateSyncedTitle(element);
+  }
 }
 
 function ensureFocusList(panel) {
@@ -1031,11 +1080,29 @@ function applyTaskSnapshotQuietly(snapshot) {
       setFocusEmpty(panel, snapshot);
     } else {
       const list = ensureFocusList(panel);
-      const nextCards = snapshot.focus_tasks
-        .map((card) => createElementFromHTML(buildFocusTaskCardHTML(card)))
-        .filter(Boolean);
-      list.replaceChildren(...nextCards);
-      initializeTaskCards(list);
+      const currentCards = Array.from(list.querySelectorAll("[data-task-card]"));
+      const sameShape =
+        currentCards.length === snapshot.focus_tasks.length &&
+        currentCards.every((element, index) => element.getAttribute("data-task-id") === snapshot.focus_tasks[index]?.id);
+
+      if (sameShape) {
+        snapshot.focus_tasks.forEach((card, index) => {
+          const currentCard = currentCards[index];
+          if (!currentCard || currentCard.classList.contains("is-renaming") || currentCard.classList.contains("is-title-saving")) {
+            return;
+          }
+          updateFocusTaskElement(currentCard, card, {
+            animateTitle: true,
+          });
+        });
+        initializeTaskCards(list);
+      } else {
+        const nextCards = snapshot.focus_tasks
+          .map((card) => createElementFromHTML(buildFocusTaskCardHTML(card)))
+          .filter(Boolean);
+        list.replaceChildren(...nextCards);
+        initializeTaskCards(list);
+      }
     }
   }
 
@@ -1054,11 +1121,29 @@ function applyTaskSnapshotQuietly(snapshot) {
     } else {
       section.classList.remove("is-empty");
       const list = ensureArchiveList(section);
-      const nextCards = snapshot.completed_tasks
-        .map((card) => createElementFromHTML(buildCompletedTaskCardHTML(card)))
-        .filter(Boolean);
-      list.replaceChildren(...nextCards);
-      initializeTaskCards(list);
+      const currentCards = Array.from(list.querySelectorAll(".archive-card"));
+      const sameShape =
+        currentCards.length === snapshot.completed_tasks.length &&
+        currentCards.every((element, index) => element.getAttribute("data-task-id") === snapshot.completed_tasks[index]?.id);
+
+      if (sameShape) {
+        snapshot.completed_tasks.forEach((card, index) => {
+          const currentCard = currentCards[index];
+          if (!currentCard) {
+            return;
+          }
+          updateCompletedTaskElement(currentCard, card, {
+            animateTitle: true,
+          });
+        });
+        initializeTaskCards(list);
+      } else {
+        const nextCards = snapshot.completed_tasks
+          .map((card) => createElementFromHTML(buildCompletedTaskCardHTML(card)))
+          .filter(Boolean);
+        list.replaceChildren(...nextCards);
+        initializeTaskCards(list);
+      }
     }
   }
 
@@ -1338,6 +1423,213 @@ function bindAsyncTaskForm(form) {
   });
 }
 
+function finishInlineRename(card, title) {
+  card.classList.remove("is-renaming", "is-title-saving");
+  replaceCardTitle(card, title);
+}
+
+function cancelInlineRename(card, originalTitle) {
+  finishInlineRename(card, originalTitle);
+}
+
+async function submitInlineRename(form) {
+  const card = form.closest("[data-task-card]");
+  if (!card || form.dataset.submitting === "1") {
+    return;
+  }
+
+  const input = form.querySelector("input[name='title']");
+  const originalTitle = form.dataset.originalTitle || "";
+  const nextTitle = input?.value?.trim() || "";
+  if (!nextTitle) {
+    cancelInlineRename(card, originalTitle);
+    return;
+  }
+  if (nextTitle === originalTitle) {
+    cancelInlineRename(card, originalTitle);
+    return;
+  }
+
+  form.dataset.submitting = "1";
+  const formData = new FormData(form);
+  if (input) {
+    input.disabled = true;
+  }
+
+  card.classList.add("is-title-saving");
+  finishInlineRename(card, nextTitle);
+  beginPendingTaskRequest({
+    needsResync: false,
+  });
+
+  try {
+    const response = await fetch(form.action, {
+      method: "POST",
+      body: formData,
+      headers: {
+        "X-Requested-With": "fetch",
+        "X-Todo-Client-ID": TODO_CLIENT_ID,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("rename request failed");
+    }
+  } catch (_error) {
+    cancelInlineRename(card, originalTitle);
+  } finally {
+    card.classList.remove("is-title-saving");
+    form.dataset.submitting = "0";
+    if (input && input.isConnected) {
+      input.disabled = false;
+    }
+    await endPendingTaskRequest();
+  }
+}
+
+function startInlineRename(card) {
+  if (!card || card.classList.contains("is-renaming") || card.classList.contains("is-title-saving")) {
+    return;
+  }
+
+  const heading = cardTitleElement(card);
+  if (!heading) {
+    return;
+  }
+
+  const originalTitle = heading.textContent?.trim() || "";
+  const taskID = card.getAttribute("data-task-id") || "";
+  if (!taskID || !originalTitle) {
+    return;
+  }
+
+  card.classList.add("is-renaming");
+
+  const form = document.createElement("form");
+  form.className = "task-title-edit-form";
+  form.setAttribute("action", `/tasks/${taskID}/rename`);
+  form.setAttribute("method", "post");
+  form.setAttribute("data-rename-form", "");
+  form.dataset.originalTitle = originalTitle;
+
+  const returnDate = document.createElement("input");
+  returnDate.type = "hidden";
+  returnDate.name = "return_date";
+  returnDate.value = currentFocusDateValue();
+
+  const titleInput = document.createElement("input");
+  titleInput.type = "text";
+  titleInput.name = "title";
+  titleInput.className = "task-title-edit-input";
+  titleInput.value = originalTitle;
+  titleInput.autocomplete = "off";
+  titleInput.spellcheck = false;
+  titleInput.maxLength = 200;
+
+  form.append(returnDate, titleInput);
+  heading.replaceWith(form);
+
+  let closed = false;
+  let outsidePointerCleanup = () => {};
+  let blurCleanup = () => {};
+
+  const closeEditor = (action) => {
+    if (closed) {
+      return;
+    }
+    closed = true;
+    outsidePointerCleanup();
+    blurCleanup();
+    action();
+  };
+
+  titleInput.focus();
+  titleInput.select();
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitInlineRename(form);
+  });
+
+  titleInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      closeEditor(() => {
+        void submitInlineRename(form);
+      });
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeEditor(() => {
+        cancelInlineRename(card, originalTitle);
+      });
+    }
+  });
+
+  const handleBlur = () => {
+    if (form.dataset.submitting === "1") {
+      return;
+    }
+    closeEditor(() => {
+      void submitInlineRename(form);
+    });
+  };
+
+  titleInput.addEventListener("blur", handleBlur);
+  blurCleanup = () => {
+    titleInput.removeEventListener("blur", handleBlur);
+  };
+
+  const handleOutsidePointer = (event) => {
+    if (!form.isConnected || form.dataset.submitting === "1") {
+      return;
+    }
+    if (form.contains(event.target)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    closeEditor(() => {
+      void submitInlineRename(form);
+    });
+  };
+
+  document.addEventListener("pointerdown", handleOutsidePointer, true);
+  outsidePointerCleanup = () => {
+    document.removeEventListener("pointerdown", handleOutsidePointer, true);
+  };
+}
+
+function bindInlineRename(card) {
+  if (!card || card.dataset.renameBound === "1") {
+    return;
+  }
+  card.dataset.renameBound = "1";
+
+  const label = card.querySelector(".task-kind");
+  if (!label) {
+    return;
+  }
+
+  label.classList.add("is-title-edit-trigger");
+  label.setAttribute("title", "双击修改标题");
+  label.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+  });
+  label.addEventListener("selectstart", (event) => {
+    event.preventDefault();
+  });
+  label.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    startInlineRename(card);
+  });
+}
+
 function initializeTaskCards(root = document) {
   if (window.initializePostponePickers) {
     window.initializePostponePickers(root);
@@ -1345,6 +1637,9 @@ function initializeTaskCards(root = document) {
   updatePendingCounterState();
   root.querySelectorAll("[data-async-task-form], [data-async-focus-form]").forEach((form) => {
     bindAsyncTaskForm(form);
+  });
+  root.querySelectorAll("[data-task-card]").forEach((card) => {
+    bindInlineRename(card);
   });
 }
 

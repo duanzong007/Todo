@@ -201,6 +201,7 @@ func (h *Handler) Router() http.Handler {
 		r.Post("/tasks", h.handleCreateTask)
 		r.Post("/tasks/manual", h.handleCreateManualTask)
 		r.Post("/tasks/parse-sms", h.handleParseSMS)
+		r.Post("/tasks/{taskID}/rename", h.handleRenameTask)
 		r.Post("/tasks/{taskID}/complete", h.handleCompleteTask)
 		r.Post("/tasks/{taskID}/restore", h.handleRestoreTask)
 		r.Post("/tasks/{taskID}/postpone", h.handlePostponeTask)
@@ -468,6 +469,47 @@ func (h *Handler) handleParseSMS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.taskService.CreateFromSMSParse(r.Context(), user.ID, input); err != nil {
+		if wantsAsyncResponse(r) {
+			http.Error(w, humanizeError(err), http.StatusBadRequest)
+			return
+		}
+		h.redirectHome(w, r, "", humanizeError(err))
+		return
+	}
+
+	h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
+
+	if wantsAsyncResponse(r) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	h.redirectHome(w, r, "", "")
+}
+
+func (h *Handler) handleRenameTask(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+	if err := h.parseRequestForm(r); err != nil {
+		h.redirectHome(w, r, "", "请求解析失败")
+		return
+	}
+
+	taskID := chi.URLParam(r, "taskID")
+	title := strings.TrimSpace(r.FormValue("title"))
+	if title == "" {
+		if wantsAsyncResponse(r) {
+			http.Error(w, "标题不能为空", http.StatusBadRequest)
+			return
+		}
+		h.redirectHome(w, r, "", "标题不能为空")
+		return
+	}
+
+	if _, err := h.taskService.Rename(r.Context(), user.ID, taskID, title); err != nil {
 		if wantsAsyncResponse(r) {
 			http.Error(w, humanizeError(err), http.StatusBadRequest)
 			return

@@ -856,6 +856,57 @@ button.danger:hover {
     line-height: 1.28;
 }
 
+.task-body h3.is-sync-updated {
+    animation: task-title-sync 220ms ease;
+}
+
+@keyframes task-title-sync {
+    0% {
+        opacity: 0.58;
+        transform: translateY(3px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.task-title-edit-form {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: calc(1.08rem * 1.28);
+    margin: 0;
+}
+
+.task-title-edit-input {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: calc(1.08rem * 1.28);
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    outline: none;
+    background: transparent;
+    box-shadow: inset 0 -1px 0 rgba(197, 109, 58, 0.18);
+    color: #2f2720;
+    font-size: 1.08rem;
+    font-weight: 600;
+    line-height: 1.28;
+}
+
+.task-title-edit-input:focus {
+    box-shadow:
+        inset 0 -1px 0 rgba(197, 109, 58, 0.34),
+        0 1px 0 rgba(197, 109, 58, 0.1);
+}
+
 .task-kind {
     display: inline-flex;
     align-items: center;
@@ -868,6 +919,13 @@ button.danger:hover {
     font-weight: 600;
     letter-spacing: 0.02em;
     white-space: nowrap;
+}
+
+.focus-card .task-kind.is-title-edit-trigger {
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
 
 .task-kind-schedule {
@@ -892,6 +950,11 @@ button.danger:hover {
     justify-content: flex-end;
     flex: 0 0 auto;
     flex-wrap: nowrap;
+}
+
+.focus-card.is-title-saving .task-title-edit-input,
+.focus-card.is-title-saving .task-body h3 {
+    opacity: 0.82;
 }
 
 .inline-postpone {
