@@ -1,6 +1,15 @@
-const CACHE_NAME = "todo-pwa-v3";
+const CACHE_NAME = "todo-pwa-v4";
 const OFFLINE_URL = "/static/pwa/offline.html";
 const STATIC_ASSETS = [
+  "/static/styles.css",
+  "/static/date-picker.js",
+  "/static/focus-page.js",
+  "/static/task-cards.js",
+  "/static/realtime-sync.js",
+  "/static/postpone-picker.js",
+  "/static/composer-panel.js",
+  "/static/pwa-register.js",
+  "/manifest.webmanifest",
   "/static/pwa/favicon-64.png",
   "/static/pwa/favicon-32.png",
   "/static/pwa/favicon-16.png",
@@ -20,15 +29,31 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      )
-    ).then(() => self.clients.claim())
+    Promise.all([
+      caches.keys().then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key !== CACHE_NAME)
+            .map((key) => caches.delete(key))
+        )
+      ),
+      self.registration.navigationPreload
+        ? self.registration.navigationPreload.enable().catch(() => {})
+        : Promise.resolve(),
+    ]).then(() => self.clients.claim())
   );
 });
+
+async function fetchAndCache(request, preloadResponsePromise) {
+  const networkResponse = (await preloadResponsePromise) || (await fetch(request));
+  if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== "basic") {
+    return networkResponse;
+  }
+
+  const responseClone = networkResponse.clone();
+  caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+  return networkResponse;
+}
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -48,7 +73,16 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() => caches.match(OFFLINE_URL))
+      caches.match(request).then((cachedResponse) => {
+        const networkResponse = fetchAndCache(request, event.preloadResponse).catch(() => null);
+
+        if (cachedResponse) {
+          event.waitUntil(networkResponse);
+          return cachedResponse;
+        }
+
+        return networkResponse.then((response) => response || caches.match(OFFLINE_URL));
+      })
     );
     return;
   }
@@ -64,16 +98,15 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    fetch(request)
-      .then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== "basic") {
-          return networkResponse;
-        }
+    caches.match(request).then((cachedResponse) => {
+      const networkResponse = fetchAndCache(request).catch(() => null);
 
-        const responseClone = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
-        return networkResponse;
-      })
-      .catch(() => caches.match(request))
+      if (cachedResponse) {
+        event.waitUntil(networkResponse);
+        return cachedResponse;
+      }
+
+      return networkResponse.then((response) => response || caches.match(request));
+    })
   );
 });
