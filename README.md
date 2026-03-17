@@ -1,98 +1,196 @@
-# Todo MVP
+# Todo
 
-基于 Go + PostgreSQL 的极简任务提醒系统 MVP。
+基于 Go + PostgreSQL 的单日聚焦任务系统。
 
-当前版本已升级为多用户 Web 使用场景，围绕三类核心任务实现：
+这套项目现在已经不是最早的演示型 MVP，而是一版可实际使用的 Web 应用，重点是：
 
-- `todo`：长期待办，一直显示，手动完成后消失
-- `schedule`：某天发生的日程，只在当天显示，到天自动消失
-- `ddl`：有截止日期的任务，每天显示，直到手动完成
+- 多用户
+- PostgreSQL 完整约束和迁移
+- 单日视图
+- `todo / schedule / ddl` 三类任务
+- 管理员审批注册
+- PWA 安装
+- 前台 SSE 实时同步
+
+## 当前定位
+
+这个系统追求的是“低干扰”。
+
+首页默认只看某一天真正需要出现的任务，不做复杂的多栏工作台。  
+日常使用的主路径是：
+
+1. 打开当天页面
+2. 只处理今天需要出现的任务
+3. 完成、撤销、延期
+4. 用简化输入面板继续新增
+
+## 核心模型
+
+系统里有三种任务：
+
+- `todo`
+  - 普通待办
+  - 没有固定出现日期
+  - 会一直显示，直到完成
+- `schedule`
+  - 某天发生的日程
+  - 只在对应那一天显示
+  - 支持单次和批量创建
+- `ddl`
+  - 有截止时间的任务
+  - 只会在“创建当天到截止当天”之间显示
+  - 在截止当天按小时 / 分钟倒计时
+
+每条任务都有 `1-5` 的重要等级。  
+当前排序规则是：
+
+- 先按重要等级排序
+- 再按时间紧迫度排序
+- 如果 DDL 已进入“当天按小时/分钟倒计时”的阶段，会优先顶到最前
 
 ## 已实现能力
 
-- 统一输入框录入任务
+### 账户与权限
+
 - 多用户注册 / 登录 / 登出
-- 新用户注册后需由 admin 审批，审批通过后才能登录
-- 基于 Cookie 的会话管理
-- 每个用户仅能访问自己的任务和导入数据
-- 中文文本规则解析
-- 快递短信解析为持久 Todo
-- ICS 文件导入为 Schedule
-- PWA 安装支持，可在 Chrome 中安装为应用
-- DDL / Todo 完成
-- DDL / Schedule 延期
-- Web Dashboard 展示 `今天 / DDL / Todo`
-- PostgreSQL 迁移、约束、索引、事件日志
+- 首个注册账号自动成为 admin
+- 后续注册账号必须由 admin 审批后才能登录
+- admin 可批准或直接拒绝并删除待审批账号
+- 基于 HttpOnly Cookie 的会话
+
+### 任务与交互
+
+- 单日聚焦视图
+- `昨天 / 今天 / 明天 / 后天` 快速切换
+- 自定义滚轮式日期选择器
+- 完成、撤销、延期
+- `更多` 抽屉查看当前视图日期下的已完成任务
+- 已完成列表只显示“这一天完成的任务”
+- 金句空状态
+
+### 输入方式
+
+- `Todo / 日程 / DDL` 显式创建
+- 星级重要度录入
+- `schedule` 支持：
+  - 单次创建
+  - 批量创建
+  - 批量模式下按起始日期、截止日期、周一到周日展开
+- `ddl` 支持精确到分钟
+- `短信` 独立大输入框
+- `ICS` 文件导入
+
+### 解析与导入
+
+- 中文日期基础解析
+- 快递短信批量解析为 `todo`
+- ICS 导入为 `schedule`
+- ICS 只保留 `SUMMARY` 作为标题
+
+### 实时与安装
+
+- PWA，可在 Chrome 中安装为应用
+- 前台 SSE 实时同步
+- 手机或桌面切回前台时会自动补同步
+
+## 技术栈
+
+- 后端：Go
+- 路由：`chi`
+- 数据库：PostgreSQL
+- 前端：服务端模板 + 原生 JS + CSS
+- 实时同步：SSE
+- PWA：`manifest + service worker + icons`
 
 ## 项目结构
 
 ```text
 cmd/server            HTTP 启动入口
 db/migrations         PostgreSQL schema 迁移
+deploy/synology       群晖部署文件
 internal/config       配置加载
 internal/database     迁移执行器
 internal/domain       核心领域模型
 internal/repository   数据访问层
-internal/service      解析、导入、业务服务
-internal/web          Web 处理器
+internal/service      业务逻辑、解析、导入
+internal/web          HTTP handler、模板数据、SSE
+scripts               辅助脚本
 web/templates         HTML 模板
-web/static            CSS
+web/static            CSS / JS / PWA 资源
 ```
 
 ## 数据库设计
 
 核心表：
 
-- `ingestion_sources`
-  - 记录所属用户
-  - 记录输入来源，支持 `manual_text / sms_paste / ics_import`
-  - 保存原始内容、摘要、校验和、扩展 metadata
 - `app_users`
-  - 存储用户账号、显示名、密码哈希、角色、审批状态
+  - 用户账号
+  - 显示名
+  - 角色
+  - 审批状态
 - `user_sessions`
-  - 存储登录会话、到期时间、最后活跃时间
+  - 登录会话
+  - 过期时间
+  - 最近活跃时间
+- `ingestion_sources`
+  - 输入来源
+  - 原始文本 / ICS
+  - 校验和
+  - metadata
 - `tasks`
-  - 所有任务归属到具体用户
   - 统一任务主表
-  - 通过约束保证三类任务与日期字段的组合合法
-  - `metadata JSONB` 用于承载解析结果、ICS 字段、后续扩展
+  - 三类任务共用
+  - `importance`
+  - `scheduled_for / deadline / completed_at`
 - `task_events`
-  - 记录创建、导入、完成、延期等事件
-  - 方便后续做审计、统计、回放
+  - 创建
+  - 导入
+  - 完成
+  - 恢复
+  - 延期
 
-已补齐：
+数据库层当前已做的事情：
 
-- PostgreSQL enum
+- 枚举类型
 - 任务类型约束
-- 状态与完成时间一致性约束
-- `schedule` 不能被标记为完成，`todo` 不能被延期
-- 任务 `source_id + user_id` 复合外键，保证任务和输入来源归属同一用户
-- 在历史数据已回填完成时，将 `tasks.user_id / ingestion_sources.user_id` 提升为真正的 `NOT NULL`
-- `metadata / payload` 强制为 JSON object
-- 用户名格式、显示名长度、会话有效期等数据库级校验
-- 首个账号自动成为已审批 admin，后续账号默认进入待审批队列
-- GIN 元数据索引
-- 活跃任务的部分索引
-- 用户维度的活跃任务索引
-- 用户维度的 ICS `uid + scheduled_for` 去重索引
-- 用户维度的来源校验和索引、任务来源索引、事件时间索引
-- `updated_at` 触发器
+- 完成状态一致性约束
+- `importance` 取值约束 `1-5`
+- `source_id + user_id` 复合归属约束
+- `metadata / payload` 强制 JSON object
+- 用户名、显示名、会话边界约束
+- 用户维度索引
+- 活跃任务索引
+- ICS 去重索引
+- 事件时间索引
+- `updated_at` 自动更新时间
+
+数据库是这个项目里约束最完整的一层，当前设计目标就是“先把 PG 做稳，再逐步打磨交互”。
 
 ## 本地运行
 
 ### 方式一：直接运行
 
-1. 启动 PostgreSQL。
-2. 配置环境变量，参考 `.env.example`。
-3. 运行：
+1. 启动 PostgreSQL
+2. 复制并修改环境变量
+
+```bash
+cp .env.example .env
+```
+
+3. 启动服务
 
 ```bash
 go run ./cmd/server
 ```
 
-访问：`http://localhost:8080`
+访问：
 
-首次使用时，先访问 `http://localhost:8080/register` 注册首个账号。首个账号会自动成为 admin 并立即可用；后续注册账号需要由 admin 在 `/admin/users` 审批后才能登录。
+- `http://localhost:8080`
+
+首次使用时：
+
+- 访问 `http://localhost:8080/register`
+- 首个账号会自动成为 admin
 
 ### 方式二：Docker Compose
 
@@ -100,93 +198,203 @@ go run ./cmd/server
 docker compose up --build
 ```
 
-访问：`http://localhost:8080`
+访问：
 
-## 群晖部署
+- `http://localhost:8080`
 
-如果你要从 macOS 导出给群晖 `x86_64` 使用，直接看：
+## 环境变量
 
-- [deploy/synology/README.md](/Users/adg/Documents/code/Todo/deploy/synology/README.md)
+最常用的是下面这些：
 
-里面已经包含：
+| 变量 | 说明 | 默认值 |
+| --- | --- | --- |
+| `APP_ADDR` | HTTP 监听地址 | `:8080` |
+| `APP_TIMEZONE` | 应用时区 | `Asia/Shanghai` |
+| `AUTO_MIGRATE` | 启动时自动跑迁移 | `true` |
+| `MIGRATIONS_DIR` | 迁移目录 | `db/migrations` |
+| `ICS_IMPORT_HORIZON_DAYS` | ICS 向未来展开的天数 | `180` |
+| `MAX_UPLOAD_SIZE_BYTES` | 上传大小限制 | `4194304` |
+| `DATABASE_URL` | 主数据库连接串 | `postgres://todo:todo@localhost:5432/todo?sslmode=disable` |
+| `QUOTES_DATABASE_URL` | 金句数据库连接串，可留空 | 空 |
+| `SESSION_COOKIE_NAME` | Cookie 名称 | `todo_session` |
+| `SESSION_TTL_HOURS` | 会话有效时长 | `720` |
+| `SESSION_SECURE_COOKIE` | HTTPS 下建议设为 `true` | `false` |
+| `ALLOW_REGISTRATION` | 是否允许注册 | `true` |
 
-- 强制导出 `linux/amd64` 镜像的脚本
-- 群晖可导入的镜像 tar
-- 带数据库 / 外部数据库 两套 compose
-- 逐步命令说明
+## 输入与解析说明
 
-## 文本解析规则
+### 手动创建
 
-当前 MVP 已支持的典型输入：
+当前主要推荐显式创建，而不是依赖自然语言“猜”。
 
-- `买电池` -> `todo`
-- `明天上课` -> `schedule`
-- `下午签到` -> `schedule`
-- `周五交作业` -> `ddl`
-- `【菜鸟驿站】取件码 384923` -> `todo`
+- `Todo`
+  - 标题
+  - 星级
+- `日程`
+  - 标题
+  - 星级
+  - 单次 / 批量
+- `DDL`
+  - 标题
+  - 星级
+  - 日期时间
 
-支持的日期表达以常见中文场景为主：
+### 日程批量创建
 
-- `今天 / 明天 / 后天`
-- `周一 ... 周日`
-- `本周X / 下周X`
-- `3月20号 / 2026-03-20 / 2026/03/20`
+`schedule` 的批量模式支持：
 
-## 多用户认证
+- 起始日期
+- 截止日期
+- 周一到周日选择
 
-当前默认开启注册，相关环境变量：
+规则是“包含起始日期和截止日期”。
 
-- `SESSION_COOKIE_NAME`
-- `SESSION_TTL_HOURS`
-- `SESSION_SECURE_COOKIE`
-- `ALLOW_REGISTRATION`
+### 短信解析
 
-认证方式：
+短信入口是独立大输入框。  
+当前重点支持快递取件短信，解析结果全部写成 `todo`，默认 `2 星`。
 
-- 注册：`/register`
-- 登录：`/login`
-- 登出：`POST /logout`
-- 用户审批：`GET /admin/users`、`POST /admin/users/{id}/approve`、`POST /admin/users/{id}/reject`
-- 会话：HttpOnly Cookie + 数据库存储的哈希 token
+例如会提取成：
 
-旧版单用户模式遗留的无归属数据，会在首个注册账号创建时自动归属给该账号。
+- `驿站：140-1-3005`
+- `9号柜 466412`
+- `5号柜 055151`
 
-## ICS 导入说明
+支持一次性粘贴很多条短信，就算中间没有空行，也会按 `【...】` 头识别。
 
-MVP 版支持：
+### ICS 导入
 
-- 单次事件
-- `FREQ=DAILY`
-- `FREQ=WEEKLY`
-- `FREQ=MONTHLY`
-- 常见 `BYDAY / COUNT / UNTIL / EXDATE`
+ICS 导入结果全部按 `schedule` 处理。
 
-导入时会按 `ICS_IMPORT_HORIZON_DAYS` 预展开未来日程，并以 `ics_uid + scheduled_for` 去重。
+当前策略：
 
-## 验证
+- 使用 `SUMMARY` 作为标题
+- 不保留多余备注
+- 支持常见周期展开
+- 按 `uid + 日期` 去重
 
-已完成：
+## 视图规则
 
-- `go test ./...`
+### 单日视图
+
+首页只显示当前查看日期需要出现的任务。
+
+### DDL 显示规则
+
+DDL 当前是按“查看日期”计算的，不是死盯真实今天。
+
+规则包括：
+
+- 创建前不显示
+- 创建当天开始显示
+- 截止当天仍显示
+- 截止后不再显示
+- 如果查看的就是截止当天：
+  - 当天且是现实今天，显示小时 / 分钟倒计时
+  - 当天但不是现实今天，显示“今天”
+
+### 已完成
+
+“更多”里的已完成列表是“当前查看日期完成的任务”，不是全局历史完成记录。
+
+## 实时同步
+
+当前实时同步只针对“前台打开的页面 / PWA”。
+
+实现方式：
+
+- 后端通过 SSE 向当前用户广播任务变更
+- 前端静默拉取最新 snapshot
+- 不整页重载
+- 页面切回前台时会补同步
+
+说明：
+
+- 前台打开时，可以接近秒同步
+- 退到后台后，系统可能会挂起连接
+- 后台再切回前台，会自动补一次同步
 
 ## PWA
 
-当前已接入浏览器可识别的 PWA 资源：
+当前已经具备：
 
 - `manifest.webmanifest`
 - `service worker`
-- `apple-touch-icon / 192 / 512 / maskable` 图标
+- `favicon / apple-touch-icon / 192 / 512 / maskable` 图标
+- Chrome 安装为 app
 
-如果你替换了根目录的 `logo.png`，可以重新生成图标：
+如果你替换了根目录的 `logo.png`，重新生成图标：
 
 ```bash
 ./scripts/generate_pwa_assets.sh
 ```
 
-## 下一步建议
+### PWA 更新说明
 
-- 增加 JSON API，给 CLI / Bot / App 复用
-- 增加后台定时任务，处理导入刷新和旧日程归档
-- 引入更完整的自然语言日期解析
-- 增加任务详情、批量操作、筛选能力
-- 增加管理员能力、邮箱验证、密码重置
+如果你更新了前端资源或 service worker，已经安装过的 PWA 可能还在使用旧缓存。  
+最稳的做法是：
+
+1. 彻底关闭已安装的 PWA
+2. 重新打开一次
+3. 如仍异常，清站点数据或重新安装
+
+## 群晖部署
+
+如果你要从 macOS 导出给群晖 `x86_64 / amd64` 使用，直接看：
+
+- `deploy/synology/README.md`
+
+已经准备好的内容包括：
+
+- 强制导出 `linux/amd64` 的镜像脚本
+- 可直接导入群晖的镜像 tar
+- 群晖内置 PostgreSQL 方案
+- 外部 PostgreSQL 方案
+- 环境变量模板
+
+如果你只是让群晖跑应用、数据库仍用外部 PG，那么通常只需要导入：
+
+- `dist/synology-amd64/todo-app-synology-amd64.tar`
+
+注意：镜像里已经包含应用、模板、静态资源、PWA 资源和迁移文件；数据库数据和环境变量不在镜像里。
+
+## 验证
+
+当前常用检查：
+
+```bash
+go test ./...
+```
+
+前端脚本也建议在改动后检查：
+
+```bash
+node --check web/static/task-cards.js
+node --check web/static/focus-page.js
+node --check web/static/composer-panel.js
+node --check web/static/realtime-sync.js
+node --check web/static/sw.js
+```
+
+## 当前限制
+
+当前这版已经可用，但仍然有几个明确边界：
+
+- 手机端交互不是主战场，桌面端更成熟
+- 自然语言解析只做基础支持，不追求“像 AI 一样理解”
+- 后台推送目前只做到“切回前台补同步”，没有系统级 push
+- 前端交互经过大量细调，后续仍可能继续收敛
+
+## 后续方向
+
+如果继续往下做，比较自然的顺序是：
+
+- 继续优化移动端模式
+- 给短信 / ICS 做更明确的反馈和导入结果页
+- 增加 JSON API
+- 做更完整的管理员能力
+- 做真正的后台推送或通知
+
+## License
+
+MIT，见 `LICENSE`。
