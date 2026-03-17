@@ -2,6 +2,7 @@ const EXIT_ANIMATION_MS = 320;
 const MOVE_ANIMATION_MS = 320;
 const ENTER_ANIMATION_MS = 320;
 const TITLE_SYNC_ANIMATION_MS = 220;
+const TOUCH_RENAME_DOUBLE_TAP_MS = 320;
 const EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
 const TODO_CLIENT_ID = (() => {
   if (window.todoClientID) {
@@ -1698,6 +1699,31 @@ function bindInlineRename(card) {
   label.addEventListener("dblclick", (event) => {
     event.preventDefault();
     startInlineRename(card);
+  });
+  label.addEventListener("pointerup", (event) => {
+    const isTouchLike = event.pointerType === "touch" || window.matchMedia("(pointer: coarse)").matches;
+    if (!isTouchLike) {
+      return;
+    }
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    const now = Date.now();
+    const lastTapAt = Number(label.dataset.lastTapAt || "0");
+    if (lastTapAt && now-lastTapAt <= TOUCH_RENAME_DOUBLE_TAP_MS) {
+      label.dataset.lastTapAt = "0";
+      startInlineRename(card);
+      return;
+    }
+
+    label.dataset.lastTapAt = String(now);
+    window.setTimeout(() => {
+      if (label.dataset.lastTapAt === String(now)) {
+        label.dataset.lastTapAt = "0";
+      }
+    }, TOUCH_RENAME_DOUBLE_TAP_MS + 40);
   });
 }
 

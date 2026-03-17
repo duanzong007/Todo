@@ -3,7 +3,7 @@
     return;
   }
 
-  const SW_URL = "/sw.js?v=20260317-mobile-fix-5";
+  const SW_URL = "/sw.js?v=20260317-mobile-fix-6";
   let refreshing = false;
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
