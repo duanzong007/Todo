@@ -173,6 +173,71 @@ function animateSyncedTitle(card) {
   }, TITLE_SYNC_ANIMATION_MS);
 }
 
+function applyMobileDDLCompactState(root = document) {
+  const isPhone = window.matchMedia("(max-width: 720px)").matches;
+  root.querySelectorAll("[data-task-card][data-kind-class='ddl']").forEach((card) => {
+    const title = card.querySelector(".task-body h3");
+    const status = card.querySelector(".task-body .status");
+    if (!title || !status || !isPhone) {
+      card.classList.remove("is-mobile-ddl-ready");
+      card.classList.remove("is-mobile-ddl-compact");
+      return;
+    }
+
+    card.classList.add("is-mobile-ddl-ready");
+    card.classList.toggle("is-mobile-ddl-compact", titleLineCount(title) > 1);
+  });
+}
+
+function titleLineCount(element) {
+  if (!element) {
+    return 1;
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0.5 && rect.height > 0.5);
+  if (typeof range.detach === "function") {
+    range.detach();
+  }
+  if (rects.length === 0) {
+    return 1;
+  }
+
+  const lines = [];
+  rects.forEach((rect) => {
+    const existing = lines.find((line) => Math.abs(line.top - rect.top) < 1);
+    if (!existing) {
+      lines.push(rect);
+    }
+  });
+  return Math.max(1, lines.length);
+}
+
+let mobileDDLCompactTicket = 0;
+function scheduleMobileDDLCompactState(root = document) {
+  mobileDDLCompactTicket += 1;
+  const ticket = mobileDDLCompactTicket;
+  const run = () => {
+    if (ticket !== mobileDDLCompactTicket) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      if (ticket !== mobileDDLCompactTicket) {
+        return;
+      }
+      applyMobileDDLCompactState(root);
+    });
+  };
+
+  if (document.fonts && typeof document.fonts.ready?.then === "function") {
+    document.fonts.ready.then(run).catch(run);
+    return;
+  }
+
+  run();
+}
+
 function taskIDForForm(form) {
   return actionTargetFor(form)?.getAttribute("data-task-id") || "";
 }
@@ -438,10 +503,16 @@ function animateMovedElements(container, selector, previousRects) {
 }
 
 function buildFocusTaskCardHTML(card) {
+  const ddlMobileClasses = card.kind_class === "ddl"
+    ? ` is-mobile-ddl-ready${card.mobile_compact ? " is-mobile-ddl-compact" : ""}`
+    : "";
   return `
-    <article class="focus-card" data-task-card data-task-id="${escapeHtml(card.id)}" data-kind-label="${escapeHtml(card.kind_label)}" data-kind-class="${escapeHtml(card.kind_class)}">
+    <article class="focus-card${ddlMobileClasses}" data-task-card data-task-id="${escapeHtml(card.id)}" data-kind-label="${escapeHtml(card.kind_label)}" data-kind-class="${escapeHtml(card.kind_class)}">
       <div class="focus-card-main">
-        <span class="task-kind task-kind-${escapeHtml(card.kind_class)}">${escapeHtml(card.kind_label)}</span>
+        <div class="task-kind-stack">
+          <span class="task-kind task-kind-${escapeHtml(card.kind_class)}">${escapeHtml(card.kind_label)}</span>
+          ${(card.compact_status_line || card.status_line) ? `<span class="task-status-mobile" aria-hidden="true">${escapeHtml(card.compact_status_line || card.status_line)}</span>` : ""}
+        </div>
         <div class="task-body">
           <h3>${escapeHtml(card.title)}</h3>
           ${card.status_line ? `<p class="status">${escapeHtml(card.status_line)}</p>` : ""}
@@ -1641,6 +1712,7 @@ function initializeTaskCards(root = document) {
   root.querySelectorAll("[data-task-card]").forEach((card) => {
     bindInlineRename(card);
   });
+  scheduleMobileDDLCompactState(root);
 }
 
 window.initializeTaskCards = initializeTaskCards;
@@ -1649,3 +1721,6 @@ window.applyTaskSnapshotQuietly = applyTaskSnapshotQuietly;
 window.fetchDashboardSnapshot = fetchDashboardSnapshot;
 window.todoHasPendingTaskRequests = () => pendingTaskRequestCount > 0;
 document.addEventListener("DOMContentLoaded", () => initializeTaskCards(document));
+window.addEventListener("resize", () => {
+  scheduleMobileDDLCompactState(document);
+});

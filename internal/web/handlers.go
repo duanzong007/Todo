@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"todo/internal/domain"
 	"todo/internal/repository"
@@ -118,6 +119,8 @@ type TaskCard struct {
 	KindLabel     string `json:"kind_label"`
 	KindClass     string `json:"kind_class"`
 	StatusLine    string `json:"status_line"`
+	CompactStatus string `json:"compact_status_line"`
+	MobileCompact bool   `json:"mobile_compact"`
 	Note          string `json:"note"`
 	CanComplete   bool   `json:"can_complete"`
 	CanPostpone   bool   `json:"can_postpone"`
@@ -1063,8 +1066,10 @@ func buildTaskCard(task domain.Task, now, focusDate time.Time, location *time.Lo
 	case domain.TaskTypeDDL:
 		card.KindLabel = "DDL"
 		card.KindClass = "ddl"
+		card.MobileCompact = shouldPreferCompactMobileDDL(task.Title)
 		if task.Deadline != nil {
 			card.StatusLine = formatDDLCountdown(*task.Deadline, now, focusDate, location)
+			card.CompactStatus = compactDDLCountdown(card.StatusLine)
 		}
 		card.PostponeMode = "datetime"
 		card.PostponeValue, card.PostponeMin = ddlPostponePickerValues(task, now, location)
@@ -1079,6 +1084,42 @@ func buildTaskCard(task domain.Task, now, focusDate time.Time, location *time.Lo
 	}
 
 	return card
+}
+
+func compactDDLCountdown(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if strings.HasPrefix(trimmed, "还有 ") {
+		return strings.TrimPrefix(trimmed, "还有 ")
+	}
+	return trimmed
+}
+
+func shouldPreferCompactMobileDDL(title string) bool {
+	if strings.TrimSpace(title) == "" {
+		return false
+	}
+
+	var units float64
+	for _, r := range title {
+		switch {
+		case unicode.IsSpace(r):
+			units += 0.32
+		case unicode.Is(unicode.Han, r) || unicode.In(r, unicode.Hiragana, unicode.Katakana, unicode.Hangul):
+			units += 1
+		case unicode.IsDigit(r):
+			units += 0.58
+		case unicode.IsUpper(r):
+			units += 0.68
+		case unicode.IsPunct(r) && r > 127:
+			units += 0.86
+		case unicode.IsLetter(r):
+			units += 0.6
+		default:
+			units += 0.62
+		}
+	}
+
+	return units > 8.3
 }
 
 func sortTasksForFocus(tasks []domain.Task, now, focusDate time.Time, location *time.Location) {
