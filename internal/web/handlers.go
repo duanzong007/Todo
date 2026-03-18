@@ -1289,10 +1289,7 @@ func formatCompletedAt(task domain.Task, location *time.Location) string {
 	}
 
 	completedAt := task.CompletedAt.In(location)
-	if task.Type == domain.TaskTypeDDL {
-		return "完成于 " + completedAt.Format("1月2日 15:04")
-	}
-	return "完成于 " + completedAt.Format("1月2日")
+	return "完成于 " + completedAt.Format("1月2日 15:04")
 }
 
 func schedulePostponePickerValues(task domain.Task, now time.Time, location *time.Location) (string, string) {

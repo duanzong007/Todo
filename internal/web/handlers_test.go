@@ -159,6 +159,35 @@ func TestFormatDDLCountdownUsesFocusDateForNonTodayViews(t *testing.T) {
 	}
 }
 
+func TestFormatCompletedAtAlwaysIncludesTime(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	completedAt := time.Date(2026, 3, 18, 14, 37, 0, 0, location)
+
+	todo := domain.Task{
+		Type:        domain.TaskTypeTodo,
+		CompletedAt: &completedAt,
+	}
+	if got := formatCompletedAt(todo, location); got != "完成于 3月18日 14:37" {
+		t.Fatalf("todo completed line = %q, want %q", got, "完成于 3月18日 14:37")
+	}
+
+	schedule := domain.Task{
+		Type:        domain.TaskTypeSchedule,
+		CompletedAt: &completedAt,
+	}
+	if got := formatCompletedAt(schedule, location); got != "完成于 3月18日 14:37" {
+		t.Fatalf("schedule completed line = %q, want %q", got, "完成于 3月18日 14:37")
+	}
+
+	ddl := domain.Task{
+		Type:        domain.TaskTypeDDL,
+		CompletedAt: &completedAt,
+	}
+	if got := formatCompletedAt(ddl, location); got != "完成于 3月18日 14:37" {
+		t.Fatalf("ddl completed line = %q, want %q", got, "完成于 3月18日 14:37")
+	}
+}
+
 func TestParseManualTaskFormExpandsScheduleBatchInclusively(t *testing.T) {
 	location := time.FixedZone("CST", 8*3600)
 	handler := &Handler{location: location}
