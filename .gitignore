@@ -12,3 +12,4 @@ vendor/
 coverage.out
 *.test
 __debug_bin*
+deploy/synology/code.md

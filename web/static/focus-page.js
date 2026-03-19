@@ -10,6 +10,120 @@ const PAGE_SWAP_IN_MS = 240;
 const PAGE_SWAP_EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
 const USE_PATCH_NAVIGATION = false;
 const DRAWER_TOGGLE_MS = 260;
+const TODAY_REFRESH_GUARD_KEY = "todo-today-view-refresh";
+
+function focusPageRoot() {
+  return document.querySelector("main.focus-page");
+}
+
+function explicitFocusDateFromURL() {
+  const url = new URL(window.location.href);
+  return (url.searchParams.get("date") || "").trim();
+}
+
+function renderedFocusDate() {
+  const root = focusPageRoot();
+  const fromDataset = (root?.dataset.focusDate || "").trim();
+  if (fromDataset) {
+    return fromDataset;
+  }
+
+  const input = document.querySelector(".composer-panel input[name='return_date']");
+  return (input?.value || "").trim();
+}
+
+function appTimeZone() {
+  const root = focusPageRoot();
+  return (root?.dataset.appTimezone || "").trim() || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+function formatDateParts(parts) {
+  const year = parts.find((part) => part.type === "year")?.value || "";
+  const month = parts.find((part) => part.type === "month")?.value || "";
+  const day = parts.find((part) => part.type === "day")?.value || "";
+  if (!year || !month || !day) {
+    return "";
+  }
+  return `${year}-${month}-${day}`;
+}
+
+function todayISOInAppTimeZone() {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: appTimeZone(),
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    if (typeof formatter.formatToParts === "function") {
+      return formatDateParts(formatter.formatToParts(new Date()));
+    }
+    const fallback = formatter.format(new Date());
+    const normalized = fallback.replaceAll("/", "-");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+      return normalized;
+    }
+  } catch (_error) {
+    // Fall through to local date fallback.
+  }
+
+  const now = new Date();
+  const year = String(now.getFullYear());
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function focusDateForSync() {
+  const explicitFocusDate = explicitFocusDateFromURL();
+  if (explicitFocusDate) {
+    return explicitFocusDate;
+  }
+  return todayISOInAppTimeZone();
+}
+
+function resetTodayRefreshGuard() {
+  try {
+    window.sessionStorage.removeItem(TODAY_REFRESH_GUARD_KEY);
+  } catch (_error) {
+    // Ignore session storage failures.
+  }
+}
+
+function shouldRefreshImplicitTodayView() {
+  if (explicitFocusDateFromURL()) {
+    resetTodayRefreshGuard();
+    return false;
+  }
+
+  const rendered = renderedFocusDate();
+  const today = todayISOInAppTimeZone();
+  if (!rendered || rendered === today) {
+    resetTodayRefreshGuard();
+    return false;
+  }
+
+  return true;
+}
+
+function ensureImplicitTodayViewIsFresh() {
+  if (!shouldRefreshImplicitTodayView()) {
+    return false;
+  }
+
+  const today = todayISOInAppTimeZone();
+  try {
+    if (window.sessionStorage.getItem(TODAY_REFRESH_GUARD_KEY) === today) {
+      return false;
+    }
+    window.sessionStorage.setItem(TODAY_REFRESH_GUARD_KEY, today);
+  } catch (_error) {
+    // Ignore session storage failures.
+  }
+
+  window.location.reload();
+  return true;
+}
 
 function captureFocusPageState(root = document) {
   const openDetails = {};
@@ -397,9 +511,29 @@ window.loadFocusPage = loadFocusPage;
 window.reloadFocusPage = reloadFocusPage;
 window.initializeFocusNavigation = initializeFocusNavigation;
 window.captureFocusPageState = captureFocusPageState;
+window.getFocusDateForSync = focusDateForSync;
+window.ensureImplicitTodayViewIsFresh = ensureImplicitTodayViewIsFresh;
 
 document.addEventListener("DOMContentLoaded", () => {
+  if (ensureImplicitTodayViewIsFresh()) {
+    return;
+  }
   hydrateFocusPage(document);
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") {
+    return;
+  }
+  ensureImplicitTodayViewIsFresh();
+});
+
+window.addEventListener("pageshow", () => {
+  ensureImplicitTodayViewIsFresh();
+});
+
+window.addEventListener("focus", () => {
+  ensureImplicitTodayViewIsFresh();
 });
 
 window.addEventListener("popstate", () => {

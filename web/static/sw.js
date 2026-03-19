@@ -1,4 +1,4 @@
-const CACHE_NAME = "todo-pwa-v7";
+const CACHE_NAME = "todo-pwa-v8";
 const OFFLINE_URL = "/static/pwa/offline.html";
 const STATIC_ASSETS = [
   "/static/styles.css",
@@ -50,6 +50,11 @@ async function fetchAndCache(request, preloadResponsePromise) {
     return networkResponse;
   }
 
+  const cacheControl = networkResponse.headers.get("Cache-Control") || "";
+  if (/\bno-store\b/i.test(cacheControl)) {
+    return networkResponse;
+  }
+
   const responseClone = networkResponse.clone();
   caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
   return networkResponse;
@@ -73,16 +78,23 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      caches.match(request).then((cachedResponse) => {
-        const networkResponse = fetchAndCache(request, event.preloadResponse).catch(() => null);
+      (async () => {
+        try {
+          const networkResponse = await fetchAndCache(request, event.preloadResponse);
+          if (networkResponse) {
+            return networkResponse;
+          }
+        } catch (_error) {
+          // Fall through to cache/offline fallback.
+        }
 
+        const cachedResponse = await caches.match(request);
         if (cachedResponse) {
-          event.waitUntil(networkResponse);
           return cachedResponse;
         }
 
-        return networkResponse.then((response) => response || caches.match(OFFLINE_URL));
-      })
+        return caches.match(OFFLINE_URL);
+      })()
     );
     return;
   }

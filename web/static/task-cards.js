@@ -59,9 +59,8 @@ function beginPendingTaskRequest(options = {}) {
 }
 
 function currentFocusDateValue() {
-  const fromComposer = document.querySelector(".composer-panel input[name='return_date']");
-  if (fromComposer?.value) {
-    return fromComposer.value;
+  if (typeof window.getFocusDateForSync === "function") {
+    return window.getFocusDateForSync();
   }
 
   const url = new URL(window.location.href);

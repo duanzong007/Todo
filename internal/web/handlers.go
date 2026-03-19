@@ -61,6 +61,7 @@ type UserView struct {
 type DashboardPageData struct {
 	CurrentUser          *UserView
 	Error                string
+	AppTimeZone          string
 	FocusTitle           string
 	FocusWeekdayLabel    string
 	FocusDayMarks        []string
@@ -367,6 +368,7 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Cache-Control", "no-store")
 	if err := h.renderIndex(w, r, user, focusDate, r.URL.Query().Get("msg"), r.URL.Query().Get("err")); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -699,6 +701,7 @@ func (h *Handler) buildDashboardPageData(ctx context.Context, user domain.User, 
 	pageData := DashboardPageData{
 		CurrentUser:          buildUserView(user),
 		Error:                errorMessage,
+		AppTimeZone:          h.location.String(),
 		FocusTitle:           buildFocusTitle(focusDate, today, h.location),
 		FocusWeekdayLabel:    calendarMeta.WeekdayLabel,
 		FocusDayMarks:        calendarMeta.Tags,

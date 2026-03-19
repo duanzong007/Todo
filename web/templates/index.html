@@ -8,16 +8,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Todo">
-    <link rel="manifest" href="/manifest.webmanifest?v=20260318-focus-reload-3">
-    <link rel="icon" href="/favicon.ico?v=20260318-focus-reload-3" sizes="any">
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/pwa/favicon-32.png?v=20260318-focus-reload-3">
-    <link rel="icon" type="image/png" sizes="16x16" href="/static/pwa/favicon-16.png?v=20260318-focus-reload-3">
-    <link rel="apple-touch-icon" href="/static/pwa/apple-touch-icon.png?v=20260318-focus-reload-3">
-    <link rel="stylesheet" href="/static/styles.css?v=20260318-focus-reload-3">
-    <script defer src="/static/pwa-register.js?v=20260318-focus-reload-3"></script>
+    <link rel="manifest" href="/manifest.webmanifest?v=20260319-pwa-day-rollover-1">
+    <link rel="icon" href="/favicon.ico?v=20260319-pwa-day-rollover-1" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/pwa/favicon-32.png?v=20260319-pwa-day-rollover-1">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/pwa/favicon-16.png?v=20260319-pwa-day-rollover-1">
+    <link rel="apple-touch-icon" href="/static/pwa/apple-touch-icon.png?v=20260319-pwa-day-rollover-1">
+    <link rel="stylesheet" href="/static/styles.css?v=20260319-pwa-day-rollover-1">
+    <script defer src="/static/pwa-register.js?v=20260319-pwa-day-rollover-1"></script>
 </head>
 <body>
-    <main class="focus-page">
+    <main class="focus-page" data-focus-date="{{ .FocusDateISO }}" data-app-timezone="{{ .AppTimeZone }}">
         <section class="focus-hero">
             <a href="/me" class="focus-user-link">{{ .CurrentUser.DisplayName }}</a>
             <button type="button" class="focus-title-reload" data-focus-refresh aria-label="刷新当前日期">
@@ -615,11 +615,11 @@
             </div>
         </details>
     </main>
-    <script src="/static/date-picker.js?v=20260318-focus-reload-3" defer></script>
-    <script src="/static/postpone-picker.js?v=20260318-focus-reload-3" defer></script>
-    <script src="/static/composer-panel.js?v=20260318-focus-reload-3" defer></script>
-    <script src="/static/focus-page.js?v=20260318-focus-reload-3" defer></script>
-    <script src="/static/task-cards.js?v=20260318-focus-reload-3" defer></script>
-    <script src="/static/realtime-sync.js?v=20260318-focus-reload-3" defer></script>
+    <script src="/static/date-picker.js?v=20260319-pwa-day-rollover-1" defer></script>
+    <script src="/static/postpone-picker.js?v=20260319-pwa-day-rollover-1" defer></script>
+    <script src="/static/composer-panel.js?v=20260319-pwa-day-rollover-1" defer></script>
+    <script src="/static/focus-page.js?v=20260319-pwa-day-rollover-1" defer></script>
+    <script src="/static/task-cards.js?v=20260319-pwa-day-rollover-1" defer></script>
+    <script src="/static/realtime-sync.js?v=20260319-pwa-day-rollover-1" defer></script>
 </body>
 </html>

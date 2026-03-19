@@ -30,9 +30,8 @@
   let staleWhileHidden = false;
 
   function currentFocusDate() {
-    const composerDate = document.querySelector(".composer-panel input[name='return_date']");
-    if (composerDate && composerDate.value) {
-      return composerDate.value;
+    if (typeof window.getFocusDateForSync === "function") {
+      return window.getFocusDateForSync();
     }
 
     const url = new URL(window.location.href);
@@ -170,6 +169,10 @@
       return;
     }
 
+    if (typeof window.ensureImplicitTodayViewIsFresh === "function" && window.ensureImplicitTodayViewIsFresh()) {
+      return;
+    }
+
     if (staleWhileHidden) {
       staleWhileHidden = false;
       syncQueued = true;
@@ -178,11 +181,18 @@
   });
 
   window.addEventListener("pageshow", () => {
+    if (typeof window.ensureImplicitTodayViewIsFresh === "function" && window.ensureImplicitTodayViewIsFresh()) {
+      return;
+    }
     syncQueued = true;
     scheduleSync();
   });
 
   window.addEventListener("focus", () => {
+    if (typeof window.ensureImplicitTodayViewIsFresh === "function" && window.ensureImplicitTodayViewIsFresh()) {
+      return;
+    }
+
     if (staleWhileHidden) {
       staleWhileHidden = false;
       syncQueued = true;
