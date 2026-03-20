@@ -14,7 +14,7 @@ import (
 var errEmptyInput = errors.New("input cannot be empty")
 
 var (
-	pickupCodeRegex     = regexp.MustCompile(`(?:凭取件码|取件码|凭)[:：\s]*([A-Za-z0-9-]+)`)
+	pickupCodeRegex     = regexp.MustCompile(`(?:凭取件码|取件码|凭)[:：\s]*(?:为|是)?[:：\s]*([A-Za-z0-9-]+)`)
 	cabinetNumberRegex  = regexp.MustCompile(`(\d+号柜)`)
 	smsVendorMarkRegex  = regexp.MustCompile(`【[^】]+】`)
 	explicitDateRegex   = regexp.MustCompile(`(?:(\d{4})[年/-])?(\d{1,2})[月/-](\d{1,2})(?:日|号)?`)
