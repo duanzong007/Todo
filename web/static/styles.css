@@ -939,6 +939,7 @@ button.danger:hover {
 .task-title-edit-form {
     display: flex;
     align-items: center;
+    gap: 10px;
     width: 100%;
     min-height: calc(1.08rem * 1.28);
     margin: 0;
@@ -963,12 +964,34 @@ button.danger:hover {
     font-size: 1.08rem;
     font-weight: 600;
     line-height: 1.28;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: calc(1.08rem * 1.28);
+    flex-shrink: 1;
 }
 
 .task-title-edit-input:focus {
     box-shadow:
         inset 0 -1px 0 rgba(197, 109, 58, 0.34),
         0 1px 0 rgba(197, 109, 58, 0.1);
+}
+
+.task-importance-edit-rating {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 0 2px;
+    width: auto;
+    align-items: center;
+    align-self: center;
+}
+
+.task-importance-edit-rating label {
+    font-size: 1.02rem;
+}
+
+.task-importance-edit-rating:focus-within {
+    border-radius: 10px;
+    box-shadow: 0 0 0 2px rgba(197, 109, 58, 0.08);
 }
 
 .task-kind {
@@ -1027,6 +1050,7 @@ button.danger:hover {
 }
 
 .focus-card.is-title-saving .task-title-edit-input,
+.focus-card.is-title-saving .task-importance-edit-rating,
 .focus-card.is-title-saving .task-body h3 {
     opacity: 0.82;
 }
@@ -1757,6 +1781,27 @@ button.complete-toggle:hover {
     .focus-card-main {
         align-items: flex-start;
         min-width: 0;
+    }
+
+    .task-title-edit-form {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 0;
+    }
+
+    .task-title-edit-input {
+        flex: 0 0 auto;
+        width: 100%;
+        min-height: 0;
+        height: calc(1.08rem * 1.28);
+        max-height: calc(1.08rem * 1.28);
+        align-self: stretch;
+    }
+
+    .task-importance-edit-rating {
+        width: auto;
+        align-self: flex-start;
     }
 
     .focus-card .task-kind-stack {

@@ -516,7 +516,22 @@ func (h *Handler) handleRenameTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.taskService.Rename(r.Context(), user.ID, taskID, title); err != nil {
+	var importance *int
+	importanceRaw := strings.TrimSpace(r.FormValue("importance"))
+	if importanceRaw != "" {
+		parsedImportance, err := strconv.Atoi(importanceRaw)
+		if err != nil {
+			if wantsAsyncResponse(r) {
+				http.Error(w, "重要等级格式不正确", http.StatusBadRequest)
+				return
+			}
+			h.redirectHome(w, r, "", "重要等级格式不正确")
+			return
+		}
+		importance = &parsedImportance
+	}
+
+	if _, err := h.taskService.Rename(r.Context(), user.ID, taskID, title, importance); err != nil {
 		if wantsAsyncResponse(r) {
 			http.Error(w, humanizeError(err), http.StatusBadRequest)
 			return

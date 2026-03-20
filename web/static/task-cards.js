@@ -154,6 +154,22 @@ function replaceCardTitle(card, title) {
   current.replaceWith(nextHeading);
 }
 
+function replaceCardImportance(card, importance) {
+  const normalized = Number.parseInt(importance, 10);
+  const nextValue = Number.isFinite(normalized) && normalized >= 1 && normalized <= 5
+    ? normalized
+    : 3;
+
+  card?.setAttribute("data-importance", String(nextValue));
+  const badge = card?.querySelector(".task-importance-badge");
+  if (!badge) {
+    return;
+  }
+
+  badge.textContent = String(nextValue);
+  badge.setAttribute("aria-label", `重要等级 ${nextValue}`);
+}
+
 function animateSyncedTitle(card) {
   const heading = cardTitleElement(card);
   if (!heading) {
@@ -1503,13 +1519,14 @@ function bindAsyncTaskForm(form) {
   });
 }
 
-function finishInlineRename(card, title) {
+function finishInlineRename(card, title, importance) {
   card.classList.remove("is-renaming", "is-title-saving");
   replaceCardTitle(card, title);
+  replaceCardImportance(card, importance);
 }
 
-function cancelInlineRename(card, originalTitle) {
-  finishInlineRename(card, originalTitle);
+function cancelInlineRename(card, originalTitle, originalImportance) {
+  finishInlineRename(card, originalTitle, originalImportance);
 }
 
 async function submitInlineRename(form) {
@@ -1519,14 +1536,22 @@ async function submitInlineRename(form) {
   }
 
   const input = form.querySelector("input[name='title']");
+  const importanceInput = form.querySelector("input[name='importance']:checked");
+  const importanceInputs = Array.from(form.querySelectorAll("input[name='importance']"));
   const originalTitle = form.dataset.originalTitle || "";
+  const originalImportance = Number.parseInt(form.dataset.originalImportance || "", 10) || extractCardImportance(card);
   const nextTitle = input?.value?.trim() || "";
+  const nextImportance = Number.parseInt(importanceInput?.value || "", 10);
   if (!nextTitle) {
-    cancelInlineRename(card, originalTitle);
+    cancelInlineRename(card, originalTitle, originalImportance);
     return;
   }
-  if (nextTitle === originalTitle) {
-    cancelInlineRename(card, originalTitle);
+  if (!(Number.isFinite(nextImportance) && nextImportance >= 1 && nextImportance <= 5)) {
+    cancelInlineRename(card, originalTitle, originalImportance);
+    return;
+  }
+  if (nextTitle === originalTitle && nextImportance === originalImportance) {
+    cancelInlineRename(card, originalTitle, originalImportance);
     return;
   }
 
@@ -1535,9 +1560,12 @@ async function submitInlineRename(form) {
   if (input) {
     input.disabled = true;
   }
+  importanceInputs.forEach((element) => {
+    element.disabled = true;
+  });
 
   card.classList.add("is-title-saving");
-  finishInlineRename(card, nextTitle);
+  finishInlineRename(card, nextTitle, nextImportance);
   beginPendingTaskRequest({
     needsResync: false,
   });
@@ -1556,13 +1584,18 @@ async function submitInlineRename(form) {
       throw new Error("rename request failed");
     }
   } catch (_error) {
-    cancelInlineRename(card, originalTitle);
+    cancelInlineRename(card, originalTitle, originalImportance);
   } finally {
     card.classList.remove("is-title-saving");
     form.dataset.submitting = "0";
     if (input && input.isConnected) {
       input.disabled = false;
     }
+    importanceInputs.forEach((element) => {
+      if (element.isConnected) {
+        element.disabled = false;
+      }
+    });
     await endPendingTaskRequest();
   }
 }
@@ -1578,6 +1611,7 @@ function startInlineRename(card) {
   }
 
   const originalTitle = heading.textContent?.trim() || "";
+  const originalImportance = extractCardImportance(card);
   const taskID = card.getAttribute("data-task-id") || "";
   if (!taskID || !originalTitle) {
     return;
@@ -1591,6 +1625,7 @@ function startInlineRename(card) {
   form.setAttribute("method", "post");
   form.setAttribute("data-rename-form", "");
   form.dataset.originalTitle = originalTitle;
+  form.dataset.originalImportance = String(originalImportance);
 
   const returnDate = document.createElement("input");
   returnDate.type = "hidden";
@@ -1606,12 +1641,34 @@ function startInlineRename(card) {
   titleInput.spellcheck = false;
   titleInput.maxLength = 200;
 
-  form.append(returnDate, titleInput);
+  const importanceRating = document.createElement("div");
+  importanceRating.className = "star-rating task-importance-edit-rating";
+  importanceRating.setAttribute("aria-label", "重要等级");
+  for (let value = 5; value >= 1; value -= 1) {
+    const inputID = `task-edit-importance-${taskID}-${value}`;
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "importance";
+    radio.value = String(value);
+    radio.id = inputID;
+    if (value === originalImportance) {
+      radio.checked = true;
+    }
+
+    const label = document.createElement("label");
+    label.setAttribute("for", inputID);
+    label.setAttribute("title", `${value} 星`);
+    label.textContent = "★";
+    importanceRating.append(radio, label);
+  }
+
+  form.append(returnDate, titleInput, importanceRating);
   heading.replaceWith(form);
 
   let closed = false;
+  let internalPointerAt = 0;
   let outsidePointerCleanup = () => {};
-  let blurCleanup = () => {};
+  let focusCleanup = () => {};
 
   const closeEditor = (action) => {
     if (closed) {
@@ -1619,19 +1676,26 @@ function startInlineRename(card) {
     }
     closed = true;
     outsidePointerCleanup();
-    blurCleanup();
+    focusCleanup();
     action();
   };
 
   titleInput.focus();
   titleInput.select();
 
+  form.addEventListener("pointerdown", (event) => {
+    if (!form.contains(event.target)) {
+      return;
+    }
+    internalPointerAt = Date.now();
+  });
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     submitInlineRename(form);
   });
 
-  titleInput.addEventListener("keydown", (event) => {
+  const handleKeyDown = (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
       closeEditor(() => {
@@ -1642,23 +1706,39 @@ function startInlineRename(card) {
     if (event.key === "Escape") {
       event.preventDefault();
       closeEditor(() => {
-        cancelInlineRename(card, originalTitle);
+        cancelInlineRename(card, originalTitle, originalImportance);
       });
     }
-  });
+  };
+  form.addEventListener("keydown", handleKeyDown);
 
-  const handleBlur = () => {
+  const handleFocusOut = (event) => {
     if (form.dataset.submitting === "1") {
       return;
     }
-    closeEditor(() => {
-      void submitInlineRename(form);
-    });
+    if (event.relatedTarget && form.contains(event.relatedTarget)) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      if (closed || form.dataset.submitting === "1" || !form.isConnected) {
+        return;
+      }
+      if (Date.now() - internalPointerAt < 180) {
+        return;
+      }
+      if (document.activeElement && form.contains(document.activeElement)) {
+        return;
+      }
+      closeEditor(() => {
+        void submitInlineRename(form);
+      });
+    }, 0);
   };
 
-  titleInput.addEventListener("blur", handleBlur);
-  blurCleanup = () => {
-    titleInput.removeEventListener("blur", handleBlur);
+  form.addEventListener("focusout", handleFocusOut);
+  focusCleanup = () => {
+    form.removeEventListener("focusout", handleFocusOut);
   };
 
   const handleOutsidePointer = (event) => {
@@ -1694,7 +1774,7 @@ function bindInlineRename(card) {
   }
 
   label.classList.add("is-title-edit-trigger");
-  label.setAttribute("title", "双击修改标题");
+  label.setAttribute("title", "双击修改标题和星级");
   label.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) {
       return;

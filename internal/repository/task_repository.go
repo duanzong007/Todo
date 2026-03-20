@@ -322,7 +322,7 @@ func (r *TaskRepository) RestoreTask(ctx context.Context, userID, id uuid.UUID) 
 	return updatedTask, nil
 }
 
-func (r *TaskRepository) RenameTask(ctx context.Context, userID, id uuid.UUID, title string) (domain.Task, error) {
+func (r *TaskRepository) RenameTask(ctx context.Context, userID, id uuid.UUID, title string, importance *int) (domain.Task, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return domain.Task{}, fmt.Errorf("begin tx: %w", err)
@@ -334,27 +334,45 @@ func (r *TaskRepository) RenameTask(ctx context.Context, userID, id uuid.UUID, t
 		return domain.Task{}, err
 	}
 
-	if task.Title == title {
+	nextImportance := task.Importance
+	if importance != nil {
+		nextImportance = *importance
+	}
+
+	titleChanged := task.Title != title
+	importanceChanged := task.Importance != nextImportance
+	if !titleChanged && !importanceChanged {
 		return task, nil
 	}
 
 	row := tx.QueryRow(ctx, `
 		UPDATE tasks
-		SET title = $3
+		SET title = $3, importance = $4
 		WHERE id = $1 AND user_id = $2
 		RETURNING id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
-	`, id, userID, title)
+	`, id, userID, title, nextImportance)
 
 	updatedTask, err := scanTask(row)
 	if err != nil {
 		return domain.Task{}, err
 	}
 
-	if err := createTaskEventTx(ctx, tx, id, "renamed", map[string]any{
-		"previous_title": task.Title,
-		"title":          updatedTask.Title,
-	}); err != nil {
-		return domain.Task{}, err
+	if titleChanged {
+		if err := createTaskEventTx(ctx, tx, id, "renamed", map[string]any{
+			"previous_title": task.Title,
+			"title":          updatedTask.Title,
+		}); err != nil {
+			return domain.Task{}, err
+		}
+	}
+
+	if importanceChanged {
+		if err := createTaskEventTx(ctx, tx, id, "reprioritized", map[string]any{
+			"previous_importance": task.Importance,
+			"importance":          updatedTask.Importance,
+		}); err != nil {
+			return domain.Task{}, err
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
