@@ -507,7 +507,8 @@ function buildFocusTaskCardHTML(card) {
     ? ` is-mobile-ddl-ready${card.mobile_compact ? " is-mobile-ddl-compact" : ""}`
     : "";
   return `
-    <article class="focus-card${ddlMobileClasses}" data-task-card data-task-id="${escapeHtml(card.id)}" data-kind-label="${escapeHtml(card.kind_label)}" data-kind-class="${escapeHtml(card.kind_class)}">
+    <article class="focus-card${ddlMobileClasses}" data-task-card data-task-id="${escapeHtml(card.id)}" data-kind-label="${escapeHtml(card.kind_label)}" data-kind-class="${escapeHtml(card.kind_class)}" data-importance="${escapeHtml(card.importance ?? 3)}">
+      <span class="task-importance-badge" aria-label="重要等级 ${escapeHtml(card.importance ?? 3)}">${escapeHtml(card.importance ?? 3)}</span>
       <div class="focus-card-main">
         <div class="task-kind-stack">
           <span class="task-kind task-kind-${escapeHtml(card.kind_class)}">${escapeHtml(card.kind_label)}</span>
@@ -536,7 +537,7 @@ function buildFocusTaskCardHTML(card) {
 
 function buildCompletedTaskCardHTML(card) {
   return `
-    <article class="archive-card" data-task-id="${escapeHtml(card.id)}" data-kind-label="${escapeHtml(card.kind_label)}" data-kind-class="${escapeHtml(card.kind_class)}" data-status-line="${escapeHtml(card.status_line || "")}" data-can-postpone="${card.can_postpone ? "1" : "0"}" data-postpone-mode="${escapeHtml(card.postpone_mode || "")}" data-postpone-value="${escapeHtml(card.postpone_value || "")}" data-postpone-min-value="${escapeHtml(card.postpone_min_value || "")}">
+    <article class="archive-card" data-task-id="${escapeHtml(card.id)}" data-kind-label="${escapeHtml(card.kind_label)}" data-kind-class="${escapeHtml(card.kind_class)}" data-importance="${escapeHtml(card.importance ?? 3)}" data-status-line="${escapeHtml(card.status_line || "")}" data-can-postpone="${card.can_postpone ? "1" : "0"}" data-postpone-mode="${escapeHtml(card.postpone_mode || "")}" data-postpone-value="${escapeHtml(card.postpone_value || "")}" data-postpone-min-value="${escapeHtml(card.postpone_min_value || "")}">
       <div class="archive-card-main">
         <span class="task-kind task-kind-${escapeHtml(card.kind_class)}">${escapeHtml(card.kind_label)}</span>
         <div class="task-body">
@@ -605,10 +606,7 @@ function padNumber(value) {
 function formatOptimisticCompletedLine(kindClass) {
   const now = new Date();
   const dateText = `${now.getMonth() + 1}月${now.getDate()}日`;
-  if (kindClass === "ddl") {
-    return `完成于 ${dateText} ${padNumber(now.getHours())}:${padNumber(now.getMinutes())}`;
-  }
-  return `完成于 ${dateText}`;
+  return `完成于 ${dateText} ${padNumber(now.getHours())}:${padNumber(now.getMinutes())}`;
 }
 
 function extractCardText(element, selector) {
@@ -622,6 +620,15 @@ function extractCardKind(element) {
     label,
     kindClass,
   };
+}
+
+function extractCardImportance(element) {
+  const rawValue = element?.getAttribute("data-importance") || "";
+  const parsed = Number.parseInt(rawValue, 10);
+  if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 5) {
+    return parsed;
+  }
+  return 3;
 }
 
 function extractReturnDate(element) {
@@ -683,6 +690,7 @@ function buildOptimisticCompletedCard(sourceElement, request) {
     title: extractCardText(sourceElement, "h3"),
     kind_label: label,
     kind_class: kindClass,
+    importance: extractCardImportance(sourceElement),
     finished_line: formatOptimisticCompletedLine(kindClass),
     status_line: extractCardText(sourceElement, ".status"),
     note: extractCardText(sourceElement, ".note"),
@@ -707,6 +715,7 @@ function buildOptimisticFocusCard(sourceElement, request) {
     title: extractCardText(sourceElement, "h3"),
     kind_label: label,
     kind_class: kindClass,
+    importance: extractCardImportance(sourceElement),
     status_line: statusLine,
     note: extractCardText(sourceElement, ".note"),
     can_postpone: canPostpone,

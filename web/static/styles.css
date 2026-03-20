@@ -838,6 +838,7 @@ button.danger:hover {
 }
 
 .focus-card {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -895,6 +896,28 @@ button.danger:hover {
     font-size: 1.08rem;
     font-weight: 600;
     line-height: 1.28;
+}
+
+.task-importance-badge {
+    position: absolute;
+    top: -5px;
+    left: -5px;
+    transform: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(118, 95, 72, 0.14);
+    background: rgba(255, 255, 255, 0.68);
+    color: rgba(122, 95, 70, 0.94);
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 2;
 }
 
 .task-body h3.is-sync-updated {
@@ -1721,6 +1744,14 @@ button.complete-toggle:hover {
         flex-direction: row;
         align-items: flex-start;
         gap: 10px;
+    }
+
+    .task-importance-badge {
+        top: -4px;
+        left: -4px;
+        width: 20px;
+        height: 20px;
+        font-size: 0.72rem;
     }
 
     .focus-card-main {

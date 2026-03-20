@@ -8,13 +8,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Todo">
-    <link rel="manifest" href="/manifest.webmanifest?v=20260319-pwa-day-rollover-1">
-    <link rel="icon" href="/favicon.ico?v=20260319-pwa-day-rollover-1" sizes="any">
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/pwa/favicon-32.png?v=20260319-pwa-day-rollover-1">
-    <link rel="icon" type="image/png" sizes="16x16" href="/static/pwa/favicon-16.png?v=20260319-pwa-day-rollover-1">
-    <link rel="apple-touch-icon" href="/static/pwa/apple-touch-icon.png?v=20260319-pwa-day-rollover-1">
-    <link rel="stylesheet" href="/static/styles.css?v=20260319-pwa-day-rollover-1">
-    <script defer src="/static/pwa-register.js?v=20260319-pwa-day-rollover-1"></script>
+    <link rel="manifest" href="/manifest.webmanifest?v=20260320-importance-badge-4">
+    <link rel="icon" href="/favicon.ico?v=20260320-importance-badge-4" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/pwa/favicon-32.png?v=20260320-importance-badge-4">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/pwa/favicon-16.png?v=20260320-importance-badge-4">
+    <link rel="apple-touch-icon" href="/static/pwa/apple-touch-icon.png?v=20260320-importance-badge-4">
+    <link rel="stylesheet" href="/static/styles.css?v=20260320-importance-badge-4">
+    <script defer src="/static/pwa-register.js?v=20260320-importance-badge-4"></script>
 </head>
 <body>
     <main class="focus-page" data-focus-date="{{ .FocusDateISO }}" data-app-timezone="{{ .AppTimeZone }}">
@@ -43,7 +43,8 @@
             {{ if .FocusTasks }}
             <div class="focus-list">
                 {{ range .FocusTasks }}
-                <article class="focus-card{{ if eq .KindClass "ddl" }} is-mobile-ddl-ready{{ if .MobileCompact }} is-mobile-ddl-compact{{ end }}{{ end }}" data-task-card data-task-id="{{ .ID }}" data-kind-label="{{ .KindLabel }}" data-kind-class="{{ .KindClass }}">
+                <article class="focus-card{{ if eq .KindClass "ddl" }} is-mobile-ddl-ready{{ if .MobileCompact }} is-mobile-ddl-compact{{ end }}{{ end }}" data-task-card data-task-id="{{ .ID }}" data-kind-label="{{ .KindLabel }}" data-kind-class="{{ .KindClass }}" data-importance="{{ .Importance }}">
+                    <span class="task-importance-badge" aria-label="重要等级 {{ .Importance }}">{{ .Importance }}</span>
                     <div class="focus-card-main">
                         <div class="task-kind-stack">
                             <span class="task-kind task-kind-{{ .KindClass }}">{{ .KindLabel }}</span>
@@ -225,6 +226,7 @@
                                 data-task-id="{{ .ID }}"
                                 data-kind-label="{{ .KindLabel }}"
                                 data-kind-class="{{ .KindClass }}"
+                                data-importance="{{ .Importance }}"
                                 data-status-line="{{ .StatusLine }}"
                                 data-can-postpone="{{ if .CanPostpone }}1{{ else }}0{{ end }}"
                                 data-postpone-mode="{{ .PostponeMode }}"
@@ -615,11 +617,11 @@
             </div>
         </details>
     </main>
-    <script src="/static/date-picker.js?v=20260319-pwa-day-rollover-1" defer></script>
-    <script src="/static/postpone-picker.js?v=20260319-pwa-day-rollover-1" defer></script>
-    <script src="/static/composer-panel.js?v=20260319-pwa-day-rollover-1" defer></script>
-    <script src="/static/focus-page.js?v=20260319-pwa-day-rollover-1" defer></script>
-    <script src="/static/task-cards.js?v=20260319-pwa-day-rollover-1" defer></script>
-    <script src="/static/realtime-sync.js?v=20260319-pwa-day-rollover-1" defer></script>
+    <script src="/static/date-picker.js?v=20260320-importance-badge-4" defer></script>
+    <script src="/static/postpone-picker.js?v=20260320-importance-badge-4" defer></script>
+    <script src="/static/composer-panel.js?v=20260320-importance-badge-4" defer></script>
+    <script src="/static/focus-page.js?v=20260320-importance-badge-4" defer></script>
+    <script src="/static/task-cards.js?v=20260320-importance-badge-4" defer></script>
+    <script src="/static/realtime-sync.js?v=20260320-importance-badge-4" defer></script>
 </body>
 </html>

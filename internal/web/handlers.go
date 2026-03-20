@@ -119,6 +119,7 @@ type TaskCard struct {
 	Title         string `json:"title"`
 	KindLabel     string `json:"kind_label"`
 	KindClass     string `json:"kind_class"`
+	Importance    int    `json:"importance"`
 	StatusLine    string `json:"status_line"`
 	CompactStatus string `json:"compact_status_line"`
 	MobileCompact bool   `json:"mobile_compact"`
@@ -136,6 +137,7 @@ type CompletedTaskCard struct {
 	Title         string `json:"title"`
 	KindLabel     string `json:"kind_label"`
 	KindClass     string `json:"kind_class"`
+	Importance    int    `json:"importance"`
 	FinishedLine  string `json:"finished_line"`
 	StatusLine    string `json:"status_line"`
 	Note          string `json:"note"`
@@ -1052,6 +1054,7 @@ func buildTaskCard(task domain.Task, now, focusDate time.Time, location *time.Lo
 	card := TaskCard{
 		ID:          task.ID.String(),
 		Title:       task.Title,
+		Importance:  task.Importance,
 		Note:        task.Note,
 		CanComplete: task.SupportsCompletion(),
 		CanPostpone: task.SupportsPostpone(),
@@ -1249,6 +1252,7 @@ func buildCompletedTaskCards(tasks []domain.Task, now, focusDate time.Time, loca
 			Title:        task.Title,
 			KindLabel:    kindLabel(task.Type),
 			KindClass:    string(task.Type),
+			Importance:   task.Importance,
 			FinishedLine: formatCompletedAt(task, location),
 			Note:         task.Note,
 			ReturnDate:   normalizeDateForView(focusDate, location).Format("2006-01-02"),

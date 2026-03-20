@@ -3,7 +3,7 @@
     return;
   }
 
-  const SW_URL = "/sw.js?v=20260319-pwa-day-rollover-1";
+  const SW_URL = "/sw.js?v=20260320-pwa-version-1";
   let refreshing = false;
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
