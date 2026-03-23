@@ -186,17 +186,17 @@ func extractPickupTaskTitle(input string) (string, map[string]any, bool) {
 		"pickup_code": code,
 	}
 
-	if strings.Contains(input, "驿站") {
-		metadata["pickup_kind"] = "station"
-		return "驿站：" + code, metadata, true
-	}
-
 	cabinetMatch := cabinetNumberRegex.FindStringSubmatch(input)
 	if len(cabinetMatch) > 1 {
 		cabinet := strings.TrimSpace(cabinetMatch[1])
 		metadata["pickup_kind"] = "cabinet"
 		metadata["cabinet_number"] = cabinet
 		return cabinet + " " + code, metadata, true
+	}
+
+	if strings.Contains(input, "驿站") || strings.Contains(input, "取运单尾号") {
+		metadata["pickup_kind"] = "station"
+		return "驿站：" + code, metadata, true
 	}
 
 	return "", nil, false
