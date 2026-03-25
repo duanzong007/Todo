@@ -145,7 +145,11 @@ type clockTime struct {
 }
 
 func (p *TextParser) parsePickupSMS(input string) (ParsedTask, bool) {
-	if !strings.Contains(input, "取件码") && !strings.Contains(input, "驿站") && !strings.Contains(input, "快递") {
+	if !strings.Contains(input, "取件码") &&
+		!strings.Contains(input, "驿站") &&
+		!strings.Contains(input, "快递") &&
+		!strings.Contains(input, "代收点") &&
+		!strings.Contains(input, "取运单尾号") {
 		return ParsedTask{}, false
 	}
 
