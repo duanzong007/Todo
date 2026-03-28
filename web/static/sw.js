@@ -1,5 +1,7 @@
-const CACHE_NAME = "todo-pwa-v9";
+const CACHE_NAME = "todo-pwa-v10";
 const OFFLINE_URL = "/static/pwa/offline.html";
+const NAVIGATION_NETWORK_TIMEOUT_MS = 1400;
+const STATIC_NETWORK_TIMEOUT_MS = 2200;
 const STATIC_ASSETS = [
   "/static/styles.css",
   "/static/date-picker.js",
@@ -20,6 +22,50 @@ const STATIC_ASSETS = [
   "/favicon.ico",
   OFFLINE_URL
 ];
+
+function timeoutReject(ms) {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new Error("timeout")), ms);
+  });
+}
+
+async function fetchWithTimeout(request, timeoutMs) {
+  if (!timeoutMs || timeoutMs <= 0) {
+    return fetch(request);
+  }
+
+  if (typeof AbortController === "function") {
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+
+    try {
+      return await fetch(request, { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return Promise.race([fetch(request), timeoutReject(timeoutMs)]);
+}
+
+async function resolvePreloadedResponse(preloadResponsePromise, timeoutMs) {
+  if (!preloadResponsePromise) {
+    return null;
+  }
+
+  try {
+    const response = await Promise.race([preloadResponsePromise, timeoutReject(timeoutMs)]);
+    return response || null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function staticCacheKey(url) {
+  return url.pathname;
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -44,8 +90,13 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-async function fetchAndCache(request, preloadResponsePromise) {
-  const networkResponse = (await preloadResponsePromise) || (await fetch(request));
+async function fetchAndCache(request, preloadResponsePromise, options = {}) {
+  const {
+    cacheKey = request,
+    timeoutMs = 0,
+  } = options;
+  const preloadedResponse = await resolvePreloadedResponse(preloadResponsePromise, timeoutMs);
+  const networkResponse = preloadedResponse || (await fetchWithTimeout(request, timeoutMs));
   if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== "basic") {
     return networkResponse;
   }
@@ -56,7 +107,7 @@ async function fetchAndCache(request, preloadResponsePromise) {
   }
 
   const responseClone = networkResponse.clone();
-  caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+  caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, responseClone));
   return networkResponse;
 }
 
@@ -80,7 +131,9 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       (async () => {
         try {
-          const networkResponse = await fetchAndCache(request, event.preloadResponse);
+          const networkResponse = await fetchAndCache(request, event.preloadResponse, {
+            timeoutMs: NAVIGATION_NETWORK_TIMEOUT_MS,
+          });
           if (networkResponse) {
             return networkResponse;
           }
@@ -110,15 +163,21 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      const networkResponse = fetchAndCache(request).catch(() => null);
+    (async () => {
+      const cacheKey = staticCacheKey(url);
+      const cachedResponse = (await caches.match(request)) || (await caches.match(cacheKey));
+      const networkResponse = fetchAndCache(request, null, {
+        cacheKey,
+        timeoutMs: STATIC_NETWORK_TIMEOUT_MS,
+      }).catch(() => null);
 
       if (cachedResponse) {
         event.waitUntil(networkResponse);
         return cachedResponse;
       }
 
-      return networkResponse.then((response) => response || caches.match(request));
-    })
+      const response = await networkResponse;
+      return response || caches.match(cacheKey);
+    })()
   );
 });
