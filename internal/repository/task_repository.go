@@ -174,7 +174,18 @@ func (r *TaskRepository) ListDashboard(ctx context.Context, userID uuid.UUID, to
 	todayTasks, err := r.listTasks(ctx, `
 		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
-		WHERE user_id = $1 AND status = 'active' AND task_type = 'schedule' AND scheduled_for = $2
+		WHERE status = 'active'
+			AND task_type = 'schedule'
+			AND scheduled_for = $2
+			AND (
+				user_id = $1
+				OR EXISTS (
+					SELECT 1
+					FROM task_shares visible_share
+					WHERE visible_share.task_id = tasks.id
+						AND visible_share.user_id = $1
+				)
+			)
 		ORDER BY importance DESC, scheduled_for, created_at
 	`, userID, dateOnly)
 	if err != nil {
@@ -184,7 +195,17 @@ func (r *TaskRepository) ListDashboard(ctx context.Context, userID uuid.UUID, to
 	ddlTasks, err := r.listTasks(ctx, `
 		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
-		WHERE user_id = $1 AND status = 'active' AND task_type = 'ddl'
+		WHERE status = 'active'
+			AND task_type = 'ddl'
+			AND (
+				user_id = $1
+				OR EXISTS (
+					SELECT 1
+					FROM task_shares visible_share
+					WHERE visible_share.task_id = tasks.id
+						AND visible_share.user_id = $1
+				)
+			)
 		ORDER BY importance DESC, deadline ASC, created_at ASC
 	`, userID)
 	if err != nil {
@@ -194,7 +215,17 @@ func (r *TaskRepository) ListDashboard(ctx context.Context, userID uuid.UUID, to
 	todoTasks, err := r.listTasks(ctx, `
 		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
-		WHERE user_id = $1 AND status = 'active' AND task_type = 'todo'
+		WHERE status = 'active'
+			AND task_type = 'todo'
+			AND (
+				user_id = $1
+				OR EXISTS (
+					SELECT 1
+					FROM task_shares visible_share
+					WHERE visible_share.task_id = tasks.id
+						AND visible_share.user_id = $1
+				)
+			)
 		ORDER BY importance DESC, created_at ASC
 	`, userID)
 	if err != nil {
@@ -216,7 +247,18 @@ func (r *TaskRepository) ListCompletedTasksForDate(ctx context.Context, userID u
 	return r.listTasks(ctx, `
 		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
-		WHERE user_id = $1 AND status = 'done' AND completed_at >= $2 AND completed_at < $3
+		WHERE status = 'done'
+			AND completed_at >= $2
+			AND completed_at < $3
+			AND (
+				user_id = $1
+				OR EXISTS (
+					SELECT 1
+					FROM task_shares visible_share
+					WHERE visible_share.task_id = tasks.id
+						AND visible_share.user_id = $1
+				)
+			)
 		ORDER BY completed_at DESC, updated_at DESC
 		LIMIT $4
 	`, userID, dayStart, dayEnd, limit)
@@ -226,7 +268,16 @@ func (r *TaskRepository) GetTask(ctx context.Context, userID, id uuid.UUID) (dom
 	row := r.db.QueryRow(ctx, `
 		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
-		WHERE id = $1 AND user_id = $2
+		WHERE id = $1
+			AND (
+				user_id = $2
+				OR EXISTS (
+					SELECT 1
+					FROM task_shares visible_share
+					WHERE visible_share.task_id = tasks.id
+						AND visible_share.user_id = $2
+				)
+			)
 	`, id, userID)
 
 	task, err := scanTask(row)
@@ -260,9 +311,9 @@ func (r *TaskRepository) CompleteTask(ctx context.Context, userID, id uuid.UUID)
 	row := tx.QueryRow(ctx, `
 		UPDATE tasks
 		SET status = 'done', completed_at = NOW()
-		WHERE id = $1 AND user_id = $2
+		WHERE id = $1
 		RETURNING id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
-	`, id, userID)
+	`, id)
 
 	updatedTask, err := scanTask(row)
 	if err != nil {
@@ -300,9 +351,9 @@ func (r *TaskRepository) RestoreTask(ctx context.Context, userID, id uuid.UUID) 
 	row := tx.QueryRow(ctx, `
 		UPDATE tasks
 		SET status = 'active', completed_at = NULL
-		WHERE id = $1 AND user_id = $2
+		WHERE id = $1
 		RETURNING id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
-	`, id, userID)
+	`, id)
 
 	updatedTask, err := scanTask(row)
 	if err != nil {
@@ -347,10 +398,10 @@ func (r *TaskRepository) RenameTask(ctx context.Context, userID, id uuid.UUID, t
 
 	row := tx.QueryRow(ctx, `
 		UPDATE tasks
-		SET title = $3, importance = $4
-		WHERE id = $1 AND user_id = $2
+		SET title = $2, importance = $3
+		WHERE id = $1
 		RETURNING id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
-	`, id, userID, title, nextImportance)
+	`, id, title, nextImportance)
 
 	updatedTask, err := scanTask(row)
 	if err != nil {
@@ -426,12 +477,12 @@ func (r *TaskRepository) PostponeTask(ctx context.Context, userID, id uuid.UUID,
 	row := tx.QueryRow(ctx, `
 		UPDATE tasks
 		SET
-			scheduled_for = CASE WHEN task_type = 'schedule' THEN $3 ELSE scheduled_for END,
-			deadline = CASE WHEN task_type = 'ddl' THEN $4 ELSE deadline END,
+			scheduled_for = CASE WHEN task_type = 'schedule' THEN $2 ELSE scheduled_for END,
+			deadline = CASE WHEN task_type = 'ddl' THEN $3 ELSE deadline END,
 			postponed_count = postponed_count + 1
-		WHERE id = $1 AND user_id = $2
+		WHERE id = $1
 		RETURNING id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
-	`, id, userID, scheduleTarget, deadlineTarget)
+	`, id, scheduleTarget, deadlineTarget)
 
 	updatedTask, err := scanTask(row)
 	if err != nil {
@@ -541,7 +592,16 @@ func getTaskTx(ctx context.Context, tx pgx.Tx, userID, id uuid.UUID, lock bool) 
 	query := `
 		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
 		FROM tasks
-		WHERE id = $1 AND user_id = $2
+		WHERE id = $1
+			AND (
+				user_id = $2
+				OR EXISTS (
+					SELECT 1
+					FROM task_shares visible_share
+					WHERE visible_share.task_id = tasks.id
+						AND visible_share.user_id = $2
+				)
+			)
 	`
 	if lock {
 		query += ` FOR UPDATE`

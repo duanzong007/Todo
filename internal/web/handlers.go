@@ -91,6 +91,64 @@ type QuoteView struct {
 
 type AccountPageData struct {
 	CurrentUser *UserView
+	Message     string
+	Error       string
+	ReturnQuery string
+	Filter      AccountTaskFilterView
+	Tasks       []ManagedTaskCard
+	ShareUsers  []ShareableUserCard
+}
+
+type AccountTaskFilterView struct {
+	Query             string
+	Summary           string
+	DateFrom          string
+	DateTo            string
+	StatusOptions     []AccountFilterOption
+	ScopeOptions      []AccountFilterOption
+	DateFieldOptions  []AccountFilterOption
+	SortOptions       []AccountFilterOption
+	LimitOptions      []AccountFilterOption
+	TypeOptions       []AccountCheckOption
+	ImportanceOptions []AccountCheckOption
+}
+
+type AccountFilterOption struct {
+	Value    string
+	Label    string
+	Selected bool
+}
+
+type AccountCheckOption struct {
+	Value   string
+	Label   string
+	Checked bool
+}
+
+type ShareableUserCard struct {
+	ID          string
+	DisplayName string
+	Username    string
+}
+
+type ManagedTaskCard struct {
+	ID            string
+	Title         string
+	KindLabel     string
+	KindClass     string
+	Importance    int
+	StatusLabel   string
+	StatusClass   string
+	DateLine      string
+	OwnerLine     string
+	SharedLine    string
+	Note          string
+	IsOwner       bool
+	SharedWithMe  bool
+	ScheduleMode  string
+	ScheduleValue string
+	DeadlineDate  string
+	DeadlineTime  string
 }
 
 type AdminPageData struct {
@@ -204,6 +262,7 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/dashboard/snapshot", h.handleDashboardSnapshot)
 		r.Get("/events", h.handleEventStream)
 		r.Get("/me", h.handleAccountPage)
+		r.Post("/me/tasks/apply", h.handleAccountTaskApply)
 		r.Post("/tasks", h.handleCreateTask)
 		r.Post("/tasks/manual", h.handleCreateManualTask)
 		r.Post("/tasks/parse-sms", h.handleParseSMS)
@@ -531,7 +590,8 @@ func (h *Handler) handleRenameTask(w http.ResponseWriter, r *http.Request) {
 		importance = &parsedImportance
 	}
 
-	if _, err := h.taskService.Rename(r.Context(), user.ID, taskID, title, importance); err != nil {
+	task, err := h.taskService.Rename(r.Context(), user.ID, taskID, title, importance)
+	if err != nil {
 		if wantsAsyncResponse(r) {
 			http.Error(w, humanizeError(err), http.StatusBadRequest)
 			return
@@ -540,7 +600,7 @@ func (h *Handler) handleRenameTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
+	h.publishTaskAudience(r.Context(), task.ID.String(), user.ID, requestClientID(r))
 
 	if wantsAsyncResponse(r) {
 		w.WriteHeader(http.StatusNoContent)
@@ -558,7 +618,7 @@ func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	taskID := chi.URLParam(r, "taskID")
-	_, err := h.taskService.Complete(r.Context(), user.ID, taskID)
+	task, err := h.taskService.Complete(r.Context(), user.ID, taskID)
 	if err != nil {
 		if wantsAsyncResponse(r) {
 			http.Error(w, humanizeError(err), http.StatusBadRequest)
@@ -568,7 +628,7 @@ func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
+	h.publishTaskAudience(r.Context(), task.ID.String(), user.ID, requestClientID(r))
 
 	if wantsAsyncResponse(r) {
 		h.writeDashboardSnapshot(w, r, user)
@@ -599,7 +659,8 @@ func (h *Handler) handlePostponeTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.taskService.Postpone(r.Context(), user.ID, taskID, targetDate); err != nil {
+	task, err := h.taskService.Postpone(r.Context(), user.ID, taskID, targetDate)
+	if err != nil {
 		if wantsAsyncResponse(r) {
 			http.Error(w, humanizeError(err), http.StatusBadRequest)
 			return
@@ -608,7 +669,7 @@ func (h *Handler) handlePostponeTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
+	h.publishTaskAudience(r.Context(), task.ID.String(), user.ID, requestClientID(r))
 
 	if wantsAsyncResponse(r) {
 		h.writeDashboardSnapshot(w, r, user)
@@ -626,7 +687,8 @@ func (h *Handler) handleRestoreTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	taskID := chi.URLParam(r, "taskID")
-	if _, err := h.taskService.Restore(r.Context(), user.ID, taskID); err != nil {
+	task, err := h.taskService.Restore(r.Context(), user.ID, taskID)
+	if err != nil {
 		if wantsAsyncResponse(r) {
 			http.Error(w, humanizeError(err), http.StatusBadRequest)
 			return
@@ -635,7 +697,7 @@ func (h *Handler) handleRestoreTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
+	h.publishTaskAudience(r.Context(), task.ID.String(), user.ID, requestClientID(r))
 
 	if wantsAsyncResponse(r) {
 		h.writeDashboardSnapshot(w, r, user)
@@ -779,9 +841,13 @@ func (h *Handler) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.templates.ExecuteTemplate(w, "account.html", AccountPageData{
-		CurrentUser: buildUserView(user),
-	}); err != nil {
+	pageData, err := h.buildAccountPageData(r, user)
+	if err != nil {
+		http.Error(w, humanizeError(err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "account.html", pageData); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

@@ -8,20 +8,21 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Todo">
-    <link rel="manifest" href="/manifest.webmanifest?v=20260320-importance-badge-4">
-    <link rel="icon" href="/favicon.ico?v=20260320-importance-badge-4" sizes="any">
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/pwa/favicon-32.png?v=20260320-importance-badge-4">
-    <link rel="icon" type="image/png" sizes="16x16" href="/static/pwa/favicon-16.png?v=20260320-importance-badge-4">
-    <link rel="apple-touch-icon" href="/static/pwa/apple-touch-icon.png?v=20260320-importance-badge-4">
-    <link rel="stylesheet" href="/static/styles.css?v=20260320-importance-badge-4">
+    <link rel="manifest" href="/manifest.webmanifest?v=20260329-account-modal-2">
+    <link rel="icon" href="/favicon.ico?v=20260329-account-modal-2" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/pwa/favicon-32.png?v=20260329-account-modal-2">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/pwa/favicon-16.png?v=20260329-account-modal-2">
+    <link rel="apple-touch-icon" href="/static/pwa/apple-touch-icon.png?v=20260329-account-modal-2">
+    <link rel="stylesheet" href="/static/styles.css?v=20260329-account-modal-2">
     <script defer src="/static/pwa-register.js?v=20260328-pwa-startup-1"></script>
+    <script defer src="/static/account-manager.js?v=20260329-account-modal-2"></script>
 </head>
 <body>
-    <main class="page account-page">
+    <main class="page account-page" data-account-page>
         <section class="panel account-panel">
             <p class="eyebrow">Account</p>
             <h1>{{ .CurrentUser.DisplayName }}</h1>
-            <p class="hero-copy">个人管理</p>
+            <p class="hero-copy">任务管理</p>
 
             <div class="account-actions">
                 <a href="/" class="secondary action-link">返回今天</a>
@@ -31,6 +32,296 @@
                 <form action="/logout" method="post">
                     <button type="submit" class="secondary">退出登录</button>
                 </form>
+            </div>
+        </section>
+
+        {{ if .Message }}
+        <div class="flash flash-success">{{ .Message }}</div>
+        {{ end }}
+        {{ if .Error }}
+        <div class="flash flash-error">{{ .Error }}</div>
+        {{ end }}
+
+        <section class="panel account-manage-panel" data-account-manage>
+            <div class="account-section-head account-list-head">
+                <div class="account-head-stack">
+                    <button type="button" class="secondary account-drawer-toggle" data-account-toggle="filter">筛选器</button>
+                    <p class="account-filter-summary">{{ .Filter.Summary }}</p>
+                </div>
+                <span class="account-task-count">{{ len .Tasks }}</span>
+            </div>
+
+            <form id="account-actions-form" action="/me/tasks/apply" method="post" class="account-bulk-form" data-account-actions-form>
+                <input type="hidden" name="return_query" value="{{ .ReturnQuery }}">
+                <input type="hidden" name="selected_ids" value="" data-selected-task-ids>
+                <input type="hidden" name="action" value="apply" data-account-action>
+
+                <div class="account-toolbar">
+                    <div class="account-toolbar-main">
+                        <label class="account-select-all">
+                            <input type="checkbox" data-select-all-tasks>
+                            <span>全选</span>
+                        </label>
+                        <p class="account-selection-copy" data-selection-copy>尚未选择任务</p>
+                    </div>
+
+                    <div class="account-toolbar-actions">
+                        <button type="button" class="secondary" data-account-open-panel="edit">编辑</button>
+                        <button type="button" class="secondary" data-account-open-panel="share">共享</button>
+                        <button type="submit" class="danger" data-account-submit-action="delete">删除</button>
+                    </div>
+                </div>
+
+                <section class="account-inline-panel" data-account-panel="share" hidden>
+                    <div class="account-panel-header">
+                        <p class="section-kicker">共享</p>
+                        <p class="account-panel-copy">只有你创建的任务才能继续共享。</p>
+                    </div>
+
+                    <div class="account-bulk-block account-share-block">
+                        <div class="account-field-head">
+                            <label for="share-search">共享给用户</label>
+                            <p class="account-help">可按显示名或用户名过滤。</p>
+                        </div>
+                        <input id="share-search" type="text" placeholder="按显示名或用户名过滤" autocomplete="off" data-share-user-search>
+                        <div class="share-user-list" data-share-user-list>
+                            {{ range .ShareUsers }}
+                            <label class="share-user-option" data-share-user-option data-search-text="{{ .DisplayName }} {{ .Username }}">
+                                <input type="checkbox" name="share_user_id" value="{{ .ID }}">
+                                <span>{{ .DisplayName }}</span>
+                                <small>@{{ .Username }}</small>
+                            </label>
+                            {{ end }}
+                        </div>
+                    </div>
+
+                    <div class="account-panel-actions">
+                        <button type="submit" class="secondary" data-account-submit-action="share">共享</button>
+                    </div>
+                </section>
+
+                {{ if .Tasks }}
+                <div class="account-task-list" data-account-task-list>
+                    {{ range .Tasks }}
+                    <label class="account-task-card"
+                        data-account-task
+                        data-task-id="{{ .ID }}"
+                        data-task-type="{{ .KindClass }}"
+                        data-task-title="{{ .Title }}"
+                        data-task-importance="{{ .Importance }}"
+                        data-is-owner="{{ if .IsOwner }}1{{ else }}0{{ end }}"
+                        data-schedule-mode="{{ .ScheduleMode }}"
+                        data-schedule-value="{{ .ScheduleValue }}"
+                        data-deadline-date="{{ .DeadlineDate }}"
+                        data-deadline-time="{{ .DeadlineTime }}">
+                        <input type="checkbox" value="{{ .ID }}" data-account-task-checkbox>
+                        <div class="account-task-body">
+                            <div class="account-task-head">
+                                <div class="account-task-kind-line">
+                                    <span class="task-kind task-kind-{{ .KindClass }}">{{ .KindLabel }}</span>
+                                    <span class="account-task-importance">{{ .Importance }} 级</span>
+                                </div>
+                                <span class="account-task-status account-task-status-{{ .StatusClass }}">{{ .StatusLabel }}</span>
+                            </div>
+
+                            <h3>{{ .Title }}</h3>
+                            <p class="account-task-meta">{{ .DateLine }}</p>
+                            <p class="account-task-meta">{{ .OwnerLine }}</p>
+                            <p class="account-task-meta">{{ .SharedLine }}</p>
+                            {{ if .Note }}<p class="account-task-note">{{ .Note }}</p>{{ end }}
+                        </div>
+                    </label>
+                    {{ end }}
+                </div>
+
+                {{ else }}
+                <div class="focus-empty account-empty">
+                    <p>当前筛选下没有任务。</p>
+                    <p class="note">换一个筛选条件，或者先回首页添加新的任务。</p>
+                    </div>
+                {{ end }}
+            </form>
+
+            {{ if .Tasks }}
+            <form action="/me" method="get" class="account-list-footer">
+                {{ if .Filter.Query }}<input type="hidden" name="q" value="{{ .Filter.Query }}">{{ end }}
+                {{ range .Filter.StatusOptions }}{{ if .Selected }}<input type="hidden" name="status" value="{{ .Value }}">{{ end }}{{ end }}
+                {{ range .Filter.ScopeOptions }}{{ if .Selected }}<input type="hidden" name="scope" value="{{ .Value }}">{{ end }}{{ end }}
+                {{ range .Filter.DateFieldOptions }}{{ if .Selected }}<input type="hidden" name="date_field" value="{{ .Value }}">{{ end }}{{ end }}
+                {{ range .Filter.SortOptions }}{{ if .Selected }}<input type="hidden" name="sort" value="{{ .Value }}">{{ end }}{{ end }}
+                {{ if .Filter.DateFrom }}<input type="hidden" name="date_from" value="{{ .Filter.DateFrom }}">{{ end }}
+                {{ if .Filter.DateTo }}<input type="hidden" name="date_to" value="{{ .Filter.DateTo }}">{{ end }}
+                {{ range .Filter.TypeOptions }}{{ if .Checked }}<input type="hidden" name="type" value="{{ .Value }}">{{ end }}{{ end }}
+                {{ range .Filter.ImportanceOptions }}{{ if .Checked }}<input type="hidden" name="importance" value="{{ .Value }}">{{ end }}{{ end }}
+
+                <label for="account-limit">显示数量</label>
+                <select id="account-limit" name="limit">
+                    {{ range .Filter.LimitOptions }}
+                    <option value="{{ .Value }}"{{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
+                    {{ end }}
+                </select>
+                <button type="submit" class="secondary">更新</button>
+            </form>
+            {{ end }}
+        </section>
+
+        <section class="account-modal" data-account-panel="filter" hidden>
+            <div class="account-modal-backdrop" data-account-close-panel="filter"></div>
+            <div class="account-modal-dialog">
+                <div class="account-panel-header account-modal-header">
+                    <div class="account-modal-heading">
+                        <p class="section-kicker">筛选器</p>
+                        <p class="account-panel-copy">{{ .Filter.Summary }}</p>
+                    </div>
+                    <button type="button" class="secondary account-modal-close" data-account-close-panel="filter">关闭</button>
+                </div>
+
+                <form action="/me" method="get" class="account-filter-form">
+                    <div class="account-filter-grid">
+                        <div class="account-field account-field-wide">
+                            <label for="task-query">搜索</label>
+                            <input id="task-query" name="q" type="text" value="{{ .Filter.Query }}" placeholder="按标题或备注搜索">
+                        </div>
+
+                        <div class="account-field">
+                            <label for="task-status">状态</label>
+                            <select id="task-status" name="status">
+                                {{ range .Filter.StatusOptions }}
+                                <option value="{{ .Value }}"{{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
+                                {{ end }}
+                            </select>
+                        </div>
+
+                        <div class="account-field">
+                            <label for="task-scope">范围</label>
+                            <select id="task-scope" name="scope">
+                                {{ range .Filter.ScopeOptions }}
+                                <option value="{{ .Value }}"{{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
+                                {{ end }}
+                            </select>
+                        </div>
+
+                        <div class="account-field">
+                            <label for="task-date-field">日期维度</label>
+                            <select id="task-date-field" name="date_field">
+                                {{ range .Filter.DateFieldOptions }}
+                                <option value="{{ .Value }}"{{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
+                                {{ end }}
+                            </select>
+                        </div>
+
+                        <div class="account-field">
+                            <label for="task-date-from">起始日期</label>
+                            <input id="task-date-from" name="date_from" type="date" value="{{ .Filter.DateFrom }}">
+                        </div>
+
+                        <div class="account-field">
+                            <label for="task-date-to">截止日期</label>
+                            <input id="task-date-to" name="date_to" type="date" value="{{ .Filter.DateTo }}">
+                        </div>
+
+                        <div class="account-field">
+                            <label for="task-sort">排序</label>
+                            <select id="task-sort" name="sort">
+                                {{ range .Filter.SortOptions }}
+                                <option value="{{ .Value }}"{{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
+                                {{ end }}
+                            </select>
+                        </div>
+
+                        <div class="account-field">
+                            <span class="account-label">类型</span>
+                            <div class="account-chip-grid">
+                                {{ range .Filter.TypeOptions }}
+                                <label class="account-check-chip">
+                                    <input type="checkbox" name="type" value="{{ .Value }}"{{ if .Checked }} checked{{ end }}>
+                                    <span>{{ .Label }}</span>
+                                </label>
+                                {{ end }}
+                            </div>
+                        </div>
+
+                        <div class="account-field">
+                            <span class="account-label">星级</span>
+                            <div class="account-chip-grid">
+                                {{ range .Filter.ImportanceOptions }}
+                                <label class="account-check-chip">
+                                    <input type="checkbox" name="importance" value="{{ .Value }}"{{ if .Checked }} checked{{ end }}>
+                                    <span>{{ .Label }}</span>
+                                </label>
+                                {{ end }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="account-filter-actions">
+                        <button type="submit">应用筛选</button>
+                        <a href="/me" class="secondary action-link">清空</a>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <section class="account-modal" data-account-panel="edit" hidden>
+            <div class="account-modal-backdrop" data-account-close-panel="edit"></div>
+            <div class="account-modal-dialog">
+                <div class="account-panel-header account-modal-header">
+                    <div class="account-modal-heading">
+                        <p class="section-kicker">编辑</p>
+                        <p class="account-panel-copy" data-edit-summary>选中任务后可以修改。</p>
+                    </div>
+                    <button type="button" class="secondary account-modal-close" data-account-close-panel="edit">关闭</button>
+                </div>
+
+                <div class="account-bulk-grid">
+                    <div class="account-bulk-block" data-single-only hidden>
+                        <label for="replace-title">单条改名</label>
+                        <input id="replace-title" name="replace_title" type="text" placeholder="只在单选时生效" autocomplete="off" form="account-actions-form">
+                    </div>
+
+                    <div class="account-bulk-block">
+                        <label for="title-prefix">批量前缀</label>
+                        <input id="title-prefix" name="title_prefix" type="text" placeholder="例如：本周-" form="account-actions-form">
+                    </div>
+
+                    <div class="account-bulk-block">
+                        <label for="title-suffix">批量后缀</label>
+                        <input id="title-suffix" name="title_suffix" type="text" placeholder="例如：-已同步" form="account-actions-form">
+                    </div>
+
+                    <div class="account-bulk-block">
+                        <div class="account-field-head">
+                            <label>改星级</label>
+                            <button type="button" class="secondary account-clear-stars" data-clear-importance>保持原样</button>
+                        </div>
+                        <div class="star-rating account-star-rating" aria-label="批量修改星级">
+                            <input id="manage-importance-5" name="importance" type="radio" value="5" form="account-actions-form">
+                            <label for="manage-importance-5" title="5 星">★</label>
+                            <input id="manage-importance-4" name="importance" type="radio" value="4" form="account-actions-form">
+                            <label for="manage-importance-4" title="4 星">★</label>
+                            <input id="manage-importance-3" name="importance" type="radio" value="3" form="account-actions-form">
+                            <label for="manage-importance-3" title="3 星">★</label>
+                            <input id="manage-importance-2" name="importance" type="radio" value="2" form="account-actions-form">
+                            <label for="manage-importance-2" title="2 星">★</label>
+                            <input id="manage-importance-1" name="importance" type="radio" value="1" form="account-actions-form">
+                            <label for="manage-importance-1" title="1 星">★</label>
+                        </div>
+                    </div>
+
+                    <div class="account-bulk-block" data-single-only hidden>
+                        <label for="schedule-date">单条改时间</label>
+                        <input id="schedule-date" name="schedule_date" type="date" data-time-editor="date" hidden form="account-actions-form">
+                        <div class="account-datetime-fields" data-time-editor="datetime" hidden>
+                            <input name="deadline_date" type="date" form="account-actions-form">
+                            <input name="deadline_time" type="time" step="60" form="account-actions-form">
+                        </div>
+                        <p class="account-help" data-time-editor="none" hidden>Todo 没有可修改的时间。</p>
+                    </div>
+                </div>
+
+                <div class="account-panel-actions">
+                    <button type="submit" data-account-submit-action="apply" form="account-actions-form">保存修改</button>
+                </div>
             </div>
         </section>
     </main>

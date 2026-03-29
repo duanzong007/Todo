@@ -278,24 +278,23 @@ func (s *TaskService) Rename(ctx context.Context, userID uuid.UUID, rawID, title
 	return s.repo.RenameTask(ctx, userID, taskID, trimmedTitle, normalizedImportance)
 }
 
-func (s *TaskService) Postpone(ctx context.Context, userID uuid.UUID, rawID, targetDate string) error {
+func (s *TaskService) Postpone(ctx context.Context, userID uuid.UUID, rawID, targetDate string) (domain.Task, error) {
 	taskID, err := uuid.Parse(rawID)
 	if err != nil {
-		return fmt.Errorf("invalid task id: %w", err)
+		return domain.Task{}, fmt.Errorf("invalid task id: %w", err)
 	}
 
 	task, err := s.repo.GetTask(ctx, userID, taskID)
 	if err != nil {
-		return err
+		return domain.Task{}, err
 	}
 
 	targetValue, err := parsePostponeTarget(task, strings.TrimSpace(targetDate), time.Now().In(s.location), s.location)
 	if err != nil {
-		return err
+		return domain.Task{}, err
 	}
 
-	_, err = s.repo.PostponeTask(ctx, userID, taskID, targetValue)
-	return err
+	return s.repo.PostponeTask(ctx, userID, taskID, targetValue)
 }
 
 func checksumString(input string) string {

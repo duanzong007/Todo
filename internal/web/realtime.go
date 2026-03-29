@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type dashboardEvent struct {
@@ -92,6 +95,36 @@ func (h *Handler) publishDashboardUpdate(userID, actorClientID string) {
 		return
 	}
 	h.eventHub.Publish(userID, strings.TrimSpace(actorClientID))
+}
+
+func (h *Handler) publishDashboardUpdatesForUUIDs(userIDs []uuid.UUID, actorClientID string) {
+	if len(userIDs) == 0 {
+		return
+	}
+
+	seen := make(map[string]struct{}, len(userIDs))
+	for _, userID := range userIDs {
+		if userID == uuid.Nil {
+			continue
+		}
+		raw := userID.String()
+		if _, ok := seen[raw]; ok {
+			continue
+		}
+		seen[raw] = struct{}{}
+		h.publishDashboardUpdate(raw, actorClientID)
+	}
+}
+
+func (h *Handler) publishTaskAudience(ctx context.Context, rawTaskID string, fallbackUserID uuid.UUID, actorClientID string) {
+	audience, err := h.taskService.VisibleUserIDsForTask(ctx, rawTaskID)
+	if err != nil || len(audience) == 0 {
+		if fallbackUserID != uuid.Nil {
+			h.publishDashboardUpdate(fallbackUserID.String(), actorClientID)
+		}
+		return
+	}
+	h.publishDashboardUpdatesForUUIDs(audience, actorClientID)
 }
 
 func requestClientID(r *http.Request) string {

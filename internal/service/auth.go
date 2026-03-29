@@ -183,6 +183,13 @@ func (s *AuthService) ListPendingUsers(ctx context.Context, actor domain.User) (
 	return s.repo.ListPendingUsers(ctx)
 }
 
+func (s *AuthService) ListShareableUsers(ctx context.Context, actor domain.User) ([]domain.User, error) {
+	if !actor.CanUseSystem() {
+		return nil, ErrPermissionDenied
+	}
+	return s.repo.ListApprovedUsersExcept(ctx, actor.ID)
+}
+
 func (s *AuthService) ApproveUser(ctx context.Context, actor domain.User, userID string) (domain.User, error) {
 	if !actor.CanUseSystem() || !actor.IsAdmin() {
 		return domain.User{}, ErrPermissionDenied

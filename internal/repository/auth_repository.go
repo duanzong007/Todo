@@ -202,6 +202,34 @@ func (r *AuthRepository) ListPendingUsers(ctx context.Context) ([]domain.User, e
 	return users, nil
 }
 
+func (r *AuthRepository) ListApprovedUsersExcept(ctx context.Context, excludeUserID uuid.UUID) ([]domain.User, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, username, display_name, password_hash, role, approval_status, is_active, last_login_at, approved_at, approved_by, created_at, updated_at
+		FROM app_users
+		WHERE id <> $1
+			AND is_active = TRUE
+			AND approval_status = 'approved'
+		ORDER BY lower(display_name), lower(username::text)
+	`, excludeUserID)
+	if err != nil {
+		return nil, fmt.Errorf("list approved users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []domain.User
+	for rows.Next() {
+		user, err := scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate approved users: %w", err)
+	}
+	return users, nil
+}
+
 func (r *AuthRepository) ApproveUser(ctx context.Context, adminID, userID uuid.UUID) (domain.User, error) {
 	row := r.db.QueryRow(ctx, `
 		UPDATE app_users
