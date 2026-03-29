@@ -183,13 +183,15 @@
     });
 
     const enforceCurrentMin = root.hasAttribute("data-postpone-picker") || root.dataset.enforceCurrentMin === "1";
+    const allowEmpty = root.dataset.allowEmpty === "1";
     const configuredMinDate = parseValue(mode, root.dataset.minValue);
     const currentMinDate = enforceCurrentMin ? currentMinimumForMode(mode) : null;
     let minDate = configuredMinDate || null;
     if (currentMinDate && (!minDate || currentMinDate > minDate)) {
       minDate = currentMinDate;
     }
-    const initialDate = parseValue(mode, root.dataset.initialValue || targetInput?.value || "") || minDate || new Date();
+    const parsedInitialDate = parseValue(mode, root.dataset.initialValue || targetInput?.value || "");
+    const initialDate = parsedInitialDate || minDate || new Date();
     if (minDate) {
       root.dataset.minValue = formatValue(mode, dateToState(minDate));
     }
@@ -205,6 +207,9 @@
       inputTimers,
       collapseTimer: 0,
       minDate,
+      allowEmpty,
+      emptyLabel: root.dataset.emptyLabel || "未设置",
+      hasValue: !allowEmpty || parsedInitialDate !== null,
       state: normalizeState(mode, dateToState(initialDate), minDate),
     };
 
@@ -214,9 +219,17 @@
 
   function syncHiddenInput(picker) {
     if (picker.targetInput) {
-      picker.targetInput.value = formatValue(picker.mode, picker.state);
+      picker.targetInput.value = picker.hasValue ? formatValue(picker.mode, picker.state) : "";
     }
-    picker.root.dataset.initialValue = formatValue(picker.mode, picker.state);
+    picker.root.dataset.initialValue = picker.hasValue ? formatValue(picker.mode, picker.state) : "";
+  }
+
+  function activatePickerValue(picker) {
+    if (!picker.allowEmpty || picker.hasValue) {
+      return;
+    }
+    picker.hasValue = true;
+    syncHiddenInput(picker);
   }
 
   function setExpanded(picker, expanded) {
@@ -338,6 +351,8 @@
 
   function render(picker) {
     syncHiddenInput(picker);
+    picker.root.dataset.emptyLabel = picker.emptyLabel;
+    picker.root.classList.toggle("is-empty", picker.allowEmpty && !picker.hasValue);
     picker.parts.forEach((part) => {
       syncColumn(picker, picker.columns[part], part, picker.state, picker.motions[part].offset);
     });
@@ -417,6 +432,7 @@
 
   function nudge(picker, part, delta) {
     const motion = picker.motions[part];
+    activatePickerValue(picker);
     clearInputBuffer(picker, part);
     setExpanded(picker, true);
     motion.targetOffset = clamp(
@@ -489,6 +505,7 @@
       }
 
       clearInputBuffer(picker, part);
+      activatePickerValue(picker);
       setExpanded(picker, true);
       motion.targetOffset = clamp(
         motion.targetOffset - delta * WHEEL_SENSITIVITY,
@@ -514,6 +531,7 @@
         event.preventDefault();
         const maxLength = part === "year" ? 4 : 2;
         const nextBuffer = (picker.inputBuffers[part] + event.key).slice(-maxLength);
+        activatePickerValue(picker);
         picker.inputBuffers[part] = nextBuffer;
         column.classList.add("is-buffering");
         render(picker);
@@ -565,6 +583,7 @@
 
       if (!motion.dragging) {
         motion.dragging = true;
+        activatePickerValue(picker);
         clearInputBuffer(picker, part);
         setExpanded(picker, true);
         if (motion.snapTimer) {
@@ -610,6 +629,7 @@
       }
 
       if (!picker.root.classList.contains("is-expanded")) {
+        activatePickerValue(picker);
         setExpanded(picker, true);
         scheduleCollapse(picker);
         return;
@@ -667,10 +687,17 @@
       return false;
     }
     const picker = getPicker(root);
+    if (String(rawValue || "").trim() === "" && picker.allowEmpty) {
+      picker.hasValue = false;
+      render(picker);
+      scheduleCollapse(picker);
+      return true;
+    }
     const parsed = parseValue(picker.mode, rawValue);
     if (!parsed) {
       return false;
     }
+    picker.hasValue = true;
     picker.state = normalizeState(picker.mode, dateToState(parsed), picker.minDate);
     render(picker);
     scheduleCollapse(picker);

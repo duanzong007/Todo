@@ -94,7 +94,9 @@ type AccountPageData struct {
 	Message     string
 	Error       string
 	ReturnQuery string
+	TodayDateISO string
 	Filter      AccountTaskFilterView
+	Pagination  AccountPaginationView
 	Tasks       []ManagedTaskCard
 	ShareUsers  []ShareableUserCard
 }
@@ -102,6 +104,8 @@ type AccountPageData struct {
 type AccountTaskFilterView struct {
 	Query             string
 	Summary           string
+	LimitValue        string
+	PageValue         string
 	DateFrom          string
 	DateTo            string
 	StatusOptions     []AccountFilterOption
@@ -111,6 +115,18 @@ type AccountTaskFilterView struct {
 	LimitOptions      []AccountFilterOption
 	TypeOptions       []AccountCheckOption
 	ImportanceOptions []AccountCheckOption
+}
+
+type AccountPaginationView struct {
+	Page        int
+	TotalPages  int
+	TotalItems  int
+	HasPages    bool
+	HasPrev     bool
+	HasNext     bool
+	PrevPage    int
+	NextPage    int
+	PageOptions []AccountFilterOption
 }
 
 type AccountFilterOption struct {
@@ -140,7 +156,6 @@ type ManagedTaskCard struct {
 	StatusLabel   string
 	StatusClass   string
 	DateLine      string
-	OwnerLine     string
 	SharedLine    string
 	Note          string
 	IsOwner       bool

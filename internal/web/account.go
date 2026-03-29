@@ -20,6 +20,7 @@ type accountTaskFilterInput struct {
 	DateField   string
 	Sort        string
 	Limit       int
+	Page        int
 	DateFrom    string
 	DateTo      string
 	Types       []string
@@ -29,9 +30,20 @@ type accountTaskFilterInput struct {
 func (h *Handler) buildAccountPageData(r *http.Request, user domain.User) (AccountPageData, error) {
 	filterInput, repoFilter := h.parseAccountTaskFilter(r)
 
-	tasks, err := h.taskService.ListManagedTasks(r.Context(), user.ID, repoFilter)
+	tasks, total, err := h.taskService.ListManagedTasks(r.Context(), user.ID, repoFilter)
 	if err != nil {
 		return AccountPageData{}, err
+	}
+
+	totalPages := buildAccountTotalPages(total, filterInput.Limit)
+	if totalPages > 0 && filterInput.Page > totalPages {
+		filterInput.Page = totalPages
+		repoFilter.Offset = (filterInput.Page - 1) * filterInput.Limit
+		tasks, total, err = h.taskService.ListManagedTasks(r.Context(), user.ID, repoFilter)
+		if err != nil {
+			return AccountPageData{}, err
+		}
+		totalPages = buildAccountTotalPages(total, filterInput.Limit)
 	}
 
 	shareUsers, err := h.authService.ListShareableUsers(r.Context(), user)
@@ -44,7 +56,9 @@ func (h *Handler) buildAccountPageData(r *http.Request, user domain.User) (Accou
 		Message:     strings.TrimSpace(r.URL.Query().Get("msg")),
 		Error:       strings.TrimSpace(r.URL.Query().Get("err")),
 		ReturnQuery: encodeAccountReturnQuery(r.URL.Query()),
+		TodayDateISO: time.Now().In(h.location).Format("2006-01-02"),
 		Filter:      buildAccountTaskFilterView(filterInput),
+		Pagination:  buildAccountPaginationView(filterInput.Page, filterInput.Limit, total),
 		Tasks:       buildManagedTaskCards(tasks, user, h.location),
 		ShareUsers:  buildShareableUserCards(shareUsers),
 	}, nil
@@ -71,6 +85,7 @@ func (h *Handler) handleAccountTaskApply(w http.ResponseWriter, r *http.Request)
 		ScheduleDate:    strings.TrimSpace(r.FormValue("schedule_date")),
 		DeadlineDate:    strings.TrimSpace(r.FormValue("deadline_date")),
 		DeadlineTime:    strings.TrimSpace(r.FormValue("deadline_time")),
+		DeadlineValue:   strings.TrimSpace(r.FormValue("deadline_value")),
 		ShareUserIDs:    append([]string(nil), r.Form["share_user_id"]...),
 	}
 
@@ -123,6 +138,7 @@ func (h *Handler) parseAccountTaskFilter(r *http.Request) (accountTaskFilterInpu
 		DateField:   normalizeAccountSingleValue(queryValues.Get("date_field"), "", "planned", "created", "completed"),
 		Sort:        normalizeAccountSingleValue(queryValues.Get("sort"), "updated_desc", "updated_desc", "created_desc", "importance_desc", "planned_asc"),
 		Limit:       normalizeAccountLimit(queryValues.Get("limit")),
+		Page:        normalizeAccountPage(queryValues.Get("page")),
 		DateFrom:    strings.TrimSpace(queryValues.Get("date_from")),
 		DateTo:      strings.TrimSpace(queryValues.Get("date_to")),
 		Types:       queryValues["type"],
@@ -137,6 +153,7 @@ func (h *Handler) parseAccountTaskFilter(r *http.Request) (accountTaskFilterInpu
 		Sort:      input.Sort,
 		TimeZone:  h.location.String(),
 		Limit:     input.Limit,
+		Offset:    (input.Page - 1) * input.Limit,
 	}
 
 	for _, rawType := range input.Types {
@@ -186,10 +203,12 @@ func (h *Handler) parseAccountTaskFilter(r *http.Request) (accountTaskFilterInpu
 
 func buildAccountTaskFilterView(input accountTaskFilterInput) AccountTaskFilterView {
 	return AccountTaskFilterView{
-		Query:    input.Query,
-		Summary:  buildAccountFilterSummary(input),
-		DateFrom: input.DateFrom,
-		DateTo:   input.DateTo,
+		Query:      input.Query,
+		Summary:    buildAccountFilterSummary(input),
+		LimitValue: strconv.Itoa(input.Limit),
+		PageValue:  strconv.Itoa(input.Page),
+		DateFrom:   input.DateFrom,
+		DateTo:     input.DateTo,
 		StatusOptions: []AccountFilterOption{
 			{Value: "all", Label: "全部状态", Selected: input.Status == "all"},
 			{Value: "active", Label: "待确认", Selected: input.Status == "active"},
@@ -237,16 +256,14 @@ func buildAccountFilterSummary(input accountTaskFilterInput) string {
 	parts := []string{}
 
 	if trimmed := strings.TrimSpace(input.Query); trimmed != "" {
-		parts = append(parts, "搜索："+trimmed)
+		parts = append(parts, trimmed)
 	}
 
 	switch input.Status {
 	case "active":
-		parts = append(parts, "只看待确认")
+		parts = append(parts, "待确认")
 	case "done":
-		parts = append(parts, "只看已完成")
-	default:
-		parts = append(parts, "全部状态")
+		parts = append(parts, "已完成")
 	}
 
 	switch input.Scope {
@@ -254,8 +271,6 @@ func buildAccountFilterSummary(input accountTaskFilterInput) string {
 		parts = append(parts, "我创建的")
 	case "shared":
 		parts = append(parts, "共享给我的")
-	default:
-		parts = append(parts, "全部任务")
 	}
 
 	if len(input.Types) > 0 {
@@ -271,30 +286,39 @@ func buildAccountFilterSummary(input accountTaskFilterInput) string {
 			}
 		}
 		if len(typeLabels) > 0 {
-			parts = append(parts, "类型："+strings.Join(typeLabels, " / "))
+			parts = append(parts, strings.Join(typeLabels, " / "))
 		}
 	}
 
 	if len(input.Importances) > 0 {
-		parts = append(parts, "星级已筛选")
+		importanceLabels := make([]string, 0, len(input.Importances))
+		for _, item := range input.Importances {
+			switch strings.TrimSpace(item) {
+			case "1", "2", "3", "4", "5":
+				importanceLabels = append(importanceLabels, strings.TrimSpace(item)+"星")
+			}
+		}
+		if len(importanceLabels) > 0 {
+			parts = append(parts, strings.Join(importanceLabels, " / "))
+		}
 	}
 
 	if input.DateField != "" && (input.DateFrom != "" || input.DateTo != "") {
 		dateLabel := "日期"
 		switch input.DateField {
 		case "planned":
-			dateLabel = "日程/DDL"
+			dateLabel = "日程 / DDL"
 		case "created":
-			dateLabel = "创建"
+			dateLabel = "创建日期"
 		case "completed":
-			dateLabel = "完成"
+			dateLabel = "完成日期"
 		}
 		if input.DateFrom != "" && input.DateTo != "" {
-			parts = append(parts, fmt.Sprintf("%s：%s 到 %s", dateLabel, input.DateFrom, input.DateTo))
+			parts = append(parts, fmt.Sprintf("%s %s 至 %s", dateLabel, input.DateFrom, input.DateTo))
 		} else if input.DateFrom != "" {
-			parts = append(parts, fmt.Sprintf("%s：从 %s 起", dateLabel, input.DateFrom))
+			parts = append(parts, fmt.Sprintf("%s %s 起", dateLabel, input.DateFrom))
 		} else if input.DateTo != "" {
-			parts = append(parts, fmt.Sprintf("%s：到 %s 止", dateLabel, input.DateTo))
+			parts = append(parts, fmt.Sprintf("%s 至 %s", dateLabel, input.DateTo))
 		}
 	}
 
@@ -305,12 +329,57 @@ func buildAccountFilterSummary(input accountTaskFilterInput) string {
 		parts = append(parts, "重要等级优先")
 	case "planned_asc":
 		parts = append(parts, "时间靠前优先")
-	default:
-		parts = append(parts, "最近更新")
 	}
 
-	parts = append(parts, fmt.Sprintf("显示 %d 条", input.Limit))
+	if len(parts) == 0 {
+		return "无筛选"
+	}
 	return strings.Join(parts, " · ")
+}
+
+func buildAccountPaginationView(page, limit, total int) AccountPaginationView {
+	totalPages := buildAccountTotalPages(total, limit)
+	if totalPages == 0 {
+		totalPages = 1
+	}
+	if page < 1 {
+		page = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	view := AccountPaginationView{
+		Page:       page,
+		TotalPages: totalPages,
+		TotalItems: total,
+		HasPages:   total > 0,
+		HasPrev:    page > 1,
+		HasNext:    page < totalPages,
+		PrevPage:   page - 1,
+		NextPage:   page + 1,
+	}
+
+	view.PageOptions = make([]AccountFilterOption, 0, totalPages)
+	for current := 1; current <= totalPages; current++ {
+		view.PageOptions = append(view.PageOptions, AccountFilterOption{
+			Value:    strconv.Itoa(current),
+			Label:    fmt.Sprintf("第 %d 页", current),
+			Selected: current == page,
+		})
+	}
+
+	return view
+}
+
+func buildAccountTotalPages(total, limit int) int {
+	if total <= 0 {
+		return 0
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	return (total + limit - 1) / limit
 }
 
 func buildManagedTaskCards(tasks []repository.ManagedTask, currentUser domain.User, location *time.Location) []ManagedTaskCard {
@@ -336,19 +405,11 @@ func buildManagedTaskCards(tasks []repository.ManagedTask, currentUser domain.Us
 			card.StatusClass = "active"
 		}
 
-		if card.IsOwner {
-			card.OwnerLine = "创建者：我"
-		} else {
-			card.OwnerLine = fmt.Sprintf("来自：%s @%s", managed.OwnerDisplayName, managed.OwnerUsername)
-		}
-
 		switch {
-		case card.IsOwner && managed.ShareCount > 0:
-			card.SharedLine = fmt.Sprintf("已共享给 %d 人", managed.ShareCount)
+		case card.IsOwner && strings.TrimSpace(managed.ShareNames) != "":
+			card.SharedLine = "共享给 " + strings.TrimSpace(managed.ShareNames)
 		case managed.SharedWithMe:
-			card.SharedLine = "共享协作中"
-		default:
-			card.SharedLine = "仅自己可见"
+			card.SharedLine = "与 " + managed.OwnerDisplayName + " 共享"
 		}
 
 		switch task.Type {
@@ -369,15 +430,6 @@ func buildManagedTaskCards(tasks []repository.ManagedTask, currentUser domain.Us
 			}
 		default:
 			card.ScheduleMode = "none"
-		}
-
-		if card.DateLine == "" {
-			switch {
-			case task.CompletedAt != nil:
-				card.DateLine = "完成 · " + task.CompletedAt.In(location).Format("2006-01-02 15:04")
-			default:
-				card.DateLine = "创建 · " + task.CreatedAt.In(location).Format("2006-01-02 15:04")
-			}
 		}
 
 		cards = append(cards, card)
@@ -434,6 +486,14 @@ func normalizeAccountLimit(raw string) int {
 	default:
 		return 10
 	}
+}
+
+func normalizeAccountPage(raw string) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value < 1 {
+		return 1
+	}
+	return value
 }
 
 func containsString(values []string, target string) bool {

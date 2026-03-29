@@ -1538,6 +1538,20 @@ button.complete-toggle:hover {
     pointer-events: none;
 }
 
+.wheel-date-picker.is-empty:not(.is-expanded)::after {
+    content: attr(data-empty-label);
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: 50%;
+    z-index: 2;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 0.92rem;
+    text-align: center;
+    pointer-events: none;
+}
+
 .wheel-column {
     position: relative;
     z-index: 1;
@@ -1580,6 +1594,11 @@ button.complete-toggle:hover {
 }
 
 .wheel-date-picker:not(.is-expanded) .wheel-column::before {
+    opacity: 0;
+}
+
+.wheel-date-picker.is-empty:not(.is-expanded) .wheel-column,
+.wheel-date-picker.is-empty:not(.is-expanded) .date-unit {
     opacity: 0;
 }
 
@@ -1720,16 +1739,49 @@ button.complete-toggle:hover {
 
 .account-panel h1 {
     margin: 0;
-    font-size: clamp(2rem, 5vw, 3rem);
-    line-height: 1.02;
+    font-size: clamp(1.56rem, 4vw, 2.12rem);
+    line-height: 1.04;
     font-family: "Iowan Old Style", "Songti SC", serif;
+}
+
+.account-page button,
+.account-page .action-link {
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font-size: 0.88rem;
+}
+
+.account-page input[type="text"],
+.account-page input[type="date"],
+.account-page input[type="time"],
+.account-page select {
+    min-height: 42px;
+    border-radius: 14px;
+    padding: 0 12px;
+    font-size: 0.9rem;
 }
 
 .account-actions {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     flex-wrap: wrap;
-    margin-top: 24px;
+    margin-top: 4px;
+}
+
+.account-panel {
+    display: grid;
+    gap: 10px;
+    padding: 18px 20px;
+}
+
+.account-panel .eyebrow {
+    margin-bottom: 2px;
+}
+
+.account-panel .hero-copy {
+    margin-top: 2px;
+    font-size: 0.92rem;
 }
 
 .account-filter-panel,
@@ -1737,31 +1789,63 @@ button.complete-toggle:hover {
     margin-top: 18px;
 }
 
+.account-manage-panel {
+    margin-top: 0;
+}
+
 .account-head-stack {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.account-manage-toolbar {
+    margin: 18px 0 10px;
+    padding: 0 20px;
+}
+
+.account-manage-header {
+    margin-bottom: 8px;
+}
+
+.account-manage-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.account-manage-row-primary {
+    align-items: center;
+}
+
+.account-manage-row-secondary {
+    align-items: center;
 }
 
 .account-drawer-toggle {
-    min-height: 40px;
-    padding: 0 16px;
+    min-height: 34px;
+    padding: 0 13px;
 }
 
 .account-filter-summary {
     margin: 0;
     color: var(--muted);
-    font-size: 0.9rem;
-    line-height: 1.5;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    flex: 1 1 320px;
+    min-width: 0;
 }
 
 .account-section-head {
     display: flex;
-    justify-content: space-between;
-    align-items: end;
+    justify-content: flex-start;
+    align-items: center;
     gap: 16px;
-    margin-bottom: 18px;
+    margin-bottom: 14px;
 }
 
 .account-section-head h2 {
@@ -1775,21 +1859,22 @@ button.complete-toggle:hover {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 52px;
-    min-height: 34px;
-    padding: 0 14px;
+    min-width: 42px;
+    min-height: 28px;
+    padding: 0 11px;
     border-radius: 999px;
     border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.76);
+    background: rgba(255, 255, 255, 0.72);
     color: var(--muted);
     font-weight: 700;
+    font-size: 0.8rem;
 }
 
 .account-filter-form,
 .account-bulk-form {
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 0;
 }
 
 .account-modal-open {
@@ -1830,7 +1915,7 @@ button.complete-toggle:hover {
 }
 
 .account-inline-panel {
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     padding: 18px;
     border-radius: 22px;
     border: 1px solid var(--line);
@@ -1867,7 +1952,7 @@ button.complete-toggle:hover {
 .account-panel-copy {
     margin: 0;
     color: var(--muted);
-    font-size: 0.92rem;
+    font-size: 0.88rem;
 }
 
 .account-filter-grid,
@@ -1892,13 +1977,162 @@ button.complete-toggle:hover {
     width: 100%;
 }
 
+.account-native-select {
+    display: none !important;
+}
+
+.account-select {
+    position: relative;
+    width: 100%;
+}
+
+.account-select-trigger {
+    width: 100%;
+    min-height: 46px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.88);
+    color: var(--ink);
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    transition:
+        border-color 280ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        box-shadow 280ms ease,
+        background 280ms ease,
+        border-radius 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.account-select-trigger:hover {
+    transform: none;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.92);
+}
+
+.account-select.is-open .account-select-trigger {
+    border-color: rgba(197, 109, 58, 0.32);
+    border-radius: 24px;
+    box-shadow: 0 10px 24px rgba(92, 67, 44, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.76);
+    background: rgba(255, 255, 255, 0.94);
+}
+
+.account-select-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.account-select-caret {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 auto;
+    border-right: 1.8px solid rgba(117, 90, 67, 0.88);
+    border-bottom: 1.8px solid rgba(117, 90, 67, 0.88);
+    transform: rotate(45deg) translateY(-1px);
+    transition: transform 0.18s ease;
+}
+
+.account-select.is-open .account-select-caret {
+    transform: rotate(-135deg) translateY(-1px);
+}
+
+.account-select-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    z-index: 24;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 12px;
+    border-radius: 24px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 18px 34px rgba(77, 56, 37, 0.12);
+    backdrop-filter: blur(14px);
+    animation: account-select-unfold 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.account-select.account-select-center-menu .account-select-menu {
+    top: 50%;
+    transform: translateY(-50%);
+    animation: account-select-center-unfold 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.account-select-menu[hidden] {
+    display: none !important;
+}
+
+.account-select-option {
+    width: 100%;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: rgba(38, 33, 27, 0.52);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1;
+    transition: background 180ms ease, color 180ms ease;
+}
+
+.account-select-option:hover {
+    transform: none;
+    color: rgba(38, 33, 27, 0.72);
+    background: rgba(240, 219, 199, 0.18);
+}
+
+.account-select-option.is-selected {
+    background: rgba(240, 219, 199, 0.26);
+    color: var(--ink);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+@keyframes account-select-unfold {
+    from {
+        opacity: 0;
+        transform: translateY(-4px) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes account-select-center-unfold {
+    from {
+        opacity: 0;
+        transform: translateY(calc(-50% - 4px)) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(-50%) scale(1);
+    }
+}
+
 .account-field-wide,
 .account-share-block {
     grid-column: 1 / -1;
 }
 
 .account-label {
-    font-size: 0.92rem;
+    font-size: 0.88rem;
     color: var(--muted);
     font-weight: 600;
 }
@@ -1922,13 +2156,13 @@ button.complete-toggle:hover {
 .account-check-chip span {
     display: inline-flex;
     align-items: center;
-    min-height: 38px;
-    padding: 0 14px;
+    min-height: 34px;
+    padding: 0 12px;
     border-radius: 999px;
     border: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.74);
     color: var(--muted);
-    font-size: 0.9rem;
+    font-size: 0.86rem;
     font-weight: 600;
     cursor: pointer;
 }
@@ -1958,18 +2192,18 @@ button.complete-toggle:hover {
     margin-top: 18px;
 }
 
-.account-toolbar {
+.account-selection-pill {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 16px;
-    padding: 14px 16px;
+    gap: 12px;
+    padding: 10px 13px;
     border-radius: 18px;
-    border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.62);
+    border: 1px solid rgba(38, 33, 27, 0.08);
+    background: rgba(255, 255, 255, 0.72);
+    flex: 0 1 auto;
+    min-width: 0;
 }
 
-.account-toolbar-main,
 .account-toolbar-actions {
     display: flex;
     align-items: center;
@@ -1977,31 +2211,53 @@ button.complete-toggle:hover {
     flex-wrap: wrap;
 }
 
+.account-toolbar-actions {
+    justify-content: flex-end;
+    flex: 0 0 auto;
+}
+
+.account-toolbar-actions button {
+    min-height: 34px;
+    padding: 0 13px;
+}
+
 .account-select-all {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
-    font-weight: 700;
+    gap: 8px;
+    font-weight: 600;
     color: var(--ink);
+    font-size: 0.86rem;
 }
 
 .account-select-all input {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     accent-color: var(--accent);
 }
 
 .account-selection-copy {
     margin: 0;
     color: var(--muted);
-    font-size: 0.92rem;
+    font-size: 0.82rem;
 }
 
 .account-bulk-block {
-    padding: 16px;
-    border-radius: 20px;
+    padding: 14px;
+    border-radius: 18px;
     border: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.62);
+}
+
+.account-bulk-block-wide {
+    grid-column: 1 / -1;
+}
+
+.account-bulk-block[hidden],
+.account-field[hidden],
+.account-wheel-picker[hidden],
+.account-time-editor-block[hidden] {
+    display: none !important;
 }
 
 .account-field-head {
@@ -2011,14 +2267,18 @@ button.complete-toggle:hover {
     gap: 12px;
 }
 
+.account-field-head label {
+    margin: 0;
+}
+
 .account-help {
     margin: 0;
     color: var(--muted);
-    font-size: 0.84rem;
+    font-size: 0.8rem;
 }
 
 .account-clear-stars {
-    min-height: 38px;
+    min-height: 34px;
     padding: 0 14px;
 }
 
@@ -2036,6 +2296,21 @@ button.complete-toggle:hover {
     flex: 1 1 0;
 }
 
+.account-wheel-picker {
+    width: 100%;
+    justify-content: center;
+}
+
+.account-wheel-clear {
+    min-height: 30px;
+    padding: 0 12px;
+    font-size: 0.76rem;
+}
+
+.account-time-editor-block {
+    gap: 10px;
+}
+
 .share-user-list {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2049,8 +2324,8 @@ button.complete-toggle:hover {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    padding: 12px 14px;
-    border-radius: 16px;
+    padding: 11px 13px;
+    border-radius: 14px;
     border: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.78);
     cursor: pointer;
@@ -2074,24 +2349,88 @@ button.complete-toggle:hover {
 .account-task-list {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 10px;
+}
+
+.account-footer-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 42px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+    width: fit-content;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .account-list-footer {
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    gap: 12px;
-    margin-top: 18px;
-    padding-top: 4px;
+    gap: 10px;
+    margin-top: 0;
+    padding-top: 0;
 }
 
 .account-list-footer label {
     white-space: nowrap;
+    font-size: 0.8rem;
+    color: var(--muted);
 }
 
-.account-list-footer select {
-    width: 132px;
+.account-list-footer .account-select {
+    width: 106px;
+}
+
+.account-list-footer .account-select-trigger,
+.account-pagination button,
+.account-page-picker input[type="text"] {
+    min-height: 36px;
+    font-size: 0.82rem;
+}
+
+.account-list-footer .account-select-trigger {
+    padding: 4px 12px;
+}
+
+.account-pagination {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 10px;
+    margin-top: 0;
+}
+
+.account-page-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.account-page-picker-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.account-page-picker label {
+    white-space: nowrap;
+    font-size: 0.8rem;
+}
+
+.account-page-picker input[type="text"] {
+    width: 72px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.88);
+    text-align: center;
+    font-weight: 700;
+    color: var(--ink);
+    padding: 0 10px;
 }
 
 .account-task-card {
@@ -2099,29 +2438,30 @@ button.complete-toggle:hover {
     grid-template-columns: auto 1fr;
     gap: 14px;
     align-items: start;
-    padding: 18px;
-    border-radius: 22px;
-    border: 1px solid var(--line);
-    background: rgba(255, 251, 245, 0.78);
+    padding: 15px 16px;
+    border-radius: 18px;
+    border: 1px solid rgba(38, 33, 27, 0.09);
+    background: rgba(255, 252, 247, 0.9);
     color: inherit;
     cursor: pointer;
-    transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+    transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 
 .account-task-card:hover {
-    border-color: rgba(197, 109, 58, 0.24);
-    transform: translateY(-1px);
+    border-color: rgba(197, 109, 58, 0.16);
+    box-shadow: 0 10px 22px rgba(72, 43, 20, 0.04);
 }
 
 .account-task-card:has(input:checked) {
-    border-color: rgba(197, 109, 58, 0.38);
-    background: rgba(255, 250, 244, 0.96);
+    border-color: rgba(197, 109, 58, 0.24);
+    background: rgba(255, 249, 241, 0.96);
+    box-shadow: inset 0 0 0 1px rgba(197, 109, 58, 0.04);
 }
 
 .account-task-card input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    margin: 6px 0 0;
+    width: 16px;
+    height: 16px;
+    margin: 4px 0 0;
     accent-color: var(--accent);
 }
 
@@ -2133,20 +2473,27 @@ button.complete-toggle:hover {
     display: flex;
     justify-content: space-between;
     align-items: start;
-    gap: 16px;
-    margin-bottom: 10px;
+    gap: 14px;
+    margin-bottom: 8px;
 }
 
 .account-task-kind-line {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
 }
 
+.account-task-kind-line .task-kind {
+    min-width: 42px;
+    padding: 3px 8px;
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+
 .account-task-importance {
-    color: var(--muted);
-    font-size: 0.88rem;
+    color: rgba(112, 100, 88, 0.88);
+    font-size: 0.76rem;
     font-weight: 700;
 }
 
@@ -2154,10 +2501,10 @@ button.complete-toggle:hover {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 32px;
-    padding: 0 12px;
+    min-height: 28px;
+    padding: 0 10px;
     border-radius: 999px;
-    font-size: 0.84rem;
+    font-size: 0.76rem;
     font-weight: 700;
     white-space: nowrap;
 }
@@ -2172,24 +2519,41 @@ button.complete-toggle:hover {
     color: #3a6b44;
 }
 
+.account-task-title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
 .account-task-body h3 {
-    margin: 0 0 8px;
-    font-size: 1.4rem;
-    line-height: 1.12;
-    font-family: "Iowan Old Style", "Songti SC", serif;
+    margin: 0;
+    color: #2f2720;
+    font-size: 1.08rem;
+    font-weight: 600;
+    line-height: 1.28;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .account-task-meta {
-    margin: 4px 0 0;
-    color: var(--muted);
-    font-size: 0.92rem;
+    margin: 3px 0 0;
+    color: rgba(112, 100, 88, 0.94);
+    font-size: 0.86rem;
+}
+
+.account-task-date {
+    margin: 0 0 0 auto;
+    flex: 0 0 auto;
+    text-align: right;
+    white-space: nowrap;
 }
 
 .account-task-note {
-    margin: 10px 0 0;
-    color: var(--ink);
-    font-size: 0.95rem;
-    line-height: 1.55;
+    margin: 8px 0 0;
+    color: rgba(112, 100, 88, 0.94);
+    font-size: 0.86rem;
+    line-height: 1.5;
 }
 
 .account-empty {
@@ -2237,7 +2601,7 @@ button.complete-toggle:hover {
         border-radius: 24px 24px 22px 22px;
     }
 
-    .account-toolbar,
+    .account-manage-row,
     .account-section-head,
     .account-field-head,
     .account-task-head,
@@ -2250,10 +2614,33 @@ button.complete-toggle:hover {
         align-items: stretch;
     }
 
-    .account-toolbar-main,
     .account-toolbar-actions {
         width: 100%;
         justify-content: stretch;
+    }
+
+    .account-manage-toolbar {
+        margin: 16px 0 10px;
+        padding: 0 18px;
+    }
+
+    .account-head-stack,
+    .account-selection-pill {
+        width: 100%;
+    }
+
+    .account-footer-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .account-page-picker input[type="text"] {
+        width: 100%;
+    }
+
+    .account-list-footer .account-select,
+    .account-page-picker .account-select {
+        width: 100%;
     }
 
     .account-modal-header {
@@ -2388,6 +2775,18 @@ button.complete-toggle:hover {
     .account-task-card {
         grid-template-columns: auto 1fr;
         padding: 16px;
+    }
+
+    .account-task-title-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .account-task-date {
+        margin: 0;
+        text-align: left;
+        white-space: normal;
     }
 
     .composer-form-grid {

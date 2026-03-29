@@ -26,6 +26,7 @@ type TaskManagementFilter struct {
 	Sort       string
 	TimeZone   string
 	Limit      int
+	Offset     int
 }
 
 type ManagedTask struct {
@@ -35,37 +36,14 @@ type ManagedTask struct {
 	OwnerUsername    string
 	SharedWithMe     bool
 	ShareCount       int
+	ShareNames       string
 }
 
-func (r *TaskRepository) ListManagedTasks(ctx context.Context, userID uuid.UUID, filter TaskManagementFilter) ([]ManagedTask, error) {
+func (r *TaskRepository) ListManagedTasks(ctx context.Context, userID uuid.UUID, filter TaskManagementFilter) ([]ManagedTask, int, error) {
 	args := []any{userID}
-	var builder strings.Builder
+	var whereBuilder strings.Builder
 
-	builder.WriteString(`
-		SELECT
-			t.user_id,
-			owner.display_name,
-			owner.username,
-			(t.user_id <> $1) AS shared_with_me,
-			COALESCE((
-				SELECT COUNT(*)
-				FROM task_shares share_count
-				WHERE share_count.task_id = t.id
-			), 0)::int AS share_count,
-			t.id,
-			t.source_id,
-			t.title,
-			t.note,
-			t.task_type,
-			t.status,
-			t.importance,
-			t.scheduled_for,
-			t.deadline,
-			t.completed_at,
-			t.postponed_count,
-			t.metadata,
-			t.created_at,
-			t.updated_at
+	whereBuilder.WriteString(`
 		FROM tasks t
 		JOIN app_users owner ON owner.id = t.user_id
 		WHERE (
@@ -83,45 +61,45 @@ func (r *TaskRepository) ListManagedTasks(ctx context.Context, userID uuid.UUID,
 	if filter.Query != "" {
 		args = append(args, "%"+filter.Query+"%")
 		index := len(args)
-		fmt.Fprintf(&builder, " AND (t.title ILIKE $%d OR t.note ILIKE $%d)", index, index)
+		fmt.Fprintf(&whereBuilder, " AND (t.title ILIKE $%d OR t.note ILIKE $%d)", index, index)
 	}
 
 	switch filter.Status {
 	case "active":
-		builder.WriteString(" AND t.status = 'active'")
+		whereBuilder.WriteString(" AND t.status = 'active'")
 	case "done":
-		builder.WriteString(" AND t.status = 'done'")
+		whereBuilder.WriteString(" AND t.status = 'done'")
 	}
 
 	switch filter.Scope {
 	case "mine":
-		builder.WriteString(" AND t.user_id = $1")
+		whereBuilder.WriteString(" AND t.user_id = $1")
 	case "shared":
-		builder.WriteString(" AND t.user_id <> $1")
+		whereBuilder.WriteString(" AND t.user_id <> $1")
 	}
 
 	if len(filter.Types) > 0 {
-		builder.WriteString(" AND t.task_type IN (")
+		whereBuilder.WriteString(" AND t.task_type IN (")
 		for index, taskType := range filter.Types {
 			if index > 0 {
-				builder.WriteString(", ")
+				whereBuilder.WriteString(", ")
 			}
 			args = append(args, taskType)
-			fmt.Fprintf(&builder, "$%d", len(args))
+			fmt.Fprintf(&whereBuilder, "$%d", len(args))
 		}
-		builder.WriteString(")")
+		whereBuilder.WriteString(")")
 	}
 
 	if len(filter.Importance) > 0 {
-		builder.WriteString(" AND t.importance IN (")
+		whereBuilder.WriteString(" AND t.importance IN (")
 		for index, importance := range filter.Importance {
 			if index > 0 {
-				builder.WriteString(", ")
+				whereBuilder.WriteString(", ")
 			}
 			args = append(args, importance)
-			fmt.Fprintf(&builder, "$%d", len(args))
+			fmt.Fprintf(&whereBuilder, "$%d", len(args))
 		}
-		builder.WriteString(")")
+		whereBuilder.WriteString(")")
 	}
 
 	timeZoneIndex := 0
@@ -143,14 +121,55 @@ func (r *TaskRepository) ListManagedTasks(ctx context.Context, userID uuid.UUID,
 		if dateExpression != "" {
 			if filter.DateFrom != nil {
 				args = append(args, normalizeDate(*filter.DateFrom))
-				fmt.Fprintf(&builder, " AND %s >= $%d", dateExpression, len(args))
+				fmt.Fprintf(&whereBuilder, " AND %s >= $%d", dateExpression, len(args))
 			}
 			if filter.DateTo != nil {
 				args = append(args, normalizeDate(*filter.DateTo))
-				fmt.Fprintf(&builder, " AND %s <= $%d", dateExpression, len(args))
+				fmt.Fprintf(&whereBuilder, " AND %s <= $%d", dateExpression, len(args))
 			}
 		}
 	}
+
+	var total int
+	countQuery := `SELECT COUNT(*) ` + whereBuilder.String()
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count managed tasks: %w", err)
+	}
+
+	var builder strings.Builder
+	builder.WriteString(`
+		SELECT
+			t.user_id,
+			owner.display_name,
+			owner.username,
+			(t.user_id <> $1) AS shared_with_me,
+			COALESCE((
+				SELECT COUNT(*)
+				FROM task_shares share_count
+				WHERE share_count.task_id = t.id
+			), 0)::int AS share_count,
+			COALESCE((
+				SELECT string_agg(shared_user.display_name, '、' ORDER BY shared_user.display_name)
+				FROM task_shares shared_users
+				JOIN app_users shared_user ON shared_user.id = shared_users.user_id
+				WHERE shared_users.task_id = t.id
+			), '') AS share_names,
+			t.id,
+			t.source_id,
+			t.title,
+			t.note,
+			t.task_type,
+			t.status,
+			t.importance,
+			t.scheduled_for,
+			t.deadline,
+			t.completed_at,
+			t.postponed_count,
+			t.metadata,
+			t.created_at,
+			t.updated_at
+	`)
+	builder.WriteString(whereBuilder.String())
 
 	builder.WriteString(" ORDER BY ")
 	switch filter.Sort {
@@ -169,12 +188,16 @@ func (r *TaskRepository) ListManagedTasks(ctx context.Context, userID uuid.UUID,
 	if limit <= 0 || limit > 400 {
 		limit = 240
 	}
-	args = append(args, limit)
-	fmt.Fprintf(&builder, " LIMIT $%d", len(args))
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	args = append(args, limit, offset)
+	fmt.Fprintf(&builder, " LIMIT $%d OFFSET $%d", len(args)-1, len(args))
 
 	rows, err := r.db.Query(ctx, builder.String(), args...)
 	if err != nil {
-		return nil, fmt.Errorf("list managed tasks: %w", err)
+		return nil, 0, fmt.Errorf("list managed tasks: %w", err)
 	}
 	defer rows.Close()
 
@@ -182,14 +205,14 @@ func (r *TaskRepository) ListManagedTasks(ctx context.Context, userID uuid.UUID,
 	for rows.Next() {
 		task, err := scanManagedTask(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		tasks = append(tasks, task)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate managed tasks: %w", err)
+		return nil, 0, fmt.Errorf("iterate managed tasks: %w", err)
 	}
-	return tasks, nil
+	return tasks, total, nil
 }
 
 func (r *TaskRepository) GetManagedTasksByIDs(ctx context.Context, userID uuid.UUID, ids []uuid.UUID) ([]ManagedTask, error) {
@@ -208,6 +231,12 @@ func (r *TaskRepository) GetManagedTasksByIDs(ctx context.Context, userID uuid.U
 				FROM task_shares share_count
 				WHERE share_count.task_id = t.id
 			), 0)::int AS share_count,
+			COALESCE((
+				SELECT string_agg(shared_user.display_name, '、' ORDER BY shared_user.display_name)
+				FROM task_shares shared_users
+				JOIN app_users shared_user ON shared_user.id = shared_users.user_id
+				WHERE shared_users.task_id = t.id
+			), '') AS share_names,
 			t.id,
 			t.source_id,
 			t.title,
@@ -297,11 +326,17 @@ func (r *TaskRepository) DeleteOwnedTasks(ctx context.Context, ownerID uuid.UUID
 		return nil, nil
 	}
 
-	rows, err := r.db.Query(ctx, `
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `
 		DELETE FROM tasks
 		WHERE user_id = $1
 			AND id = ANY($2)
-		RETURNING id
+		RETURNING id, source_id
 	`, ownerID, uniqueUUIDs(taskIDs))
 	if err != nil {
 		return nil, fmt.Errorf("delete owned tasks: %w", err)
@@ -309,15 +344,40 @@ func (r *TaskRepository) DeleteOwnedTasks(ctx context.Context, ownerID uuid.UUID
 	defer rows.Close()
 
 	var deleted []uuid.UUID
+	sourceIDs := make([]uuid.UUID, 0, len(taskIDs))
 	for rows.Next() {
 		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
+		var sourceID pgtype.UUID
+		if err := rows.Scan(&id, &sourceID); err != nil {
 			return nil, err
 		}
 		deleted = append(deleted, id)
+		if sourceID.Valid {
+			sourceIDs = append(sourceIDs, uuid.UUID(sourceID.Bytes))
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate deleted tasks: %w", err)
+	}
+
+	if len(sourceIDs) > 0 {
+		sourceIDs = uniqueUUIDs(sourceIDs)
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM ingestion_sources AS src
+			WHERE src.user_id = $1
+				AND src.id = ANY($2)
+				AND NOT EXISTS (
+					SELECT 1
+					FROM tasks t
+					WHERE t.source_id = src.id
+				)
+		`, ownerID, sourceIDs); err != nil {
+			return nil, fmt.Errorf("delete orphan ingestion sources: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit delete owned tasks: %w", err)
 	}
 	return deleted, nil
 }
@@ -488,6 +548,7 @@ func scanManagedTask(row interface{ Scan(dest ...any) error }) (ManagedTask, err
 		&managed.OwnerUsername,
 		&sharedWithMe,
 		&managed.ShareCount,
+		&managed.ShareNames,
 		&managed.Task.ID,
 		&sourceID,
 		&managed.Task.Title,

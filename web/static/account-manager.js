@@ -1,5 +1,6 @@
 (() => {
   const ACCOUNT_RELOAD_DEBOUNCE_MS = 260;
+  const ACCOUNT_SCROLL_KEY = "todo-account-scroll-y";
   let accountReloadTimer = 0;
   let accountSubmitInFlight = false;
 
@@ -11,6 +12,126 @@
     return Array.from(root.querySelectorAll("[data-account-task-checkbox]:checked"))
       .map((checkbox) => checkbox.closest("[data-account-task]"))
       .filter(Boolean);
+  }
+
+  function setAccountSelectOpen(container, shouldOpen) {
+    if (!container) {
+      return;
+    }
+    const menu = container.querySelector("[data-account-select-menu]");
+    container.classList.toggle("is-open", shouldOpen);
+    if (menu) {
+      menu.hidden = !shouldOpen;
+    }
+  }
+
+  function closeAccountSelects(root, except = null) {
+    root.querySelectorAll("[data-account-select-root]").forEach((container) => {
+      if (container === except) {
+        return;
+      }
+      setAccountSelectOpen(container, false);
+    });
+  }
+
+  function syncAccountSelect(container) {
+    if (!container) {
+      return;
+    }
+    const select = container.querySelector("select");
+    const label = container.querySelector("[data-account-select-label]");
+    if (!select || !label) {
+      return;
+    }
+
+    const selectedOption = select.options[select.selectedIndex];
+    label.textContent = selectedOption ? selectedOption.textContent.trim() : "";
+
+    container.querySelectorAll("[data-account-select-option]").forEach((optionButton) => {
+      const isSelected = optionButton.getAttribute("data-value") === select.value;
+      optionButton.classList.toggle("is-selected", isSelected);
+      optionButton.setAttribute("aria-pressed", isSelected ? "true" : "false");
+    });
+  }
+
+  function enhanceAccountSelects(root) {
+    root.querySelectorAll("select[data-account-custom-select]").forEach((select) => {
+      if (select.dataset.accountSelectReady === "1") {
+        return;
+      }
+      select.dataset.accountSelectReady = "1";
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "account-select";
+      wrapper.setAttribute("data-account-select-root", "");
+      if (select.hasAttribute("data-account-select-center-menu")) {
+        wrapper.classList.add("account-select-center-menu");
+      }
+
+      const trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.className = "account-select-trigger";
+      trigger.setAttribute("data-account-select-trigger", "");
+      trigger.innerHTML = '<span class="account-select-label" data-account-select-label></span><span class="account-select-caret" aria-hidden="true"></span>';
+
+      const menu = document.createElement("div");
+      menu.className = "account-select-menu";
+      menu.hidden = true;
+      menu.setAttribute("data-account-select-menu", "");
+
+      Array.from(select.options).forEach((option) => {
+        const optionButton = document.createElement("button");
+        optionButton.type = "button";
+        optionButton.className = "account-select-option";
+        optionButton.textContent = option.textContent.trim();
+        optionButton.setAttribute("data-account-select-option", "");
+        optionButton.setAttribute("data-value", option.value);
+        optionButton.disabled = option.disabled;
+        optionButton.addEventListener("click", () => {
+          if (select.value !== option.value) {
+            select.value = option.value;
+            select.dispatchEvent(new Event("input", { bubbles: true }));
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+          syncAccountSelect(wrapper);
+          setAccountSelectOpen(wrapper, false);
+          trigger.focus();
+        });
+        menu.append(optionButton);
+      });
+
+      const parent = select.parentNode;
+      if (!parent) {
+        return;
+      }
+      parent.insertBefore(wrapper, select);
+      wrapper.append(select, trigger, menu);
+      select.classList.add("account-native-select");
+
+      trigger.addEventListener("click", () => {
+        if (trigger.disabled) {
+          return;
+        }
+        const shouldOpen = !wrapper.classList.contains("is-open");
+        closeAccountSelects(root, wrapper);
+        setAccountSelectOpen(wrapper, shouldOpen);
+      });
+
+      select.addEventListener("change", () => {
+        syncAccountSelect(wrapper);
+      });
+
+      syncAccountSelect(wrapper);
+    });
+  }
+
+  function sanitizeAccountPageInput(input) {
+    const totalPages = Number.parseInt(input.dataset.totalPages || "1", 10) || 1;
+    const digits = (input.value || "").replace(/[^\d]/g, "");
+    const parsed = Number.parseInt(digits || "1", 10);
+    const value = Math.min(totalPages, Math.max(1, parsed));
+    input.value = String(value);
+    return value;
   }
 
   function syncModalState(root) {
@@ -81,6 +202,21 @@
     }
   }
 
+  function setWheelValue(root, selector, value) {
+    const picker = root.querySelector(selector);
+    if (!picker) {
+      return;
+    }
+    if (typeof window.setWheelPickerValue === "function") {
+      window.setWheelPickerValue(picker, value);
+      return;
+    }
+    const hiddenInput = picker.querySelector("[data-picker-value]");
+    if (hiddenInput) {
+      hiddenInput.value = value || "";
+    }
+  }
+
   function toggleSingleEditors(root, cards) {
     const isSingle = cards.length === 1;
     root.querySelectorAll("[data-single-only]").forEach((element) => {
@@ -89,13 +225,13 @@
 
     const replaceTitleInput = root.querySelector("input[name='replace_title']");
     const scheduleDateInput = root.querySelector("input[name='schedule_date']");
-    const deadlineDateInput = root.querySelector("input[name='deadline_date']");
-    const deadlineTimeInput = root.querySelector("input[name='deadline_time']");
+    const deadlineValueInput = root.querySelector("input[name='deadline_value']");
+    const timeEditorBlock = root.querySelector("[data-time-editor-block]");
+    const timeEditorLabel = root.querySelector("[data-time-editor-label]");
     const dateEditor = root.querySelector("[data-time-editor='date']");
     const datetimeEditor = root.querySelector("[data-time-editor='datetime']");
-    const noneEditor = root.querySelector("[data-time-editor='none']");
 
-    if (!replaceTitleInput || !scheduleDateInput || !deadlineDateInput || !deadlineTimeInput || !dateEditor || !datetimeEditor || !noneEditor) {
+    if (!replaceTitleInput || !scheduleDateInput || !deadlineValueInput || !timeEditorBlock || !timeEditorLabel || !dateEditor || !datetimeEditor) {
       return;
     }
 
@@ -103,11 +239,12 @@
       replaceTitleInput.placeholder = "只在单选时生效";
       replaceTitleInput.value = "";
       scheduleDateInput.value = "";
-      deadlineDateInput.value = "";
-      deadlineTimeInput.value = "";
+      deadlineValueInput.value = "";
+      timeEditorBlock.hidden = true;
       dateEditor.hidden = true;
       datetimeEditor.hidden = true;
-      noneEditor.hidden = true;
+      setWheelValue(root, "#account-schedule-wheel", "");
+      setWheelValue(root, "#account-deadline-wheel", "");
       return;
     }
 
@@ -115,27 +252,36 @@
     replaceTitleInput.placeholder = card.dataset.taskTitle || "单条改名";
 
     const mode = card.dataset.scheduleMode || "none";
+    timeEditorBlock.hidden = mode === "none";
     dateEditor.hidden = mode !== "date";
     datetimeEditor.hidden = mode !== "datetime";
-    noneEditor.hidden = mode !== "none";
 
     if (mode === "date") {
+      timeEditorLabel.textContent = "单条改日期";
       scheduleDateInput.value = card.dataset.scheduleValue || "";
-      deadlineDateInput.value = "";
-      deadlineTimeInput.value = "";
+      deadlineValueInput.value = "";
+      setWheelValue(root, "#account-schedule-wheel", card.dataset.scheduleValue || "");
+      setWheelValue(root, "#account-deadline-wheel", "");
       return;
     }
 
     if (mode === "datetime") {
+      const deadlineValue = card.dataset.deadlineDate && card.dataset.deadlineTime
+        ? `${card.dataset.deadlineDate}T${card.dataset.deadlineTime}`
+        : "";
+      timeEditorLabel.textContent = "单条改截止时间";
       scheduleDateInput.value = "";
-      deadlineDateInput.value = card.dataset.deadlineDate || "";
-      deadlineTimeInput.value = card.dataset.deadlineTime || "";
+      deadlineValueInput.value = "";
+      setWheelValue(root, "#account-schedule-wheel", "");
+      setWheelValue(root, "#account-deadline-wheel", deadlineValue);
       return;
     }
 
+    timeEditorLabel.textContent = "单条改时间";
     scheduleDateInput.value = "";
-    deadlineDateInput.value = "";
-    deadlineTimeInput.value = "";
+    deadlineValueInput.value = "";
+    setWheelValue(root, "#account-schedule-wheel", "");
+    setWheelValue(root, "#account-deadline-wheel", "");
   }
 
   function updateAccountSelectionState(root, form) {
@@ -168,9 +314,9 @@
     updateEditSummary(root, cards);
 
     const allOwned = ids.length > 0 && cards.every((card) => card.dataset.isOwner === "1");
-    const editButton = form.querySelector("[data-account-open-panel='edit']");
-    const shareButton = form.querySelector("[data-account-open-panel='share']");
-    const deleteButton = form.querySelector("[data-account-submit-action='delete']");
+    const editButton = root.querySelector("[data-account-open-panel='edit']");
+    const shareButton = root.querySelector("[data-account-open-panel='share']");
+    const deleteButton = root.querySelector("[data-account-submit-action='delete']");
 
     if (editButton) {
       editButton.disabled = ids.length === 0;
@@ -201,6 +347,11 @@
       return;
     }
 
+    enhanceAccountSelects(root);
+    if (typeof window.initializePostponePickers === "function") {
+      window.initializePostponePickers(root);
+    }
+
     root.querySelectorAll("[data-account-toggle]").forEach((button) => {
       button.addEventListener("click", () => {
         togglePanel(root, button.getAttribute("data-account-toggle") || "");
@@ -211,10 +362,11 @@
       button.addEventListener("click", () => {
         const target = button.getAttribute("data-account-close-panel") || "";
         setPanelState(root, target, false);
+        closeAccountSelects(root);
       });
     });
 
-    form.querySelectorAll("[data-account-open-panel]").forEach((button) => {
+    root.querySelectorAll("[data-account-open-panel]").forEach((button) => {
       button.addEventListener("click", () => {
         if (button.disabled) {
           return;
@@ -239,6 +391,24 @@
       });
     });
 
+    document.addEventListener("pointerdown", (event) => {
+      const target = event.target;
+      if (!(target instanceof Node) || !root.contains(target)) {
+        closeAccountSelects(root);
+        return;
+      }
+      const selectContainer = target instanceof Element ? target.closest("[data-account-select-root]") : null;
+      if (!selectContainer) {
+        closeAccountSelects(root);
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeAccountSelects(root);
+      }
+    });
+
     const selectAll = form.querySelector("[data-select-all-tasks]");
     if (selectAll) {
       selectAll.addEventListener("change", () => {
@@ -248,6 +418,92 @@
         updateAccountSelectionState(root, form);
       });
     }
+
+    root.querySelectorAll("[data-account-limit-select]").forEach((select) => {
+      select.addEventListener("change", () => {
+        try {
+          window.sessionStorage.setItem(ACCOUNT_SCROLL_KEY, String(window.scrollY));
+        } catch (_error) {
+          // Ignore storage failures.
+        }
+        if (select.form) {
+          select.form.requestSubmit();
+        }
+      });
+    });
+
+    root.querySelectorAll("[data-wheel-clear-target]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const targetId = button.getAttribute("data-wheel-clear-target") || "";
+        if (!targetId) {
+          return;
+        }
+        const target = root.querySelector(`#${targetId}`);
+        if (!target) {
+          return;
+        }
+        setWheelValue(root, `#${targetId}`, "");
+      });
+    });
+
+    root.querySelectorAll("[data-account-page-input]").forEach((input) => {
+      const submitPage = () => {
+        const hiddenPage = input.form?.querySelector("[data-account-page-value]");
+        if (hiddenPage) {
+          hiddenPage.value = String(sanitizeAccountPageInput(input));
+        }
+        try {
+          window.sessionStorage.setItem(ACCOUNT_SCROLL_KEY, String(window.scrollY));
+        } catch (_error) {
+          // Ignore storage failures.
+        }
+        if (input.form) {
+          input.form.requestSubmit();
+        }
+      };
+
+      input.addEventListener("blur", (event) => {
+        const nextTarget = event.relatedTarget;
+        if (nextTarget instanceof Element && nextTarget.matches("[data-account-page-target]")) {
+          return;
+        }
+        submitPage();
+      });
+
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          submitPage();
+        } else if (event.key === "Escape") {
+          input.value = input.form?.querySelector("[data-account-page-value]")?.value || input.value;
+          input.blur();
+        }
+      });
+    });
+
+    root.querySelectorAll("[data-account-page-target]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const hiddenPage = button.form?.querySelector("[data-account-page-value]");
+        const targetPage = button.getAttribute("data-account-page-target") || "";
+        if (hiddenPage && targetPage !== "") {
+          hiddenPage.value = targetPage;
+        }
+        const pageInput = button.form?.querySelector("[data-account-page-input]");
+        if (pageInput && targetPage !== "") {
+          pageInput.value = targetPage;
+        }
+      });
+    });
+
+    root.querySelectorAll("form[data-account-preserve-scroll]").forEach((preserveForm) => {
+      preserveForm.addEventListener("submit", () => {
+        try {
+          window.sessionStorage.setItem(ACCOUNT_SCROLL_KEY, String(window.scrollY));
+        } catch (_error) {
+          // Ignore storage failures.
+        }
+      });
+    });
 
     root.querySelectorAll("[data-account-submit-action]").forEach((button) => {
       button.addEventListener("click", (event) => {
@@ -369,6 +625,20 @@
   window.initializeAccountManager = initializeAccountManager;
   document.addEventListener("DOMContentLoaded", () => {
     initializeAccountManager(document);
+    try {
+      const rawScroll = window.sessionStorage.getItem(ACCOUNT_SCROLL_KEY);
+      if (rawScroll !== null) {
+        window.sessionStorage.removeItem(ACCOUNT_SCROLL_KEY);
+        const scrollY = Number.parseFloat(rawScroll);
+        if (Number.isFinite(scrollY) && scrollY >= 0) {
+          window.requestAnimationFrame(() => {
+            window.scrollTo({ top: scrollY, behavior: "auto" });
+          });
+        }
+      }
+    } catch (_error) {
+      // Ignore storage failures.
+    }
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") {
         return;

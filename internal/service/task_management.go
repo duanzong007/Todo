@@ -23,6 +23,7 @@ type TaskManagementActionInput struct {
 	ScheduleDate    string
 	DeadlineDate    string
 	DeadlineTime    string
+	DeadlineValue   string
 	ShareUserIDs    []string
 }
 
@@ -31,7 +32,7 @@ type TaskManagementActionResult struct {
 	AudienceUserIDs []uuid.UUID
 }
 
-func (s *TaskService) ListManagedTasks(ctx context.Context, userID uuid.UUID, filter repository.TaskManagementFilter) ([]repository.ManagedTask, error) {
+func (s *TaskService) ListManagedTasks(ctx context.Context, userID uuid.UUID, filter repository.TaskManagementFilter) ([]repository.ManagedTask, int, error) {
 	return s.repo.ListManagedTasks(ctx, userID, filter)
 }
 
@@ -186,7 +187,7 @@ func (s *TaskService) applyPatchAction(ctx context.Context, actor domain.User, s
 			appliedCount++
 		}
 	} else {
-		if strings.TrimSpace(input.ScheduleDate) != "" || strings.TrimSpace(input.DeadlineDate) != "" || strings.TrimSpace(input.DeadlineTime) != "" {
+		if strings.TrimSpace(input.ScheduleDate) != "" || strings.TrimSpace(input.DeadlineDate) != "" || strings.TrimSpace(input.DeadlineTime) != "" || strings.TrimSpace(input.DeadlineValue) != "" {
 			return TaskManagementActionResult{}, fmt.Errorf("时间修改只支持单选任务")
 		}
 		if replaceTitle != "" {
@@ -236,6 +237,14 @@ func (s *TaskService) applySingleTimePatch(ctx context.Context, actor domain.Use
 	case domain.TaskTypeDDL:
 		rawDate := strings.TrimSpace(input.DeadlineDate)
 		rawTime := strings.TrimSpace(input.DeadlineTime)
+		if combined := strings.TrimSpace(input.DeadlineValue); combined != "" {
+			if parsed, err := time.ParseInLocation("2006-01-02T15:04", combined, s.location); err == nil {
+				rawDate = parsed.Format("2006-01-02")
+				rawTime = parsed.Format("15:04")
+			} else {
+				return false, fmt.Errorf("DDL 时间无效")
+			}
+		}
 		if rawDate == "" && rawTime == "" {
 			return false, nil
 		}
@@ -261,7 +270,7 @@ func (s *TaskService) applySingleTimePatch(ctx context.Context, actor domain.Use
 		}
 		return true, nil
 	default:
-		if strings.TrimSpace(input.ScheduleDate) != "" || strings.TrimSpace(input.DeadlineDate) != "" || strings.TrimSpace(input.DeadlineTime) != "" {
+		if strings.TrimSpace(input.ScheduleDate) != "" || strings.TrimSpace(input.DeadlineDate) != "" || strings.TrimSpace(input.DeadlineTime) != "" || strings.TrimSpace(input.DeadlineValue) != "" {
 			return false, fmt.Errorf("Todo 没有可修改的时间")
 		}
 		return false, nil
