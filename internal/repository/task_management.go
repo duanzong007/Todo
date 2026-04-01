@@ -119,14 +119,7 @@ func (r *TaskRepository) ListManagedTasks(ctx context.Context, userID uuid.UUID,
 	if filter.DateField != "" && (filter.DateFrom != nil || filter.DateTo != nil) {
 		dateExpression := taskManagementDateExpression(filter.DateField, ensureTimeZoneArg())
 		if dateExpression != "" {
-			if filter.DateFrom != nil {
-				args = append(args, normalizeDate(*filter.DateFrom))
-				fmt.Fprintf(&whereBuilder, " AND %s >= $%d", dateExpression, len(args))
-			}
-			if filter.DateTo != nil {
-				args = append(args, normalizeDate(*filter.DateTo))
-				fmt.Fprintf(&whereBuilder, " AND %s <= $%d", dateExpression, len(args))
-			}
+			args = appendTaskManagementDateBounds(&whereBuilder, args, dateExpression, filter.DateFrom, filter.DateTo)
 		}
 	}
 
@@ -398,15 +391,15 @@ func (r *TaskRepository) ShareOwnedTasks(ctx context.Context, ownerID uuid.UUID,
 
 	commandTag, err := tx.Exec(ctx, `
 		INSERT INTO task_shares (task_id, user_id, shared_by)
-		SELECT DISTINCT owned.id, target_users.id, $1
+		SELECT DISTINCT owned.id, target_users.id, $1::uuid
 		FROM tasks AS owned
 		JOIN app_users AS target_users
-			ON target_users.id = ANY($3)
+			ON target_users.id = ANY($3::uuid[])
 			AND target_users.is_active = TRUE
 			AND target_users.approval_status = 'approved'
-		WHERE owned.user_id = $1
-			AND owned.id = ANY($2)
-			AND target_users.id <> $1
+		WHERE owned.user_id = $1::uuid
+			AND owned.id = ANY($2::uuid[])
+			AND target_users.id <> $1::uuid
 		ON CONFLICT DO NOTHING
 	`, ownerID, taskIDs, userIDs)
 	if err != nil {
@@ -417,8 +410,8 @@ func (r *TaskRepository) ShareOwnedTasks(ctx context.Context, ownerID uuid.UUID,
 		rows, err := tx.Query(ctx, `
 			SELECT id
 			FROM tasks
-			WHERE user_id = $1
-				AND id = ANY($2)
+			WHERE user_id = $1::uuid
+				AND id = ANY($2::uuid[])
 		`, ownerID, taskIDs)
 		if err != nil {
 			return fmt.Errorf("list shared tasks for events: %w", err)
@@ -531,6 +524,18 @@ func taskManagementDateExpression(dateField string, timeZonePlaceholder string) 
 	default:
 		return ""
 	}
+}
+
+func appendTaskManagementDateBounds(whereBuilder *strings.Builder, args []any, dateExpression string, dateFrom, dateTo *time.Time) []any {
+	if dateFrom != nil {
+		args = append(args, dateFrom.Format("2006-01-02"))
+		fmt.Fprintf(whereBuilder, " AND %s >= $%d::date", dateExpression, len(args))
+	}
+	if dateTo != nil {
+		args = append(args, dateTo.Format("2006-01-02"))
+		fmt.Fprintf(whereBuilder, " AND %s <= $%d::date", dateExpression, len(args))
+	}
+	return args
 }
 
 func scanManagedTask(row interface{ Scan(dest ...any) error }) (ManagedTask, error) {

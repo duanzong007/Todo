@@ -862,6 +862,7 @@ func (h *Handler) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Cache-Control", "no-store")
 	if err := h.templates.ExecuteTemplate(w, "account.html", pageData); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

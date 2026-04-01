@@ -18,7 +18,26 @@ function focusPageRoot() {
 
 function explicitFocusDateFromURL() {
   const url = new URL(window.location.href);
-  return (url.searchParams.get("date") || "").trim();
+  const explicitDate = (url.searchParams.get("date") || "").trim();
+  if (explicitDate) {
+    return explicitDate;
+  }
+
+  const year = (url.searchParams.get("year") || "").trim();
+  const month = (url.searchParams.get("month") || "").trim();
+  const day = (url.searchParams.get("day") || "").trim();
+  if (!year && !month && !day) {
+    return "";
+  }
+
+  const normalizedYear = year.padStart(4, "0");
+  const normalizedMonth = month.padStart(2, "0");
+  const normalizedDay = day.padStart(2, "0");
+  if (!/^\d{4}$/.test(normalizedYear) || !/^\d{2}$/.test(normalizedMonth) || !/^\d{2}$/.test(normalizedDay)) {
+    return "";
+  }
+
+  return `${normalizedYear}-${normalizedMonth}-${normalizedDay}`;
 }
 
 function renderedFocusDate() {
