@@ -1,0 +1,21 @@
+{
+  "name": "todo-android-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Android native shell for Todo, with a local startup shell and a remote web frontend bridge.",
+  "scripts": {
+    "assets:android": "bash ./scripts/generate_android_assets.sh",
+    "doctor": "npx cap doctor",
+    "sync": "npx cap sync android",
+    "copy": "npx cap copy android",
+    "open:android": "npx cap open android",
+    "build:debug": "JAVA_HOME=$(/usr/libexec/java_home -v 21) ./android/gradlew -p android assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/core": "^8.3.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.3.0"
+  }
+}

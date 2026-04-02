@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#c56d3a">
+    <title>Todo Shell</title>
+    <link rel="stylesheet" href="./shell.css">
+</head>
+<body>
+    <main class="shell-page">
+        <section class="shell-overlay shell-hero" data-shell-hero>
+            <div class="shell-brand">
+                <p class="shell-kicker">Todo</p>
+                <h1>本地启动壳已就绪</h1>
+                <p class="shell-copy">先本地打开，再把远端 Todo 网页接进来，尽量减少每次启动的等待。</p>
+            </div>
+
+            <div class="shell-card shell-status-card">
+                <div class="shell-status-head">
+                    <span class="shell-status-dot" data-shell-status-dot></span>
+                    <p data-shell-status-text>等待连接</p>
+                </div>
+                <p class="shell-url" data-shell-current-url>未设置服务地址</p>
+            </div>
+        </section>
+
+        <section class="shell-frame-wrap">
+            <header class="shell-toolbar">
+                <div class="shell-toolbar-left">
+                    <p class="shell-toolbar-title">Todo</p>
+                    <p class="shell-toolbar-subtitle" data-shell-toolbar-status>本地壳</p>
+                </div>
+                <div class="shell-toolbar-actions">
+                    <button type="button" class="shell-button shell-button-secondary" data-shell-reload>刷新</button>
+                    <button type="button" class="shell-button" data-shell-open-settings>设置</button>
+                </div>
+            </header>
+
+            <div class="shell-frame-card">
+                <div class="shell-loading" data-shell-loading>
+                    <div class="shell-loading-spinner"></div>
+                    <p data-shell-loading-text>正在载入远端 Todo…</p>
+                </div>
+                <iframe
+                    title="Todo Web App"
+                    class="shell-frame"
+                    data-shell-frame
+                    loading="eager"
+                    referrerpolicy="strict-origin-when-cross-origin"></iframe>
+            </div>
+        </section>
+
+        <section class="shell-modal" data-shell-settings hidden>
+            <div class="shell-modal-backdrop" data-shell-close-settings></div>
+            <div class="shell-modal-card">
+                <div class="shell-modal-head">
+                    <div>
+                        <p class="shell-kicker">连接设置</p>
+                        <h2>Todo 服务地址</h2>
+                    </div>
+                    <button type="button" class="shell-button shell-button-secondary" data-shell-close-settings>关闭</button>
+                </div>
+
+                <form class="shell-settings-form" data-shell-settings-form>
+                    <label class="shell-field">
+                        <span>服务地址</span>
+                        <input
+                            type="url"
+                            name="remoteUrl"
+                            data-shell-url-input
+                            placeholder="例如：https://todo.example.com 或 http://192.168.1.8:8080"
+                            autocomplete="off"
+                            spellcheck="false"
+                            required>
+                    </label>
+
+                    <div class="shell-help-list">
+                        <p>真机通常不能直接用 `localhost:8080`。</p>
+                        <p>如果是局域网访问，请填写服务器实际 IP 或域名。</p>
+                    </div>
+
+                    <div class="shell-modal-actions">
+                        <button type="button" class="shell-button shell-button-secondary" data-shell-reset-url>恢复默认</button>
+                        <button type="submit" class="shell-button">保存并连接</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <script src="./shell.js" defer></script>
+</body>
+</html>

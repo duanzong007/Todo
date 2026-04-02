@@ -1,0 +1,16 @@
+{
+  "appId": "com.duanzong.todo.shell",
+  "appName": "Todo",
+  "webDir": "web",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://todo.example.com",
+    "allowNavigation": [
+      "todo.example.com"
+    ]
+  },
+  "android": {
+    "allowMixedContent": true,
+    "webContentsDebuggingEnabled": true
+  }
+}
