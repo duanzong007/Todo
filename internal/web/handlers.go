@@ -90,15 +90,15 @@ type QuoteView struct {
 }
 
 type AccountPageData struct {
-	CurrentUser *UserView
-	Message     string
-	Error       string
-	ReturnQuery string
+	CurrentUser  *UserView
+	Message      string
+	Error        string
+	ReturnQuery  string
 	TodayDateISO string
-	Filter      AccountTaskFilterView
-	Pagination  AccountPaginationView
-	Tasks       []ManagedTaskCard
-	ShareUsers  []ShareableUserCard
+	Filter       AccountTaskFilterView
+	Pagination   AccountPaginationView
+	Tasks        []ManagedTaskCard
+	ShareUsers   []ShareableUserCard
 }
 
 type AccountTaskFilterView struct {
@@ -277,10 +277,12 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/dashboard/snapshot", h.handleDashboardSnapshot)
 		r.Get("/events", h.handleEventStream)
 		r.Get("/me", h.handleAccountPage)
+		r.Get("/sms/native", h.handleNativeSMSPage)
 		r.Post("/me/tasks/apply", h.handleAccountTaskApply)
 		r.Post("/tasks", h.handleCreateTask)
 		r.Post("/tasks/manual", h.handleCreateManualTask)
 		r.Post("/tasks/parse-sms", h.handleParseSMS)
+		r.Post("/tasks/parse-sms/native", h.handleNativeSMSImport)
 		r.Post("/tasks/{taskID}/rename", h.handleRenameTask)
 		r.Post("/tasks/{taskID}/complete", h.handleCompleteTask)
 		r.Post("/tasks/{taskID}/restore", h.handleRestoreTask)

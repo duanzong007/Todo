@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>短信导入 - Todo</title>
+    <meta name="theme-color" content="#c56d3a">
+    <link rel="stylesheet" href="/static/styles.css?v=20260402-native-sms-6">
+</head>
+<body>
+    <main class="native-sms-page" data-native-sms-page data-user-id="{{ .UserID }}" data-return-path="{{ .ReturnPath }}" data-app-timezone="{{ .AppTimeZone }}">
+        <section class="native-sms-panel panel">
+            <header class="native-sms-header">
+                <div class="native-sms-header-copy">
+                    <h1>短信导入</h1>
+                    <p class="native-sms-copy">手动勾选快递短信后导入。新短信只显示近 3 个月，最多 100 条。</p>
+                </div>
+
+                <div class="native-sms-toolbar">
+                    <button type="button" class="secondary" data-native-history-toggle>历史记录</button>
+                    <button type="button" data-native-confirm disabled>确定</button>
+                    <a href="{{ .ReturnPath }}" class="native-sms-return">返回</a>
+                </div>
+            </header>
+
+            <div class="native-sms-status" data-native-sms-status hidden></div>
+
+            <div class="native-sms-meta">
+                <span data-native-count-label>新短信 0 条</span>
+                <span data-native-selection-label>未选择</span>
+            </div>
+
+            <div class="native-sms-list" data-native-sms-list></div>
+
+            <template data-native-sms-item-template>
+                <article class="native-sms-item" data-native-sms-item tabindex="0" role="button" aria-pressed="false">
+                    <div class="native-sms-item-main">
+                        <div class="native-sms-item-head">
+                            <p class="native-sms-item-sender" data-native-sms-sender></p>
+                            <time class="native-sms-item-time" data-native-sms-time></time>
+                        </div>
+                        <p class="native-sms-item-body" data-native-sms-body></p>
+                    </div>
+                </article>
+            </template>
+        </section>
+    </main>
+
+    <script defer src="/static/native-sms.js?v=20260402-native-sms-6"></script>
+</body>
+</html>

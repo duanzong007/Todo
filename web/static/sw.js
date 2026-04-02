@@ -1,4 +1,4 @@
-const CACHE_NAME = "todo-pwa-v11";
+const CACHE_NAME = "todo-pwa-v12";
 const OFFLINE_URL = "/static/pwa/offline.html";
 const NAVIGATION_NETWORK_TIMEOUT_MS = 1400;
 const STATIC_NETWORK_TIMEOUT_MS = 2200;
@@ -64,7 +64,7 @@ async function resolvePreloadedResponse(preloadResponsePromise, timeoutMs) {
 }
 
 function staticCacheKey(url) {
-  return url.pathname;
+  return url.search ? `${url.pathname}${url.search}` : url.pathname;
 }
 
 self.addEventListener("install", (event) => {

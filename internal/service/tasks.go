@@ -23,6 +23,18 @@ type TaskService struct {
 	location    *time.Location
 }
 
+type SMSCandidate struct {
+	ClientID string
+	Body     string
+}
+
+type SMSImportResult struct {
+	CreatedCount         int
+	AcceptedClientIDs    []string
+	UnsupportedClientIDs []string
+	UnsupportedBodies    []string
+}
+
 func NewTaskService(repo *repository.TaskRepository, parser *TextParser, icsImporter *ICSImporter, location *time.Location) *TaskService {
 	return &TaskService{
 		repo:        repo,
@@ -218,6 +230,67 @@ func (s *TaskService) CreateFromSMSParse(ctx context.Context, userID uuid.UUID, 
 	}
 
 	return s.repo.CreateTasks(ctx, userID, source, inputs)
+}
+
+func (s *TaskService) CreateFromSMSCandidates(ctx context.Context, userID uuid.UUID, candidates []SMSCandidate) (SMSImportResult, error) {
+	result := SMSImportResult{}
+	if len(candidates) == 0 {
+		return result, nil
+	}
+
+	now := time.Now().In(s.location)
+	inputs := make([]repository.TaskInput, 0, len(candidates))
+	acceptedBodies := make([]string, 0, len(candidates))
+
+	for _, candidate := range candidates {
+		body := strings.TrimSpace(candidate.Body)
+		if body == "" {
+			if candidate.ClientID != "" {
+				result.UnsupportedClientIDs = append(result.UnsupportedClientIDs, candidate.ClientID)
+			}
+			continue
+		}
+
+		parsed, err := s.parser.Parse(body, now)
+		if err != nil || parsed.SourceType != domain.SourceTypeSMSPaste {
+			if candidate.ClientID != "" {
+				result.UnsupportedClientIDs = append(result.UnsupportedClientIDs, candidate.ClientID)
+			}
+			result.UnsupportedBodies = append(result.UnsupportedBodies, body)
+			continue
+		}
+
+		parsed.Task.Importance = 2
+		inputs = append(inputs, parsed.Task)
+		acceptedBodies = append(acceptedBodies, body)
+		if candidate.ClientID != "" {
+			result.AcceptedClientIDs = append(result.AcceptedClientIDs, candidate.ClientID)
+		}
+	}
+
+	if len(inputs) == 0 {
+		return result, nil
+	}
+
+	rawContent := strings.Join(acceptedBodies, "\n")
+	source := repository.SourceInput{
+		Type:       domain.SourceTypeSMSPaste,
+		RawContent: rawContent,
+		Summary:    fmt.Sprintf("短信解析: %d 条", len(inputs)),
+		Checksum:   checksumString(rawContent),
+		Metadata: map[string]any{
+			"parser":        "pickup_sms",
+			"message_count": len(inputs),
+			"entry":         "native_sms",
+		},
+	}
+
+	createdCount, err := s.repo.CreateTasks(ctx, userID, source, inputs)
+	if err != nil {
+		return SMSImportResult{}, err
+	}
+	result.CreatedCount = createdCount
+	return result, nil
 }
 
 func (s *TaskService) ImportICS(ctx context.Context, userID uuid.UUID, filename string, body []byte) (int, error) {
