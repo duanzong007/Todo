@@ -9,6 +9,7 @@
     historyMessages: [],
     selectedIDs: new Set(),
     pending: false,
+    statusTimer: 0,
   };
 
   function root() {
@@ -99,6 +100,12 @@
     if (!node) {
       return;
     }
+
+    if (state.statusTimer) {
+      window.clearTimeout(state.statusTimer);
+      state.statusTimer = 0;
+    }
+
     if (!text) {
       node.hidden = true;
       node.textContent = "";
@@ -108,6 +115,12 @@
     node.hidden = false;
     node.textContent = text;
     node.className = `native-sms-status is-${kind}`;
+
+    if (kind === "success" || kind === "error") {
+      state.statusTimer = window.setTimeout(() => {
+        setStatus("", "");
+      }, kind === "success" ? 2600 : 4200);
+    }
   }
 
   function formatDateTime(timestamp) {
@@ -142,7 +155,13 @@
       historyToggle.textContent = state.mode === "history" ? "返回新短信" : "历史记录";
     }
     if (confirmButton) {
-      confirmButton.disabled = state.pending || selectedCount === 0;
+      confirmButton.disabled = state.pending;
+    }
+  }
+
+  function clearActionFocus() {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
     }
   }
 
@@ -294,12 +313,27 @@
       return;
     }
 
-    const messages = activeMessages().filter((message) => state.selectedIDs.has(message.id));
+    const visibleMessages = activeMessages();
+    const messages = visibleMessages.filter((message) => state.selectedIDs.has(message.id));
     const archivedUnchecked = state.mode === "new"
-      ? activeMessages().filter((message) => !state.selectedIDs.has(message.id))
+      ? visibleMessages.filter((message) => !state.selectedIDs.has(message.id))
       : [];
+
+    if (state.mode === "new" && messages.length === 0) {
+      if (archivedUnchecked.length > 0) {
+        persistAcceptedMessages(archivedUnchecked);
+        state.historyMessages = loadHistory();
+      }
+      state.selectedIDs.clear();
+      setStatus("success", archivedUnchecked.length > 0 ? `已归档 ${archivedUnchecked.length} 条短信。` : "当前没有可归档的新短信。");
+      renderList();
+      clearActionFocus();
+      return;
+    }
+
     if (messages.length === 0) {
       updateMeta();
+      clearActionFocus();
       return;
     }
 
@@ -353,10 +387,16 @@
 
       renderList();
     } catch (_error) {
+      if (archivedUnchecked.length > 0) {
+        persistAcceptedMessages(archivedUnchecked);
+        state.historyMessages = loadHistory();
+        renderList();
+      }
       setStatus("error", "短信提交失败。");
     } finally {
       state.pending = false;
       updateMeta();
+      clearActionFocus();
     }
   }
 
@@ -365,15 +405,23 @@
     const confirmButton = document.querySelector("[data-native-confirm]");
 
     if (historyToggle) {
-      historyToggle.addEventListener("click", () => {
+      historyToggle.addEventListener("click", (event) => {
+        if (event.currentTarget instanceof HTMLElement) {
+          event.currentTarget.blur();
+        }
         state.mode = state.mode === "history" ? "new" : "history";
         state.selectedIDs.clear();
+        setStatus("", "");
         renderList();
+        clearActionFocus();
       });
     }
 
     if (confirmButton) {
-      confirmButton.addEventListener("click", () => {
+      confirmButton.addEventListener("click", (event) => {
+        if (event.currentTarget instanceof HTMLElement) {
+          event.currentTarget.blur();
+        }
         submitSelection();
       });
     }

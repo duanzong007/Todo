@@ -80,6 +80,38 @@
     font-weight: 600;
     text-decoration: none;
     box-shadow: 0 6px 18px rgba(92, 67, 44, 0.05);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.native-sms-return:visited {
+    color: rgba(95, 72, 50, 0.9);
+}
+
+.native-sms-toolbar .secondary:hover,
+.native-sms-toolbar button:hover,
+.native-sms-return:hover {
+    transform: none;
+}
+
+.native-sms-toolbar .secondary:focus,
+.native-sms-toolbar button:focus,
+.native-sms-return:focus {
+    outline: none;
+}
+
+.native-sms-toolbar .secondary:focus-visible,
+.native-sms-toolbar button:focus-visible,
+.native-sms-return:focus-visible {
+    outline: 2px solid rgba(197, 109, 58, 0.22);
+    outline-offset: 2px;
+}
+
+.native-sms-toolbar button:disabled {
+    background: rgba(238, 224, 210, 0.92);
+    color: rgba(120, 96, 74, 0.72);
+    border-color: rgba(214, 196, 172, 0.68);
+    box-shadow: none;
+    cursor: default;
 }
 
 .native-sms-status {
