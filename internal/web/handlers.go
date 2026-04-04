@@ -1260,6 +1260,10 @@ func sortTasksForFocus(tasks []domain.Task, now, focusDate time.Time, location *
 			return leftTypeRank < rightTypeRank
 		}
 
+		if left.Title != right.Title {
+			return left.Title < right.Title
+		}
+
 		if !left.CreatedAt.Equal(right.CreatedAt) {
 			return left.CreatedAt.Before(right.CreatedAt)
 		}

@@ -128,6 +128,52 @@ func TestBuildFocusTaskCardsShowsDDLOnlyBetweenCreatedDayAndDeadlineDay(t *testi
 	}
 }
 
+func TestBuildFocusTaskCardsFallsBackToTitleOrder(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 3, 16, 10, 15, 0, 0, location)
+	focusDate := time.Date(2026, 3, 16, 0, 0, 0, 0, location)
+	createdAt := time.Date(2026, 3, 1, 8, 0, 0, 0, time.UTC)
+
+	dashboard := repository.Dashboard{
+		Todo: []domain.Task{
+			{
+				ID:         uuid.New(),
+				Title:      "9号柜 608340",
+				Type:       domain.TaskTypeTodo,
+				Importance: 2,
+				CreatedAt:  createdAt.Add(4 * time.Minute),
+			},
+			{
+				ID:         uuid.New(),
+				Title:      "1号柜 813835",
+				Type:       domain.TaskTypeTodo,
+				Importance: 2,
+				CreatedAt:  createdAt.Add(3 * time.Minute),
+			},
+			{
+				ID:         uuid.New(),
+				Title:      "驿站：A-11-4608",
+				Type:       domain.TaskTypeTodo,
+				Importance: 2,
+				CreatedAt:  createdAt.Add(2 * time.Minute),
+			},
+		},
+	}
+
+	cards := buildFocusTaskCards(dashboard, now, focusDate, location)
+	if len(cards) != 3 {
+		t.Fatalf("len(cards) = %d, want 3", len(cards))
+	}
+
+	gotTitles := []string{cards[0].Title, cards[1].Title, cards[2].Title}
+	wantTitles := []string{"1号柜 813835", "9号柜 608340", "驿站：A-11-4608"}
+	for index := range wantTitles {
+		if gotTitles[index] != wantTitles[index] {
+			t.Fatalf("cards[%d] = %q, want %q", index, gotTitles[index], wantTitles[index])
+		}
+	}
+}
+
 func TestFormatDDLCountdownSwitchesFromDaysToHoursToMinutes(t *testing.T) {
 	location := time.FixedZone("CST", 8*3600)
 	deadline := time.Date(2026, 3, 1, 20, 0, 0, 0, location)
