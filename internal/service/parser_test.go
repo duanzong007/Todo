@@ -144,6 +144,7 @@ func TestTextParserParseSMSBatch(t *testing.T) {
 		"【兔喜生活】您有包裹已到达零食有鸣3号柜兔喜快递柜，取件码为742605",
 		"【申通快递】请凭A-88-2006到双福街道状元路41号取运单尾号8150包裹",
 		"【多多代收点】请凭A-15-2096到双福街道状元路41号取运单尾号2507包裹",
+		"【多多代收点】请凭A-33-3608到双福街道状元路41号取件，地址：双福街道状元路41号",
 	}, "")
 
 	got, err := parser.ParseSMSBatch(input, now)
@@ -159,6 +160,7 @@ func TestTextParserParseSMSBatch(t *testing.T) {
 		"3号柜 742605",
 		"驿站：A-88-2006",
 		"驿站：A-15-2096",
+		"驿站：A-33-3608",
 	}
 	if len(got) != len(wantTitles) {
 		t.Fatalf("len(got) = %d, want %d", len(got), len(wantTitles))

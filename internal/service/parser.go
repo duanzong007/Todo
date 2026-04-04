@@ -198,7 +198,9 @@ func extractPickupTaskTitle(input string) (string, map[string]any, bool) {
 		return cabinet + " " + code, metadata, true
 	}
 
-	if strings.Contains(input, "驿站") || strings.Contains(input, "取运单尾号") {
+	if strings.Contains(input, "驿站") ||
+		strings.Contains(input, "代收点") ||
+		strings.Contains(input, "取运单尾号") {
 		metadata["pickup_kind"] = "station"
 		return "驿站：" + code, metadata, true
 	}
