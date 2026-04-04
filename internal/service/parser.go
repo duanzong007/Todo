@@ -14,16 +14,17 @@ import (
 var errEmptyInput = errors.New("input cannot be empty")
 
 var (
-	pickupCodeRegex     = regexp.MustCompile(`(?:凭取件码|取件码|凭)[:：\s]*(?:为|是)?[:：\s]*([A-Za-z0-9-]+)`)
-	cabinetNumberRegex  = regexp.MustCompile(`(\d+号柜)`)
-	smsVendorMarkRegex  = regexp.MustCompile(`【[^】]+】`)
-	explicitDateRegex   = regexp.MustCompile(`(?:(\d{4})[年/-])?(\d{1,2})[月/-](\d{1,2})(?:日|号)?`)
-	clockTimeRegex      = regexp.MustCompile(`(?i)(凌晨|早上|上午|中午|下午|晚上)?\s*(\d{1,2})(?:[:：点时](\d{1,2}))?\s*(?:分)?`)
-	relativeDateRegex   = regexp.MustCompile(`(今天|明天|后天)`)
-	weekdayDateRegex    = regexp.MustCompile(`((?:下周|本周)?周[一二三四五六日天])`)
-	dayPeriodRegex      = regexp.MustCompile(`(今天上午|今天下午|今天晚上|今天中午|今天早上|今早|今晚|上午|下午|晚上|中午)`)
-	whitespaceRegex     = regexp.MustCompile(`\s+`)
-	deadlineKeywordList = []string{"截止", "ddl", "due", "交", "提交", "上交", "完成", "提交论文", "交作业", "交论文", "交报告"}
+	pickupCodeRegex        = regexp.MustCompile(`(?:凭取件码|取件码|凭)[:：\s]*(?:为|是)?[:：\s]*([A-Za-z0-9-]+)`)
+	pickupStationCodeRegex = regexp.MustCompile(`(?i)^A-\d{1,3}-\d{3,6}$`)
+	cabinetNumberRegex     = regexp.MustCompile(`(\d+号柜)`)
+	smsVendorMarkRegex     = regexp.MustCompile(`【[^】]+】`)
+	explicitDateRegex      = regexp.MustCompile(`(?:(\d{4})[年/-])?(\d{1,2})[月/-](\d{1,2})(?:日|号)?`)
+	clockTimeRegex         = regexp.MustCompile(`(?i)(凌晨|早上|上午|中午|下午|晚上)?\s*(\d{1,2})(?:[:：点时](\d{1,2}))?\s*(?:分)?`)
+	relativeDateRegex      = regexp.MustCompile(`(今天|明天|后天)`)
+	weekdayDateRegex       = regexp.MustCompile(`((?:下周|本周)?周[一二三四五六日天])`)
+	dayPeriodRegex         = regexp.MustCompile(`(今天上午|今天下午|今天晚上|今天中午|今天早上|今早|今晚|上午|下午|晚上|中午)`)
+	whitespaceRegex        = regexp.MustCompile(`\s+`)
+	deadlineKeywordList    = []string{"截止", "ddl", "due", "交", "提交", "上交", "完成", "提交论文", "交作业", "交论文", "交报告"}
 )
 
 type ParsedTask struct {
@@ -149,7 +150,8 @@ func (p *TextParser) parsePickupSMS(input string) (ParsedTask, bool) {
 		!strings.Contains(input, "驿站") &&
 		!strings.Contains(input, "快递") &&
 		!strings.Contains(input, "代收点") &&
-		!strings.Contains(input, "取运单尾号") {
+		!strings.Contains(input, "取运单尾号") &&
+		!pickupStationCodeRegex.MatchString(extractPickupCode(input)) {
 		return ParsedTask{}, false
 	}
 
@@ -200,12 +202,21 @@ func extractPickupTaskTitle(input string) (string, map[string]any, bool) {
 
 	if strings.Contains(input, "驿站") ||
 		strings.Contains(input, "代收点") ||
-		strings.Contains(input, "取运单尾号") {
+		strings.Contains(input, "取运单尾号") ||
+		pickupStationCodeRegex.MatchString(code) {
 		metadata["pickup_kind"] = "station"
 		return "驿站：" + code, metadata, true
 	}
 
 	return "", nil, false
+}
+
+func extractPickupCode(input string) string {
+	match := pickupCodeRegex.FindStringSubmatch(input)
+	if len(match) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(match[1])
 }
 
 func splitSMSMessages(input string) []string {
