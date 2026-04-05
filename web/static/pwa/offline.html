@@ -66,5 +66,67 @@
         <h1>Todo</h1>
         <p><strong>当前离线。</strong> 网络恢复后重新打开页面，就能继续查看和操作任务。</p>
     </main>
+    <script>
+        (() => {
+            if (!("serviceWorker" in navigator)) {
+                return;
+            }
+
+            function isNativeShell() {
+                try {
+                    if (!window.Capacitor) {
+                        return false;
+                    }
+                    if (typeof window.Capacitor.isNativePlatform === "function") {
+                        return window.Capacitor.isNativePlatform();
+                    }
+                    if (typeof window.Capacitor.getPlatform === "function") {
+                        return window.Capacitor.getPlatform() !== "web";
+                    }
+                    return true;
+                } catch (_error) {
+                    return false;
+                }
+            }
+
+            async function clearTodoPWACaches() {
+                if (!("caches" in window)) {
+                    return;
+                }
+                try {
+                    const keys = await caches.keys();
+                    await Promise.all(
+                        keys
+                            .filter((key) => key.startsWith("todo-pwa-"))
+                            .map((key) => caches.delete(key))
+                    );
+                } catch (_error) {
+                    // Ignore cleanup failures.
+                }
+            }
+
+            async function recoverNativeShell() {
+                if (!isNativeShell() || !navigator.onLine) {
+                    return;
+                }
+
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(registrations.map((registration) => registration.unregister()));
+                } catch (_error) {
+                    // Ignore unregister failures.
+                }
+
+                await clearTodoPWACaches();
+
+                window.setTimeout(() => {
+                    window.location.replace(window.location.href);
+                }, 120);
+            }
+
+            window.addEventListener("online", recoverNativeShell);
+            recoverNativeShell();
+        })();
+    </script>
 </body>
 </html>
