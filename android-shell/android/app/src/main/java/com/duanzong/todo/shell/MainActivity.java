@@ -1,5 +1,8 @@
 package com.duanzong.todo.shell;
 
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
@@ -18,6 +21,15 @@ import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    private ConnectivityManager connectivityManager;
+    private ConnectivityManager.NetworkCallback networkCallback;
+    private final Runnable networkRecoveryRunnable = new Runnable() {
+        @Override
+        public void run() {
+            reloadCurrentPageAfterNetworkChange();
+        }
+    };
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SmsBridgePlugin.class);
@@ -25,6 +37,12 @@ public class MainActivity extends BridgeActivity {
         configureWindowAppearance();
         configureWebViewPersistence();
         configureBridgeInsetsHandling();
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        registerNetworkRecovery();
     }
 
     @Override
@@ -36,6 +54,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onStop() {
         flushWebState();
+        unregisterNetworkRecovery();
         super.onStop();
     }
 
@@ -89,5 +108,75 @@ public class MainActivity extends BridgeActivity {
         });
 
         ViewCompat.requestApplyInsets(container);
+    }
+
+    private void registerNetworkRecovery() {
+        if (networkCallback != null) {
+            return;
+        }
+
+        connectivityManager = getSystemService(ConnectivityManager.class);
+        if (connectivityManager == null) {
+            return;
+        }
+
+        networkCallback = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(Network network) {
+                scheduleNetworkRecoveryReload();
+            }
+
+            @Override
+            public void onCapabilitiesChanged(Network network, NetworkCapabilities networkCapabilities) {
+                if (networkCapabilities != null && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                    scheduleNetworkRecoveryReload();
+                }
+            }
+        };
+
+        connectivityManager.registerDefaultNetworkCallback(networkCallback);
+    }
+
+    private void unregisterNetworkRecovery() {
+        if (connectivityManager == null || networkCallback == null) {
+            return;
+        }
+
+        try {
+            connectivityManager.unregisterNetworkCallback(networkCallback);
+        } catch (IllegalArgumentException ignored) {
+            // Callback already unregistered.
+        }
+
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().removeCallbacks(networkRecoveryRunnable);
+        }
+
+        networkCallback = null;
+    }
+
+    private void scheduleNetworkRecoveryReload() {
+        if (getBridge() == null || getBridge().getWebView() == null) {
+            return;
+        }
+
+        WebView webView = getBridge().getWebView();
+        webView.removeCallbacks(networkRecoveryRunnable);
+        webView.postDelayed(networkRecoveryRunnable, 900);
+    }
+
+    private void reloadCurrentPageAfterNetworkChange() {
+        if (getBridge() == null || getBridge().getWebView() == null) {
+            return;
+        }
+
+        WebView webView = getBridge().getWebView();
+        String currentUrl = webView.getUrl();
+        if (currentUrl == null || currentUrl.trim().isEmpty() || currentUrl.startsWith("about:")) {
+            webView.reload();
+            return;
+        }
+
+        webView.loadUrl(currentUrl);
     }
 }
