@@ -14,6 +14,11 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
 @CapacitorPlugin(
     name = "SmsBridge",
     permissions = {
@@ -22,7 +27,7 @@ import com.getcapacitor.annotation.PermissionCallback;
 )
 public class SmsBridgePlugin extends Plugin {
     private static final String SMS_PERMISSION_ALIAS = "sms";
-    private static final int MAX_MESSAGES = 100;
+    private static final int MAX_RAW_MESSAGES = 400;
     private static final long THREE_MONTHS_MS = 1000L * 60L * 60L * 24L * 90L;
 
     @PluginMethod
@@ -42,7 +47,7 @@ public class SmsBridgePlugin extends Plugin {
             requestPermissionForAlias(SMS_PERMISSION_ALIAS, call, "smsPermissionCallback");
             return;
         }
-        resolveMessages(call);
+        resolveMessagesAsync(call);
     }
 
     @PermissionCallback
@@ -56,63 +61,92 @@ public class SmsBridgePlugin extends Plugin {
             return;
         }
 
-        resolveMessages(call);
+        resolveMessagesAsync(call);
     }
 
-    private void resolveMessages(PluginCall call) {
-        JSObject result = new JSObject();
-        JSArray messages = new JSArray();
-        long cutoff = System.currentTimeMillis() - THREE_MONTHS_MS;
-        String[] projection = new String[] {
-            Telephony.Sms._ID,
-            Telephony.Sms.ADDRESS,
-            Telephony.Sms.BODY,
-            Telephony.Sms.DATE
-        };
+    private void resolveMessagesAsync(PluginCall call) {
+        new Thread(() -> {
+            JSObject result = new JSObject();
+            long cutoff = System.currentTimeMillis() - THREE_MONTHS_MS;
+            Set<String> seenIds = new HashSet<>();
+            JSArray messages = new JSArray();
+            String[] projection = new String[] {
+                Telephony.Sms._ID,
+                Telephony.Sms.ADDRESS,
+                Telephony.Sms.BODY,
+                Telephony.Sms.DATE,
+                Telephony.Sms.TYPE
+            };
+            int count = 0;
 
-        try (Cursor cursor = getContext()
-            .getContentResolver()
-            .query(
-                Telephony.Sms.Inbox.CONTENT_URI,
-                projection,
-                Telephony.Sms.DATE + " >= ?",
-                new String[] { String.valueOf(cutoff) },
-                Telephony.Sms.DATE + " DESC"
-            )) {
+            try (Cursor cursor = getContext()
+                .getContentResolver()
+                .query(
+                    Telephony.Sms.CONTENT_URI,
+                    projection,
+                    Telephony.Sms.DATE + " >= ? AND " + Telephony.Sms.TYPE + " = ?",
+                    new String[] { String.valueOf(cutoff), String.valueOf(Telephony.Sms.MESSAGE_TYPE_INBOX) },
+                    Telephony.Sms.DATE + " DESC"
+                )) {
 
-            if (cursor != null) {
-                int idIndex = cursor.getColumnIndex(Telephony.Sms._ID);
-                int addressIndex = cursor.getColumnIndex(Telephony.Sms.ADDRESS);
-                int bodyIndex = cursor.getColumnIndex(Telephony.Sms.BODY);
-                int dateIndex = cursor.getColumnIndex(Telephony.Sms.DATE);
+                if (cursor != null) {
+                    int idIndex = cursor.getColumnIndex(Telephony.Sms._ID);
+                    int addressIndex = cursor.getColumnIndex(Telephony.Sms.ADDRESS);
+                    int bodyIndex = cursor.getColumnIndex(Telephony.Sms.BODY);
+                    int dateIndex = cursor.getColumnIndex(Telephony.Sms.DATE);
 
-                int count = 0;
-                while (cursor.moveToNext() && count < MAX_MESSAGES) {
-                    String body = bodyIndex >= 0 ? cursor.getString(bodyIndex) : "";
-                    if (body == null || body.trim().isEmpty()) {
-                        continue;
+                    while (cursor.moveToNext() && count < MAX_RAW_MESSAGES) {
+                        String address = addressIndex >= 0 ? cursor.getString(addressIndex) : "";
+                        String body = bodyIndex >= 0 ? cursor.getString(bodyIndex) : "";
+                        long date = dateIndex >= 0 ? cursor.getLong(dateIndex) : 0;
+                        if (body == null || body.trim().isEmpty()) {
+                            continue;
+                        }
+
+                        String stableId = buildStableMessageId(address, body, date);
+                        if (seenIds.contains(stableId)) {
+                            continue;
+                        }
+                        seenIds.add(stableId);
+
+                        JSObject item = new JSObject();
+                        item.put("id", stableId);
+                        item.put("system_id", idIndex >= 0 ? cursor.getString(idIndex) : "");
+                        item.put("address", address);
+                        item.put("body", body);
+                        item.put("date", date);
+                        messages.put(item);
+                        count++;
                     }
-
-                    JSObject item = new JSObject();
-                    item.put("id", idIndex >= 0 ? cursor.getString(idIndex) : String.valueOf(count));
-                    item.put("address", addressIndex >= 0 ? cursor.getString(addressIndex) : "");
-                    item.put("body", body);
-                    item.put("date", dateIndex >= 0 ? cursor.getLong(dateIndex) : 0);
-                    messages.put(item);
-                    count++;
                 }
+            } catch (Exception exception) {
+                result.put("ok", false);
+                result.put("reason", "query_failed");
+                result.put("message", exception.getMessage());
+                resolveOnMainThread(call, result);
+                return;
             }
-        } catch (Exception exception) {
-            result.put("ok", false);
-            result.put("reason", "query_failed");
-            result.put("message", exception.getMessage());
-            call.resolve(result);
+
+            result.put("ok", true);
+            result.put("count", count);
+            result.put("messages", messages);
+            result.put("permission", getPermissionState(SMS_PERMISSION_ALIAS).toString());
+            resolveOnMainThread(call, result);
+        }, "todo-sms-reader").start();
+    }
+
+    private void resolveOnMainThread(PluginCall call, JSObject payload) {
+        if (getActivity() == null) {
+            call.resolve(payload);
             return;
         }
+        getActivity().runOnUiThread(() -> call.resolve(payload));
+    }
 
-        result.put("ok", true);
-        result.put("messages", messages);
-        result.put("permission", getPermissionState(SMS_PERMISSION_ALIAS).toString());
-        call.resolve(result);
+    private String buildStableMessageId(String address, String body, long date) {
+        String normalizedAddress = address == null ? "" : address.trim();
+        String normalizedBody = body == null ? "" : body.trim();
+        String payload = normalizedAddress + "\n" + date + "\n" + normalizedBody;
+        return UUID.nameUUIDFromBytes(payload.getBytes(StandardCharsets.UTF_8)).toString();
     }
 }

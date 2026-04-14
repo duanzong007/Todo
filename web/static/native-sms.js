@@ -1,6 +1,8 @@
 (() => {
   const HISTORY_KEY_PREFIX = "todo-native-sms-history-v1";
-  const MAX_MESSAGES = 100;
+  const CURRENT_CACHE_KEY_PREFIX = "todo-native-sms-current-v1";
+  const MAX_VISIBLE_MESSAGES = 100;
+  const MAX_CURRENT_CACHE_MESSAGES = 300;
   const THREE_MONTHS_MS = 1000 * 60 * 60 * 24 * 90;
 
   const state = {
@@ -10,6 +12,8 @@
     selectedIDs: new Set(),
     pending: false,
     statusTimer: 0,
+    refreshTimer: 0,
+    loadSeq: 0,
   };
 
   function root() {
@@ -29,7 +33,12 @@
     return `${HISTORY_KEY_PREFIX}:${userID}`;
   }
 
-  function trimHistory(entries) {
+  function currentCacheKey() {
+    const userID = root()?.getAttribute("data-user-id") || "anonymous";
+    return `${CURRENT_CACHE_KEY_PREFIX}:${userID}`;
+  }
+
+  function trimMessages(entries, limit) {
     const cutoff = Date.now() - THREE_MONTHS_MS;
     const normalized = [];
     const seen = new Set();
@@ -47,7 +56,11 @@
     });
 
     normalized.sort((left, right) => right.date - left.date);
-    return normalized.slice(0, MAX_MESSAGES);
+    return normalized.slice(0, limit);
+  }
+
+  function trimHistory(entries) {
+    return trimMessages(entries, MAX_VISIBLE_MESSAGES);
   }
 
   function loadHistory() {
@@ -66,6 +79,23 @@
     const trimmed = trimHistory(entries);
     window.localStorage.setItem(storageKey(), JSON.stringify(trimmed));
     state.historyMessages = trimmed;
+  }
+
+  function loadCurrentCache() {
+    try {
+      const raw = window.localStorage.getItem(currentCacheKey());
+      if (!raw) {
+        return [];
+      }
+      return trimMessages(JSON.parse(raw), MAX_CURRENT_CACHE_MESSAGES);
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  function saveCurrentCache(entries) {
+    const trimmed = trimMessages(entries, MAX_CURRENT_CACHE_MESSAGES);
+    window.localStorage.setItem(currentCacheKey(), JSON.stringify(trimmed));
   }
 
   function normalizeMessage(message) {
@@ -88,7 +118,9 @@
 
   function currentList() {
     const handledIDs = new Set(state.historyMessages.map((message) => message.id));
-    return state.currentMessages.filter((message) => !handledIDs.has(message.id));
+    return state.currentMessages
+      .filter((message) => !handledIDs.has(message.id))
+      .slice(0, MAX_VISIBLE_MESSAGES);
   }
 
   function activeMessages() {
@@ -274,30 +306,72 @@
     }
   }
 
-  async function loadMessages() {
+  function applyCurrentMessages(messages) {
+    state.currentMessages = trimMessages(messages, MAX_CURRENT_CACHE_MESSAGES);
+    saveCurrentCache(state.currentMessages);
+  }
+
+  function scheduleRefresh() {
+    if (state.pending) {
+      return;
+    }
+    if (state.refreshTimer) {
+      window.clearTimeout(state.refreshTimer);
+    }
+    state.refreshTimer = window.setTimeout(() => {
+      state.refreshTimer = 0;
+      loadMessages({ silent: true });
+    }, 320);
+  }
+
+  async function loadMessages(options = {}) {
+    const { silent = false } = options;
     if (!isNativeAvailable()) {
       setStatus("error", "当前不是 Android 壳环境，无法读取本地短信。");
       renderList();
       return;
     }
 
-    setStatus("info", "正在读取本地短信…");
+    const seq = ++state.loadSeq;
+    if (!silent) {
+      setStatus("info", "正在读取本地短信…");
+    }
     try {
       const result = await plugin().readPickupMessages();
+      if (seq !== state.loadSeq) {
+        return;
+      }
       if (!result || result.ok === false) {
         const reason = result?.reason === "permission_denied" ? "请允许短信权限后再试。" : "短信读取失败。";
+        const cached = loadCurrentCache();
+        if (cached.length > 0) {
+          state.currentMessages = cached;
+          state.historyMessages = loadHistory();
+          setStatus("error", `${reason} 已显示最近一次缓存。`);
+          renderList();
+          return;
+        }
         setStatus("error", reason);
         renderList();
         return;
       }
 
-      state.currentMessages = Array.isArray(result.messages)
-        ? result.messages.map(normalizeMessage).filter(Boolean).slice(0, MAX_MESSAGES)
-        : [];
+      applyCurrentMessages(Array.isArray(result.messages) ? result.messages : []);
       state.historyMessages = loadHistory();
       setStatus("", "");
       renderList();
     } catch (_error) {
+      if (seq !== state.loadSeq) {
+        return;
+      }
+      const cached = loadCurrentCache();
+      if (cached.length > 0) {
+        state.currentMessages = cached;
+        state.historyMessages = loadHistory();
+        setStatus("error", "短信读取失败，已显示最近一次缓存。");
+        renderList();
+        return;
+      }
       setStatus("error", "短信读取失败。");
       renderList();
     }
@@ -425,6 +499,15 @@
         submitSelection();
       });
     }
+
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        scheduleRefresh();
+      }
+    });
+
+    window.addEventListener("focus", scheduleRefresh);
+    window.addEventListener("pageshow", scheduleRefresh);
   }
 
   function initializeNativeSMSPage() {
@@ -433,6 +516,7 @@
     }
 
     state.historyMessages = loadHistory();
+    state.currentMessages = loadCurrentCache();
     bindEvents();
     renderList();
     loadMessages();
