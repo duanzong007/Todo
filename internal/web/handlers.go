@@ -283,6 +283,7 @@ func (h *Handler) Router() http.Handler {
 		r.Post("/tasks/manual", h.handleCreateManualTask)
 		r.Post("/tasks/parse-sms", h.handleParseSMS)
 		r.Post("/tasks/parse-sms/native", h.handleNativeSMSImport)
+		r.Post("/tasks/parse-sms/native-paste", h.handleNativeSMSPaste)
 		r.Post("/tasks/{taskID}/rename", h.handleRenameTask)
 		r.Post("/tasks/{taskID}/complete", h.handleCompleteTask)
 		r.Post("/tasks/{taskID}/restore", h.handleRestoreTask)

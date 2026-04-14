@@ -24,6 +24,10 @@ type nativeSMSImportRequest struct {
 	Messages []nativeSMSImportMessage `json:"messages"`
 }
 
+type nativeSMSPasteRequest struct {
+	Input string `json:"input"`
+}
+
 type nativeSMSImportResponse struct {
 	CreatedCount      int      `json:"created_count"`
 	AcceptedIDs       []string `json:"accepted_ids"`
@@ -100,6 +104,42 @@ func (h *Handler) handleNativeSMSImport(w http.ResponseWriter, r *http.Request) 
 		AcceptedIDs:       result.AcceptedClientIDs,
 		UnsupportedIDs:    result.UnsupportedClientIDs,
 		UnsupportedBodies: result.UnsupportedBodies,
+	})
+}
+
+func (h *Handler) handleNativeSMSPaste(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		writeNativeSMSJSON(w, http.StatusUnauthorized, nativeSMSImportResponse{Error: "请先登录"})
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+
+	var request nativeSMSPasteRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeNativeSMSJSON(w, http.StatusBadRequest, nativeSMSImportResponse{Error: "请求格式不正确"})
+		return
+	}
+
+	input := strings.TrimSpace(request.Input)
+	if input == "" {
+		writeNativeSMSJSON(w, http.StatusBadRequest, nativeSMSImportResponse{Error: "短信内容不能为空"})
+		return
+	}
+
+	createdCount, err := h.taskService.CreateFromSMSParse(r.Context(), user.ID, input)
+	if err != nil {
+		writeNativeSMSJSON(w, http.StatusBadRequest, nativeSMSImportResponse{Error: humanizeError(err)})
+		return
+	}
+
+	if createdCount > 0 {
+		h.publishDashboardUpdate(user.ID.String(), requestClientID(r))
+	}
+
+	writeNativeSMSJSON(w, http.StatusOK, nativeSMSImportResponse{
+		CreatedCount: createdCount,
 	})
 }
 

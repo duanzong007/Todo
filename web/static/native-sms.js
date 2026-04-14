@@ -197,6 +197,37 @@
     }
   }
 
+  function pasteModal() {
+    return document.querySelector("[data-native-paste-modal]");
+  }
+
+  function pasteInput() {
+    return document.querySelector("[data-native-paste-input]");
+  }
+
+  function openPasteModal() {
+    const modal = pasteModal();
+    if (!modal) {
+      return;
+    }
+    modal.hidden = false;
+    requestAnimationFrame(() => {
+      modal.classList.add("is-open");
+      pasteInput()?.focus();
+    });
+  }
+
+  function closePasteModal() {
+    const modal = pasteModal();
+    if (!modal) {
+      return;
+    }
+    modal.classList.remove("is-open");
+    window.setTimeout(() => {
+      modal.hidden = true;
+    }, 180);
+  }
+
   function toggleSelection(id) {
     if (!id) {
       return false;
@@ -228,7 +259,22 @@
     if (messages.length === 0) {
       const empty = document.createElement("div");
       empty.className = "native-sms-empty";
-      empty.textContent = state.mode === "history" ? "最近没有历史记录。" : "最近没有新的短信。";
+
+      const text = document.createElement("p");
+      text.textContent = state.mode === "history" ? "最近没有历史记录。" : "最近没有新的短信。";
+      empty.appendChild(text);
+
+      if (state.mode === "new") {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "secondary native-sms-empty-action";
+        button.textContent = "粘贴短信";
+        button.addEventListener("click", () => {
+          openPasteModal();
+        });
+        empty.appendChild(button);
+      }
+
       list.appendChild(empty);
       updateMeta();
       return;
@@ -474,9 +520,58 @@
     }
   }
 
+  async function submitPastedSMS() {
+    const inputNode = pasteInput();
+    const raw = inputNode?.value || "";
+    const input = raw.trim();
+    if (!input) {
+      setStatus("error", "短信内容不能为空");
+      inputNode?.focus();
+      return;
+    }
+    if (state.pending) {
+      return;
+    }
+
+    state.pending = true;
+    updateMeta();
+    setStatus("info", "正在解析短信…");
+
+    try {
+      const response = await fetch("/tasks/parse-sms/native-paste", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "fetch",
+        },
+        body: JSON.stringify({ input }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStatus("error", payload.error || "短信导入失败。");
+        return;
+      }
+
+      if (inputNode) {
+        inputNode.value = "";
+      }
+      closePasteModal();
+      setStatus("success", payload.created_count > 0 ? `已导入 ${payload.created_count} 条短信。` : "没有识别到可导入的快递短信。");
+    } catch (_error) {
+      setStatus("error", "短信导入失败。");
+    } finally {
+      state.pending = false;
+      updateMeta();
+      clearActionFocus();
+    }
+  }
+
   function bindEvents() {
     const historyToggle = document.querySelector("[data-native-history-toggle]");
     const confirmButton = document.querySelector("[data-native-confirm]");
+    const pasteSubmitButton = document.querySelector("[data-native-paste-submit]");
+    const pasteCloseButtons = document.querySelectorAll("[data-native-paste-close]");
 
     if (historyToggle) {
       historyToggle.addEventListener("click", (event) => {
@@ -500,6 +595,29 @@
       });
     }
 
+    pasteCloseButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        closePasteModal();
+      });
+    });
+
+    if (pasteSubmitButton) {
+      pasteSubmitButton.addEventListener("click", () => {
+        submitPastedSMS();
+      });
+    }
+
+    pasteInput()?.addEventListener("keydown", (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        submitPastedSMS();
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closePasteModal();
+      }
+    });
+
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
         scheduleRefresh();
@@ -508,6 +626,11 @@
 
     window.addEventListener("focus", scheduleRefresh);
     window.addEventListener("pageshow", scheduleRefresh);
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && pasteModal() && !pasteModal().hidden) {
+        closePasteModal();
+      }
+    });
   }
 
   function initializeNativeSMSPage() {

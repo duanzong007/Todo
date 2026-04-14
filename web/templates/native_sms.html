@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>短信导入 - Todo</title>
     <meta name="theme-color" content="#c56d3a">
-    <link rel="stylesheet" href="/static/styles.css?v=20260414-native-sms-stable-sms-1">
+    <link rel="stylesheet" href="/static/styles.css?v=20260414-native-sms-paste-1">
 </head>
 <body>
     <main class="native-sms-page" data-native-sms-page data-user-id="{{ .UserID }}" data-return-path="{{ .ReturnPath }}" data-app-timezone="{{ .AppTimeZone }}">
@@ -44,8 +44,34 @@
                 </article>
             </template>
         </section>
+
+            <div class="native-sms-modal-shell" data-native-paste-modal hidden>
+                <div class="native-sms-modal-backdrop" data-native-paste-close></div>
+                <section class="native-sms-modal panel" role="dialog" aria-modal="true" aria-labelledby="native-paste-title">
+                    <div class="native-sms-modal-head">
+                        <div>
+                            <h2 id="native-paste-title">粘贴短信</h2>
+                        </div>
+                    </div>
+
+                <label class="native-sms-paste-field" for="native-paste-input">
+                    <span>短信内容</span>
+                    <textarea
+                        id="native-paste-input"
+                        data-native-paste-input
+                        rows="8"
+                        placeholder="直接粘贴短信内容；一次贴很多条也可以。"
+                    ></textarea>
+                </label>
+
+                <div class="native-sms-modal-actions">
+                    <button type="button" class="secondary" data-native-paste-close>取消</button>
+                    <button type="button" data-native-paste-submit>导入短信</button>
+                </div>
+            </section>
+        </div>
     </main>
 
-    <script defer src="/static/native-sms.js?v=20260414-native-sms-stable-sms-1"></script>
+    <script defer src="/static/native-sms.js?v=20260414-native-sms-paste-1"></script>
 </body>
 </html>
