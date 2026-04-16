@@ -932,7 +932,8 @@ func (h *Handler) handleRejectUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) requireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, err := h.authService.Authenticate(r.Context(), h.sessionToken(r))
+		token := h.sessionToken(r)
+		authResult, err := h.authService.Authenticate(r.Context(), token)
 		if err != nil {
 			h.clearSessionCookie(w)
 			if wantsAsyncResponse(r) || wantsEventStream(r) {
@@ -943,7 +944,8 @@ func (h *Handler) requireAuth(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), currentUserContextKey, user)
+		h.setSessionCookie(w, token, authResult.ExpiresAt)
+		ctx := context.WithValue(r.Context(), currentUserContextKey, authResult.User)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -974,11 +976,11 @@ func (h *Handler) optionalCurrentUser(r *http.Request) (domain.User, bool) {
 		return domain.User{}, false
 	}
 
-	user, err := h.authService.Authenticate(r.Context(), token)
+	authResult, err := h.authService.Authenticate(r.Context(), token)
 	if err != nil {
 		return domain.User{}, false
 	}
-	return user, true
+	return authResult.User, true
 }
 
 func (h *Handler) setSessionCookie(w http.ResponseWriter, token string, expiresAt time.Time) {

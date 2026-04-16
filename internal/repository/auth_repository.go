@@ -149,31 +149,34 @@ func (r *AuthRepository) CreateSession(ctx context.Context, input CreateSessionI
 	return nil
 }
 
-func (r *AuthRepository) GetUserBySessionTokenHash(ctx context.Context, tokenHash string, now time.Time) (domain.User, error) {
+func (r *AuthRepository) GetUserBySessionTokenHash(ctx context.Context, tokenHash string, now, refreshedExpiresAt time.Time) (domain.User, time.Time, error) {
 	row := r.db.QueryRow(ctx, `
 		WITH active_session AS (
 			UPDATE user_sessions
-			SET last_seen_at = $2
+			SET
+				last_seen_at = $2,
+				expires_at = $3
 			WHERE token_hash = $1
 				AND revoked_at IS NULL
 				AND expires_at > $2
-			RETURNING user_id
+			RETURNING user_id, expires_at
 		)
-		SELECT u.id, u.username, u.display_name, u.password_hash, u.role, u.approval_status, u.is_active, u.last_login_at, u.approved_at, u.approved_by, u.created_at, u.updated_at
+		SELECT u.id, u.username, u.display_name, u.password_hash, u.role, u.approval_status, u.is_active, u.last_login_at, u.approved_at, u.approved_by, u.created_at, u.updated_at, s.expires_at
 		FROM active_session s
 		JOIN app_users u ON u.id = s.user_id
 		WHERE u.is_active = TRUE
 			AND u.approval_status = 'approved'
-	`, tokenHash, now)
+	`, tokenHash, now, refreshedExpiresAt)
 
-	user, err := scanUser(row)
+	var expiresAt time.Time
+	user, err := scanUserWithExtra(row, &expiresAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.User{}, ErrSessionNotFound
+			return domain.User{}, time.Time{}, ErrSessionNotFound
 		}
-		return domain.User{}, err
+		return domain.User{}, time.Time{}, err
 	}
-	return user, nil
+	return user, expiresAt, nil
 }
 
 func (r *AuthRepository) ListPendingUsers(ctx context.Context) ([]domain.User, error) {
@@ -301,12 +304,15 @@ func (r *AuthRepository) RevokeSession(ctx context.Context, tokenHash string) er
 }
 
 func scanUser(row interface{ Scan(dest ...any) error }) (domain.User, error) {
+	return scanUserWithExtra(row)
+}
+
+func scanUserWithExtra(row interface{ Scan(dest ...any) error }, extraDest ...any) (domain.User, error) {
 	var user domain.User
 	var lastLoginAt pgtype.Timestamptz
 	var approvedAt pgtype.Timestamptz
 	var approvedBy pgtype.UUID
-
-	err := row.Scan(
+	destinations := []any{
 		&user.ID,
 		&user.Username,
 		&user.DisplayName,
@@ -319,7 +325,10 @@ func scanUser(row interface{ Scan(dest ...any) error }) (domain.User, error) {
 		&approvedBy,
 		&user.CreatedAt,
 		&user.UpdatedAt,
-	)
+	}
+	destinations = append(destinations, extraDest...)
+
+	err := row.Scan(destinations...)
 	if err != nil {
 		return domain.User{}, err
 	}

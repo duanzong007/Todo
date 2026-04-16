@@ -38,6 +38,11 @@ type AuthResult struct {
 	ExpiresAt time.Time
 }
 
+type SessionAuthResult struct {
+	User      domain.User
+	ExpiresAt time.Time
+}
+
 type RegistrationResult struct {
 	User            domain.User
 	Token           string
@@ -141,19 +146,24 @@ func (s *AuthService) Login(ctx context.Context, username, password, userAgent, 
 	return s.issueSession(ctx, user, userAgent, ipAddress)
 }
 
-func (s *AuthService) Authenticate(ctx context.Context, token string) (domain.User, error) {
+func (s *AuthService) Authenticate(ctx context.Context, token string) (SessionAuthResult, error) {
 	if strings.TrimSpace(token) == "" {
-		return domain.User{}, ErrInvalidSession
+		return SessionAuthResult{}, ErrInvalidSession
 	}
 
-	user, err := s.repo.GetUserBySessionTokenHash(ctx, hashToken(token), time.Now().UTC())
+	now := time.Now().UTC()
+	expiresAt := now.Add(s.sessionTTL)
+	user, sessionExpiresAt, err := s.repo.GetUserBySessionTokenHash(ctx, hashToken(token), now, expiresAt)
 	if err != nil {
 		if errors.Is(err, repository.ErrSessionNotFound) {
-			return domain.User{}, ErrInvalidSession
+			return SessionAuthResult{}, ErrInvalidSession
 		}
-		return domain.User{}, err
+		return SessionAuthResult{}, err
 	}
-	return user, nil
+	return SessionAuthResult{
+		User:      user,
+		ExpiresAt: sessionExpiresAt,
+	}, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, token string) error {
