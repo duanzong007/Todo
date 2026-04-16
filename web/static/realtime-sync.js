@@ -28,6 +28,7 @@
   let syncInFlight = false;
   let syncQueued = false;
   let staleWhileHidden = false;
+  let initialPageShowHandled = false;
 
   function currentFocusDate() {
     if (typeof window.getFocusDateForSync === "function") {
@@ -180,10 +181,18 @@
     }
   });
 
-  window.addEventListener("pageshow", () => {
+  window.addEventListener("pageshow", (event) => {
     if (typeof window.ensureImplicitTodayViewIsFresh === "function" && window.ensureImplicitTodayViewIsFresh()) {
       return;
     }
+
+    if (!initialPageShowHandled) {
+      initialPageShowHandled = true;
+      if (!event.persisted) {
+        return;
+      }
+    }
+
     syncQueued = true;
     scheduleSync();
   });
