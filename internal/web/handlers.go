@@ -53,9 +53,9 @@ type Handler struct {
 }
 
 type UserView struct {
-	DisplayName string
-	Username    string
-	IsAdmin     bool
+	DisplayName string `json:"display_name"`
+	Username    string `json:"username"`
+	IsAdmin     bool   `json:"is_admin"`
 }
 
 type DashboardPageData struct {
@@ -90,80 +90,80 @@ type QuoteView struct {
 }
 
 type AccountPageData struct {
-	CurrentUser  *UserView
-	Message      string
-	Error        string
-	ReturnQuery  string
-	TodayDateISO string
-	Filter       AccountTaskFilterView
-	Pagination   AccountPaginationView
-	Tasks        []ManagedTaskCard
-	ShareUsers   []ShareableUserCard
+	CurrentUser  *UserView             `json:"current_user"`
+	Message      string                `json:"message"`
+	Error        string                `json:"error"`
+	ReturnQuery  string                `json:"return_query"`
+	TodayDateISO string                `json:"today_date_iso"`
+	Filter       AccountTaskFilterView `json:"filter"`
+	Pagination   AccountPaginationView `json:"pagination"`
+	Tasks        []ManagedTaskCard     `json:"tasks"`
+	ShareUsers   []ShareableUserCard   `json:"share_users"`
 }
 
 type AccountTaskFilterView struct {
-	Query             string
-	Summary           string
-	LimitValue        string
-	PageValue         string
-	DateFrom          string
-	DateTo            string
-	StatusOptions     []AccountFilterOption
-	ScopeOptions      []AccountFilterOption
-	DateFieldOptions  []AccountFilterOption
-	SortOptions       []AccountFilterOption
-	LimitOptions      []AccountFilterOption
-	TypeOptions       []AccountCheckOption
-	ImportanceOptions []AccountCheckOption
+	Query             string                `json:"query"`
+	Summary           string                `json:"summary"`
+	LimitValue        string                `json:"limit_value"`
+	PageValue         string                `json:"page_value"`
+	DateFrom          string                `json:"date_from"`
+	DateTo            string                `json:"date_to"`
+	StatusOptions     []AccountFilterOption `json:"status_options"`
+	ScopeOptions      []AccountFilterOption `json:"scope_options"`
+	DateFieldOptions  []AccountFilterOption `json:"date_field_options"`
+	SortOptions       []AccountFilterOption `json:"sort_options"`
+	LimitOptions      []AccountFilterOption `json:"limit_options"`
+	TypeOptions       []AccountCheckOption  `json:"type_options"`
+	ImportanceOptions []AccountCheckOption  `json:"importance_options"`
 }
 
 type AccountPaginationView struct {
-	Page        int
-	TotalPages  int
-	TotalItems  int
-	HasPages    bool
-	HasPrev     bool
-	HasNext     bool
-	PrevPage    int
-	NextPage    int
-	PageOptions []AccountFilterOption
+	Page        int                   `json:"page"`
+	TotalPages  int                   `json:"total_pages"`
+	TotalItems  int                   `json:"total_items"`
+	HasPages    bool                  `json:"has_pages"`
+	HasPrev     bool                  `json:"has_prev"`
+	HasNext     bool                  `json:"has_next"`
+	PrevPage    int                   `json:"prev_page"`
+	NextPage    int                   `json:"next_page"`
+	PageOptions []AccountFilterOption `json:"page_options"`
 }
 
 type AccountFilterOption struct {
-	Value    string
-	Label    string
-	Selected bool
+	Value    string `json:"value"`
+	Label    string `json:"label"`
+	Selected bool   `json:"selected"`
 }
 
 type AccountCheckOption struct {
-	Value   string
-	Label   string
-	Checked bool
+	Value   string `json:"value"`
+	Label   string `json:"label"`
+	Checked bool   `json:"checked"`
 }
 
 type ShareableUserCard struct {
-	ID          string
-	DisplayName string
-	Username    string
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+	Username    string `json:"username"`
 }
 
 type ManagedTaskCard struct {
-	ID            string
-	Title         string
-	KindLabel     string
-	KindClass     string
-	Importance    int
-	StatusLabel   string
-	StatusClass   string
-	DateLine      string
-	SharedLine    string
-	Note          string
-	IsOwner       bool
-	SharedWithMe  bool
-	ScheduleMode  string
-	ScheduleValue string
-	DeadlineDate  string
-	DeadlineTime  string
+	ID            string `json:"id"`
+	Title         string `json:"title"`
+	KindLabel     string `json:"kind_label"`
+	KindClass     string `json:"kind_class"`
+	Importance    int    `json:"importance"`
+	StatusLabel   string `json:"status_label"`
+	StatusClass   string `json:"status_class"`
+	DateLine      string `json:"date_line"`
+	SharedLine    string `json:"shared_line"`
+	Note          string `json:"note"`
+	IsOwner       bool   `json:"is_owner"`
+	SharedWithMe  bool   `json:"shared_with_me"`
+	ScheduleMode  string `json:"schedule_mode"`
+	ScheduleValue string `json:"schedule_value"`
+	DeadlineDate  string `json:"deadline_date"`
+	DeadlineTime  string `json:"deadline_time"`
 }
 
 type AdminPageData struct {
@@ -276,7 +276,9 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/", h.handleIndex)
 		r.Get("/dashboard/snapshot", h.handleDashboardSnapshot)
 		r.Get("/events", h.handleEventStream)
-		r.Get("/me", h.handleAccountPage)
+		r.Get("/me", h.handleAccountVuePage)
+		r.Get("/me/classic", h.handleAccountPage)
+		r.Get("/me/data", h.handleAccountData)
 		r.Get("/sms/native", h.handleNativeSMSPage)
 		r.Post("/me/tasks/apply", h.handleAccountTaskApply)
 		r.Post("/tasks", h.handleCreateTask)
@@ -867,6 +869,18 @@ func (h *Handler) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Cache-Control", "no-store")
 	if err := h.templates.ExecuteTemplate(w, "account.html", pageData); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) handleAccountVuePage(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.currentUser(r); !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.templates.ExecuteTemplate(w, "account_vue.html", nil); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

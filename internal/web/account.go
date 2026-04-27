@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,6 +13,11 @@ import (
 	"todo/internal/repository"
 	"todo/internal/service"
 )
+
+type accountActionResponse struct {
+	Message string `json:"message,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
 
 type accountTaskFilterInput struct {
 	Query       string
@@ -52,25 +58,33 @@ func (h *Handler) buildAccountPageData(r *http.Request, user domain.User) (Accou
 	}
 
 	return AccountPageData{
-		CurrentUser: buildUserView(user),
-		Message:     strings.TrimSpace(r.URL.Query().Get("msg")),
-		Error:       strings.TrimSpace(r.URL.Query().Get("err")),
-		ReturnQuery: encodeAccountReturnQuery(r.URL.Query()),
+		CurrentUser:  buildUserView(user),
+		Message:      strings.TrimSpace(r.URL.Query().Get("msg")),
+		Error:        strings.TrimSpace(r.URL.Query().Get("err")),
+		ReturnQuery:  encodeAccountReturnQuery(r.URL.Query()),
 		TodayDateISO: time.Now().In(h.location).Format("2006-01-02"),
-		Filter:      buildAccountTaskFilterView(filterInput),
-		Pagination:  buildAccountPaginationView(filterInput.Page, filterInput.Limit, total),
-		Tasks:       buildManagedTaskCards(tasks, user, h.location),
-		ShareUsers:  buildShareableUserCards(shareUsers),
+		Filter:       buildAccountTaskFilterView(filterInput),
+		Pagination:   buildAccountPaginationView(filterInput.Page, filterInput.Limit, total),
+		Tasks:        buildManagedTaskCards(tasks, user, h.location),
+		ShareUsers:   buildShareableUserCards(shareUsers),
 	}, nil
 }
 
 func (h *Handler) handleAccountTaskApply(w http.ResponseWriter, r *http.Request) {
 	user, ok := h.currentUser(r)
 	if !ok {
+		if wantsAsyncResponse(r) {
+			h.writeAccountActionJSON(w, http.StatusUnauthorized, "", "请先登录")
+			return
+		}
 		h.redirectToLogin(w, r, "", "请先登录")
 		return
 	}
 	if err := h.parseRequestForm(r); err != nil {
+		if wantsAsyncResponse(r) {
+			h.writeAccountActionJSON(w, http.StatusBadRequest, "", "请求解析失败")
+			return
+		}
 		h.redirectToAccountPage(w, r, "", "请求解析失败")
 		return
 	}
@@ -91,12 +105,48 @@ func (h *Handler) handleAccountTaskApply(w http.ResponseWriter, r *http.Request)
 
 	result, err := h.taskService.ApplyManagementAction(r.Context(), user, input)
 	if err != nil {
+		if wantsAsyncResponse(r) {
+			h.writeAccountActionJSON(w, http.StatusBadRequest, "", humanizeError(err))
+			return
+		}
 		h.redirectToAccountPage(w, r, "", humanizeError(err))
 		return
 	}
 
 	h.publishDashboardUpdatesForUUIDs(result.AudienceUserIDs, requestClientID(r))
+	if wantsAsyncResponse(r) {
+		h.writeAccountActionJSON(w, http.StatusOK, result.Message, "")
+		return
+	}
 	h.redirectToAccountPage(w, r, result.Message, "")
+}
+
+func (h *Handler) handleAccountData(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.writeAccountActionJSON(w, http.StatusUnauthorized, "", "请先登录")
+		return
+	}
+
+	pageData, err := h.buildAccountPageData(r, user)
+	if err != nil {
+		h.writeAccountActionJSON(w, http.StatusInternalServerError, "", humanizeError(err))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(pageData)
+}
+
+func (h *Handler) writeAccountActionJSON(w http.ResponseWriter, status int, message, errorMessage string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(accountActionResponse{
+		Message: strings.TrimSpace(message),
+		Error:   strings.TrimSpace(errorMessage),
+	})
 }
 
 func (h *Handler) redirectToAccountPage(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
@@ -180,7 +230,7 @@ func (h *Handler) parseAccountTaskFilter(r *http.Request) (accountTaskFilterInpu
 
 	if input.DateFrom != "" {
 		if parsed, err := time.ParseInLocation("2006-01-02", input.DateFrom, h.location); err == nil {
-			value := normalizeDateForView(parsed, h.location)
+			value := normalizeCalendarDate(parsed, h.location)
 			filter.DateFrom = &value
 			input.DateFrom = value.Format("2006-01-02")
 		} else {
@@ -190,7 +240,7 @@ func (h *Handler) parseAccountTaskFilter(r *http.Request) (accountTaskFilterInpu
 
 	if input.DateTo != "" {
 		if parsed, err := time.ParseInLocation("2006-01-02", input.DateTo, h.location); err == nil {
-			value := normalizeDateForView(parsed, h.location)
+			value := normalizeCalendarDate(parsed, h.location)
 			filter.DateTo = &value
 			input.DateTo = value.Format("2006-01-02")
 		} else {
