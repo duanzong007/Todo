@@ -73,9 +73,25 @@ function todayISOInAppTimeZone() {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
+      hour: "2-digit",
+      hourCycle: "h23",
     });
     if (typeof formatter.formatToParts === "function") {
-      return formatDateParts(formatter.formatToParts(new Date()));
+      const parts = formatter.formatToParts(new Date());
+      const hour = Number.parseInt(parts.find((part) => part.type === "hour")?.value || "0", 10);
+      const year = parts.find((part) => part.type === "year")?.value || "";
+      const month = parts.find((part) => part.type === "month")?.value || "";
+      const day = parts.find((part) => part.type === "day")?.value || "";
+      if (!year || !month || !day) {
+        return "";
+      }
+
+      const base = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+      if (Number.isFinite(hour) && hour < 4) {
+        base.setUTCDate(base.getUTCDate() - 1);
+      }
+
+      return `${base.getUTCFullYear()}-${String(base.getUTCMonth() + 1).padStart(2, "0")}-${String(base.getUTCDate()).padStart(2, "0")}`;
     }
     const fallback = formatter.format(new Date());
     const normalized = fallback.replaceAll("/", "-");
@@ -87,6 +103,9 @@ function todayISOInAppTimeZone() {
   }
 
   const now = new Date();
+  if (now.getHours() < 4) {
+    now.setDate(now.getDate() - 1);
+  }
   const year = String(now.getFullYear());
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");

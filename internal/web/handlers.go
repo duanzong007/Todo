@@ -792,7 +792,7 @@ func (h *Handler) buildDashboardPageData(ctx context.Context, user domain.User, 
 		return DashboardPageData{}, err
 	}
 
-	today := normalizeDateForView(now, h.location)
+	today := normalizeCurrentViewDate(now, h.location)
 	calendarMeta := service.CalendarMetaForDate(focusDate, h.location)
 	focusTasks := buildFocusTaskCards(dashboard, now, focusDate, h.location)
 	pageData := DashboardPageData{
@@ -1139,9 +1139,9 @@ func shouldDisplayDDLOnFocusDate(task domain.Task, focusDate time.Time, location
 		return false
 	}
 
-	focusDay := normalizeDateForView(focusDate, location)
-	createdDay := normalizeDateForView(task.CreatedAt, location)
-	deadlineDay := normalizeDateForView(*task.Deadline, location)
+	focusDay := normalizeCalendarDate(focusDate, location)
+	createdDay := normalizeCurrentViewDate(task.CreatedAt, location)
+	deadlineDay := ddlDisplayDate(*task.Deadline, location)
 
 	if focusDay.Before(createdDay) {
 		return false
@@ -1163,7 +1163,7 @@ func buildTaskCard(task domain.Task, now, focusDate time.Time, location *time.Lo
 		ReturnDate:  focusDate.In(location).Format("2006-01-02"),
 	}
 
-	focusDate = normalizeDateForView(focusDate, location)
+	focusDate = normalizeCalendarDate(focusDate, location)
 
 	switch task.Type {
 	case domain.TaskTypeSchedule:
@@ -1232,7 +1232,7 @@ func shouldPreferCompactMobileDDL(title string) bool {
 
 func sortTasksForFocus(tasks []domain.Task, now, focusDate time.Time, location *time.Location) {
 	now = now.In(location)
-	focusDate = normalizeDateForView(focusDate, location)
+	focusDate = normalizeCalendarDate(focusDate, location)
 
 	sort.SliceStable(tasks, func(i, j int) bool {
 		left := tasks[i]
@@ -1281,7 +1281,7 @@ func taskSortTime(task domain.Task, focusDate time.Time, location *time.Location
 		if task.ScheduledFor == nil {
 			return time.Time{}, false
 		}
-		return normalizeDateForView(*task.ScheduledFor, location), true
+		return normalizeCalendarDate(*task.ScheduledFor, location), true
 	case domain.TaskTypeDDL:
 		if task.Deadline == nil {
 			return time.Time{}, false
@@ -1308,20 +1308,36 @@ func isHourlyCountdownDDL(task domain.Task, now, focusDate time.Time, location *
 	if task.Type != domain.TaskTypeDDL || task.Deadline == nil {
 		return false
 	}
-	actualToday := normalizeDateForView(now, location)
-	focusDay := normalizeDateForView(focusDate, location)
-	if !focusDay.Equal(actualToday) {
+	actualToday := normalizeCalendarDate(now, location)
+	focusDay := normalizeCalendarDate(focusDate, location)
+	if !focusDay.Equal(ddlDisplayDate(*task.Deadline, location)) {
 		return false
 	}
-	return normalizeDateForView(*task.Deadline, location).Equal(focusDay)
+	return normalizeCalendarDate(*task.Deadline, location).Equal(actualToday)
 }
 
 func formatDDLCountdown(deadline, now, focusDate time.Time, location *time.Location) string {
 	deadlineLocal := deadline.In(location)
 	nowLocal := now.In(location)
-	deadlineDay := normalizeDateForView(deadlineLocal, location)
-	focusDay := normalizeDateForView(focusDate, location)
-	actualToday := normalizeDateForView(nowLocal, location)
+	deadlineDay := normalizeCalendarDate(deadlineLocal, location)
+	focusDay := normalizeCalendarDate(focusDate, location)
+	actualToday := normalizeCalendarDate(nowLocal, location)
+	displayDay := ddlDisplayDate(deadlineLocal, location)
+
+	if focusDay.Equal(displayDay) && actualToday.Equal(deadlineDay) {
+		remaining := deadlineLocal.Sub(nowLocal)
+		if remaining <= 0 {
+			overdue := -remaining
+			if overdue >= time.Hour {
+				return fmt.Sprintf("已超时 %d 小时", ceilDuration(overdue, time.Hour))
+			}
+			return fmt.Sprintf("已超时 %d 分钟", maxInt(1, ceilDuration(overdue, time.Minute)))
+		}
+		if remaining >= time.Hour {
+			return fmt.Sprintf("还有 %d 小时", ceilDuration(remaining, time.Hour))
+		}
+		return fmt.Sprintf("还有 %d 分钟", maxInt(1, ceilDuration(remaining, time.Minute)))
+	}
 
 	switch {
 	case deadlineDay.After(focusDay):
@@ -1350,6 +1366,14 @@ func formatDDLCountdown(deadline, now, focusDate time.Time, location *time.Locat
 	return fmt.Sprintf("还有 %d 分钟", maxInt(1, ceilDuration(remaining, time.Minute)))
 }
 
+func ddlDisplayDate(value time.Time, location *time.Location) time.Time {
+	local := value.In(location)
+	if local.Hour() < 4 {
+		local = local.AddDate(0, 0, -1)
+	}
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
+}
+
 func buildCompletedTaskCards(tasks []domain.Task, now, focusDate time.Time, location *time.Location) []CompletedTaskCard {
 	cards := make([]CompletedTaskCard, 0, len(tasks))
 	for _, task := range tasks {
@@ -1361,7 +1385,7 @@ func buildCompletedTaskCards(tasks []domain.Task, now, focusDate time.Time, loca
 			Importance:   task.Importance,
 			FinishedLine: formatCompletedAt(task, location),
 			Note:         task.Note,
-			ReturnDate:   normalizeDateForView(focusDate, location).Format("2006-01-02"),
+			ReturnDate:   normalizeCalendarDate(focusDate, location).Format("2006-01-02"),
 		}
 
 		if task.SupportsPostpone() {
@@ -1418,9 +1442,9 @@ func ddlPostponePickerValues(task domain.Task, now time.Time, location *time.Loc
 }
 
 func serviceEarliestSchedulePostponeDate(task domain.Task, now time.Time, location *time.Location) time.Time {
-	base := normalizeDateForView(now, location)
+	base := normalizeCurrentViewDate(now, location)
 	if task.ScheduledFor != nil {
-		scheduled := normalizeDateForView(*task.ScheduledFor, location)
+		scheduled := normalizeCalendarDate(*task.ScheduledFor, location)
 		if scheduled.After(base) {
 			base = scheduled
 		}
@@ -1568,8 +1592,8 @@ func (h *Handler) parseManualScheduleBatchForm(base repository.TaskInput, r *htt
 		return nil, fmt.Errorf("截止日期格式不正确")
 	}
 
-	startDate = normalizeDateForView(startDate, h.location)
-	endDate = normalizeDateForView(endDate, h.location)
+	startDate = normalizeCalendarDate(startDate, h.location)
+	endDate = normalizeCalendarDate(endDate, h.location)
 	if endDate.Before(startDate) {
 		return nil, fmt.Errorf("截止日期不能早于起始日期")
 	}
@@ -1628,8 +1652,8 @@ func parseBatchWeekdays(values []string) (map[time.Weekday]bool, error) {
 }
 
 func buildDatePath(targetDate time.Time, location *time.Location) string {
-	date := normalizeDateForView(targetDate, location)
-	today := normalizeDateForView(time.Now().In(location), location)
+	date := normalizeCalendarDate(targetDate, location)
+	today := normalizeCurrentViewDate(time.Now().In(location), location)
 	if date.Equal(today) {
 		return "/"
 	}
@@ -1647,14 +1671,14 @@ func (h *Handler) resolveFocusDate(r *http.Request) (time.Time, error) {
 		}
 	}
 	if value == "" {
-		return normalizeDateForView(time.Now().In(h.location), h.location), nil
+		return normalizeCurrentViewDate(time.Now().In(h.location), h.location), nil
 	}
 
 	parsed, err := time.ParseInLocation("2006-01-02", value, h.location)
 	if err != nil {
 		return time.Time{}, err
 	}
-	return normalizeDateForView(parsed, h.location), nil
+	return normalizeCalendarDate(parsed, h.location), nil
 }
 
 func (h *Handler) currentViewDateParam(r *http.Request) string {
@@ -1671,8 +1695,8 @@ func (h *Handler) currentViewDateParam(r *http.Request) string {
 		return ""
 	}
 
-	date := normalizeDateForView(parsed, h.location)
-	today := normalizeDateForView(time.Now().In(h.location), h.location)
+	date := normalizeCalendarDate(parsed, h.location)
+	today := normalizeCurrentViewDate(time.Now().In(h.location), h.location)
 	if date.Equal(today) {
 		return ""
 	}
@@ -1697,14 +1721,14 @@ func (h *Handler) actionFocusDate(r *http.Request) time.Time {
 		raw = strings.TrimSpace(r.URL.Query().Get("date"))
 	}
 	if raw == "" {
-		return normalizeDateForView(time.Now().In(h.location), h.location)
+		return normalizeCurrentViewDate(time.Now().In(h.location), h.location)
 	}
 
 	parsed, err := time.ParseInLocation("2006-01-02", raw, h.location)
 	if err != nil {
-		return normalizeDateForView(time.Now().In(h.location), h.location)
+		return normalizeCurrentViewDate(time.Now().In(h.location), h.location)
 	}
-	return normalizeDateForView(parsed, h.location)
+	return normalizeCalendarDate(parsed, h.location)
 }
 
 func wantsAsyncResponse(r *http.Request) bool {
@@ -1770,8 +1794,8 @@ func humanizeError(err error) string {
 }
 
 func buildFocusTitle(focusDate, today time.Time, location *time.Location) string {
-	focus := normalizeDateForView(focusDate, location)
-	base := normalizeDateForView(today, location)
+	focus := normalizeCalendarDate(focusDate, location)
+	base := normalizeCalendarDate(today, location)
 	diffDays := int(focus.Sub(base).Hours() / 24)
 
 	switch diffDays {
@@ -1789,6 +1813,18 @@ func buildFocusTitle(focusDate, today time.Time, location *time.Location) string
 }
 
 func normalizeDateForView(value time.Time, location *time.Location) time.Time {
+	return normalizeCurrentViewDate(value, location)
+}
+
+func normalizeCurrentViewDate(value time.Time, location *time.Location) time.Time {
+	local := value.In(location)
+	if local.Hour() < 4 {
+		local = local.AddDate(0, 0, -1)
+	}
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
+}
+
+func normalizeCalendarDate(value time.Time, location *time.Location) time.Time {
 	local := value.In(location)
 	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
 }

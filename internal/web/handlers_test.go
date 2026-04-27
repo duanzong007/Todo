@@ -205,6 +205,54 @@ func TestFormatDDLCountdownUsesFocusDateForNonTodayViews(t *testing.T) {
 	}
 }
 
+func TestNormalizeDateForViewUsesFourAMBoundary(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+
+	beforeBoundary := time.Date(2026, 4, 27, 1, 30, 0, 0, location)
+	if got := normalizeDateForView(beforeBoundary, location); !got.Equal(time.Date(2026, 4, 26, 0, 0, 0, 0, location)) {
+		t.Fatalf("before boundary normalized = %s, want 2026-04-26", got.Format("2006-01-02"))
+	}
+
+	afterBoundary := time.Date(2026, 4, 27, 4, 0, 0, 0, location)
+	if got := normalizeDateForView(afterBoundary, location); !got.Equal(time.Date(2026, 4, 27, 0, 0, 0, 0, location)) {
+		t.Fatalf("after boundary normalized = %s, want 2026-04-27", got.Format("2006-01-02"))
+	}
+}
+
+func TestFormatDDLCountdownKeepsCalendarDayLogicBeforeFourAM(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 4, 27, 1, 0, 0, 0, location)
+	deadline := time.Date(2026, 4, 26, 20, 0, 0, 0, location)
+	focusDate := time.Date(2026, 4, 26, 0, 0, 0, 0, location)
+
+	if got := formatDDLCountdown(deadline, now, focusDate, location); got != "今天" {
+		t.Fatalf("countdown before 4am = %q, want %q", got, "今天")
+	}
+}
+
+func TestFormatDDLCountdownUsesPreviousDisplayDayForPreFourAMDeadline(t *testing.T) {
+	location := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 4, 27, 1, 0, 0, 0, location)
+	deadline := time.Date(2026, 4, 27, 2, 0, 0, 0, location)
+	focusDate := time.Date(2026, 4, 26, 0, 0, 0, 0, location)
+
+	if got := formatDDLCountdown(deadline, now, focusDate, location); got != "还有 1 小时" {
+		t.Fatalf("pre-4am deadline countdown = %q, want %q", got, "还有 1 小时")
+	}
+
+	task := domain.Task{
+		ID:         uuid.New(),
+		Title:      "凌晨前截止",
+		Type:       domain.TaskTypeDDL,
+		Importance: 3,
+		Deadline:   &deadline,
+		CreatedAt:  time.Date(2026, 4, 26, 10, 0, 0, 0, location),
+	}
+	if !shouldDisplayDDLOnFocusDate(task, focusDate, location) {
+		t.Fatal("expected pre-4am deadline to display on previous day")
+	}
+}
+
 func TestFormatCompletedAtAlwaysIncludesTime(t *testing.T) {
 	location := time.FixedZone("CST", 8*3600)
 	completedAt := time.Date(2026, 3, 18, 14, 37, 0, 0, location)
