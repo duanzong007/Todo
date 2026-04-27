@@ -9,10 +9,10 @@ import (
 )
 
 type NativeSMSPageData struct {
-	CurrentUser *UserView
-	ReturnPath  string
-	AppTimeZone string
-	UserID      string
+	CurrentUser *UserView `json:"current_user"`
+	ReturnPath  string    `json:"return_path"`
+	AppTimeZone string    `json:"app_time_zone"`
+	UserID      string    `json:"user_id"`
 }
 
 type nativeSMSImportMessage struct {
@@ -55,6 +55,35 @@ func (h *Handler) handleNativeSMSPage(w http.ResponseWriter, r *http.Request) {
 	if err := h.templates.ExecuteTemplate(w, "native_sms.html", data); err != nil {
 		http.Error(w, "render native sms page: "+err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (h *Handler) handleNativeSMSVuePage(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.currentUser(r); !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.templates.ExecuteTemplate(w, "native_sms_vue.html", nil); err != nil {
+		http.Error(w, "render native sms vue page: "+err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) handleNativeSMSData(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		writeNativeSMSJSON(w, http.StatusUnauthorized, nativeSMSImportResponse{Error: "请先登录"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(NativeSMSPageData{
+		CurrentUser: buildUserView(user),
+		ReturnPath:  sanitizeReturnPath(r.URL.Query().Get("return")),
+		AppTimeZone: h.location.String(),
+		UserID:      user.ID.String(),
+	})
 }
 
 func (h *Handler) handleNativeSMSImport(w http.ResponseWriter, r *http.Request) {

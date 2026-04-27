@@ -133,4 +133,26 @@ export interface AccountActionResponse {
   error?: string;
 }
 
+export interface NativeSMSPageData {
+  current_user: UserView;
+  return_path: string;
+  app_time_zone: string;
+  user_id: string;
+}
+
+export interface NativeSMSMessage {
+  id: string;
+  address: string;
+  body: string;
+  date: number;
+}
+
+export interface NativeSMSImportResponse {
+  created_count: number;
+  accepted_ids?: string[];
+  unsupported_ids?: string[];
+  unsupported_bodies?: string[];
+  error?: string;
+}
+
 export type ConnectionState = "idle" | "loading" | "ready" | "unauthorized" | "error";

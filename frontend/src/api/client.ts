@@ -1,4 +1,10 @@
-import type { AccountActionResponse, AccountPageData, DashboardSnapshot } from "../types";
+import type {
+  AccountActionResponse,
+  AccountPageData,
+  DashboardSnapshot,
+  NativeSMSImportResponse,
+  NativeSMSPageData,
+} from "../types";
 
 export class APIError extends Error {
   constructor(
@@ -100,6 +106,60 @@ export async function applyAccountAction(formData: FormData): Promise<AccountAct
   }
 
   return response.json() as Promise<AccountActionResponse>;
+}
+
+export async function fetchNativeSMSData(search = window.location.search): Promise<NativeSMSPageData> {
+  const response = await fetch(requestURL("/sms/native/data", search), {
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "X-Requested-With": "fetch",
+    },
+  });
+
+  if (!response.ok) {
+    await parseError(response, response.status === 401 ? "unauthorized" : "native sms request failed");
+  }
+
+  return response.json() as Promise<NativeSMSPageData>;
+}
+
+export async function importNativeSMSMessages(messages: Array<{ id: string; body: string }>): Promise<NativeSMSImportResponse> {
+  const response = await fetch(requestURL("/tasks/parse-sms/native"), {
+    method: "POST",
+    body: JSON.stringify({ messages }),
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "fetch",
+    },
+  });
+
+  if (!response.ok) {
+    await parseError(response, "短信提交失败");
+  }
+
+  return response.json() as Promise<NativeSMSImportResponse>;
+}
+
+export async function importNativeSMSPaste(input: string): Promise<NativeSMSImportResponse> {
+  const response = await fetch(requestURL("/tasks/parse-sms/native-paste"), {
+    method: "POST",
+    body: JSON.stringify({ input }),
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "fetch",
+    },
+  });
+
+  if (!response.ok) {
+    await parseError(response, "短信导入失败");
+  }
+
+  return response.json() as Promise<NativeSMSImportResponse>;
 }
 
 export function openDashboardEvents(onDashboard: () => void): EventSource {

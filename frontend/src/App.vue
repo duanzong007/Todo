@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { APIError, applyAccountAction, fetchAccountData, openDashboardEvents } from "./api/client";
 import AccountSelect from "./components/AccountSelect.vue";
+import NativeSMSPage from "./components/NativeSMSPage.vue";
 import WheelDatePicker from "./components/WheelDatePicker.vue";
 import type {
   AccountCheckOption,
@@ -15,6 +16,7 @@ import type {
 type ModalName = "filter" | "edit" | "share" | "";
 
 const ACCOUNT_SCROLL_KEY = "todo-account-scroll-y";
+const currentPath = ref(window.location.pathname);
 
 interface FilterDraft {
   query: string;
@@ -74,6 +76,7 @@ let reloadTimer = 0;
 let noticeTimer = 0;
 
 const tasks = computed(() => account.value?.tasks ?? []);
+const isNativeSMSRoute = computed(() => currentPath.value.startsWith("/sms/native"));
 const selectedTasks = computed(() => tasks.value.filter((task) => selectedIds.value.has(task.id)));
 const selectedCount = computed(() => selectedIds.value.size);
 const hasSelection = computed(() => selectedCount.value > 0);
@@ -457,9 +460,16 @@ function statusText() {
 }
 
 onMounted(() => {
-  void loadAccount();
-  connectEvents();
-  window.addEventListener("popstate", () => void loadAccount(window.location.search));
+  if (!isNativeSMSRoute.value) {
+    void loadAccount();
+    connectEvents();
+  }
+  window.addEventListener("popstate", () => {
+    currentPath.value = window.location.pathname;
+    if (!isNativeSMSRoute.value) {
+      void loadAccount(window.location.search);
+    }
+  });
 });
 
 onBeforeUnmount(() => {
@@ -472,7 +482,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="account-shell">
+  <NativeSMSPage v-if="isNativeSMSRoute" />
+  <main v-else class="account-shell">
     <section v-if="account" class="account-hero">
       <p class="eyebrow">Account</p>
       <h1>{{ account.current_user.display_name }}</h1>

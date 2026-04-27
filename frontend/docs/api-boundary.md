@@ -68,6 +68,30 @@ POST /imports/ics
 - Vue 迁移时可以先继续提交 `FormData`
 - 后续如果需要更清晰的数据契约，再补 JSON API
 
+### 短信导入页接口
+
+```http
+GET /sms/native
+GET /sms/native/classic
+GET /sms/native/data
+POST /tasks/parse-sms/native
+POST /tasks/parse-sms/native-paste
+```
+
+用途：
+
+- `/sms/native` 当前是 Vue 短信导入页入口
+- `/sms/native/classic` 是旧 Go 模板回退页
+- `/sms/native/data` 给 Vue 读取当前用户、返回路径和时区
+- `/tasks/parse-sms/native` 复用后端短信识别逻辑导入壳层读取的短信
+- `/tasks/parse-sms/native-paste` 复用后端短信识别逻辑导入手动粘贴短信
+
+本地状态：
+
+- 新短信缓存继续使用 `todo-native-sms-current-v1:{userID}`
+- 历史记录继续使用 `todo-native-sms-history-v1:{userID}`
+- Vue 迁移不改变已有历史记录兼容性
+
 ### 管理页接口
 
 ```http
@@ -104,6 +128,12 @@ POST /me/tasks/apply
 - `/me/data`
 - `/me/tasks/apply`
 - `/events`
+
+第三阶段新增了短信页 JSON 边界：
+
+- `/sms/native/data`
+- `/tasks/parse-sms/native`
+- `/tasks/parse-sms/native-paste`
 
 这几个接口足够支撑 Vue 版管理页：
 
