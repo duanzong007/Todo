@@ -9,6 +9,7 @@ bin/
 dist/
 tmp/
 vendor/
+node_modules/
 coverage.out
 *.test
 __debug_bin*
