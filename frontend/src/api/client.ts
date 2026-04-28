@@ -1,6 +1,7 @@
 import type {
   AccountActionResponse,
   AccountPageData,
+  DashboardPageData,
   DashboardSnapshot,
   NativeSMSImportResponse,
   NativeSMSPageData,
@@ -72,6 +73,40 @@ export async function fetchDashboardSnapshot(focusDate?: string): Promise<Dashbo
   }
 
   return response.json() as Promise<DashboardSnapshot>;
+}
+
+export async function fetchDashboardPage(search = window.location.search): Promise<DashboardPageData> {
+  const response = await fetch(requestURL("/dashboard/data", search), {
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "X-Requested-With": "fetch",
+    },
+  });
+
+  if (!response.ok) {
+    await parseError(response, response.status === 401 ? "unauthorized" : "dashboard request failed");
+  }
+
+  return response.json() as Promise<DashboardPageData>;
+}
+
+export async function submitFormAction(path: string, formData?: FormData): Promise<Response> {
+  const response = await fetch(requestURL(path), {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "X-Requested-With": "fetch",
+    },
+  });
+
+  if (!response.ok) {
+    await parseError(response, "操作失败");
+  }
+
+  return response;
 }
 
 export async function fetchAccountData(search = window.location.search): Promise<AccountPageData> {

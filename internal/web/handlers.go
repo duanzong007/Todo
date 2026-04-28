@@ -59,26 +59,26 @@ type UserView struct {
 }
 
 type DashboardPageData struct {
-	CurrentUser          *UserView
-	Error                string
-	AppTimeZone          string
-	FocusTitle           string
-	FocusWeekdayLabel    string
-	FocusDayMarks        []string
-	FocusDateISO         string
-	TodayDateISO         string
-	TomorrowDateISO      string
-	DayAfterDateISO      string
-	FocusYear            string
-	FocusMonth           string
-	FocusDay             string
-	FocusTasks           []TaskCard
-	CompletedTasks       []CompletedTaskCard
-	EmptyQuote           *QuoteView
-	YesterdayPath        string
-	TodayPath            string
-	TomorrowPath         string
-	DayAfterTomorrowPath string
+	CurrentUser          *UserView           `json:"current_user"`
+	Error                string              `json:"error"`
+	AppTimeZone          string              `json:"app_time_zone"`
+	FocusTitle           string              `json:"focus_title"`
+	FocusWeekdayLabel    string              `json:"focus_weekday_label"`
+	FocusDayMarks        []string            `json:"focus_day_marks"`
+	FocusDateISO         string              `json:"focus_date_iso"`
+	TodayDateISO         string              `json:"today_date_iso"`
+	TomorrowDateISO      string              `json:"tomorrow_date_iso"`
+	DayAfterDateISO      string              `json:"day_after_date_iso"`
+	FocusYear            string              `json:"focus_year"`
+	FocusMonth           string              `json:"focus_month"`
+	FocusDay             string              `json:"focus_day"`
+	FocusTasks           []TaskCard          `json:"focus_tasks"`
+	CompletedTasks       []CompletedTaskCard `json:"completed_tasks"`
+	EmptyQuote           *QuoteView          `json:"empty_quote"`
+	YesterdayPath        string              `json:"yesterday_path"`
+	TodayPath            string              `json:"today_path"`
+	TomorrowPath         string              `json:"tomorrow_path"`
+	DayAfterTomorrowPath string              `json:"day_after_tomorrow_path"`
 }
 
 type QuoteView struct {
@@ -273,7 +273,9 @@ func (h *Handler) Router() http.Handler {
 	router.Group(func(r chi.Router) {
 		r.Use(h.requireAuth)
 
-		r.Get("/", h.handleIndex)
+		r.Get("/", h.handleIndexVuePage)
+		r.Get("/classic", h.handleIndex)
+		r.Get("/dashboard/data", h.handleDashboardData)
 		r.Get("/dashboard/snapshot", h.handleDashboardSnapshot)
 		r.Get("/events", h.handleEventStream)
 		r.Get("/me", h.handleAccountVuePage)
@@ -455,6 +457,42 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if err := h.renderIndex(w, r, user, focusDate, r.URL.Query().Get("msg"), r.URL.Query().Get("err")); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (h *Handler) handleIndexVuePage(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.currentUser(r); !ok {
+		h.redirectToLogin(w, r, "", "请先登录")
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.templates.ExecuteTemplate(w, "index_vue.html", nil); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) handleDashboardData(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		http.Error(w, "请先登录", http.StatusUnauthorized)
+		return
+	}
+
+	focusDate, err := h.resolveFocusDate(r)
+	if err != nil {
+		http.Error(w, "日期格式不正确", http.StatusBadRequest)
+		return
+	}
+
+	pageData, err := h.buildDashboardPageData(r.Context(), user, focusDate, r.URL.Query().Get("err"))
+	if err != nil {
+		http.Error(w, humanizeError(err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(pageData)
 }
 
 func (h *Handler) handleCreateTask(w http.ResponseWriter, r *http.Request) {

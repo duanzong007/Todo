@@ -30,6 +30,29 @@ GET /dashboard/snapshot?date=YYYY-MM-DD
 
 当前 Vue 验证页已经接入这个接口。
 
+### Dashboard Page
+
+```http
+GET /dashboard/data?date=YYYY-MM-DD
+```
+
+用途：
+
+- Vue 版首页完整首屏数据
+- 当前用户、当前日期标题、星期/节日标记
+- 今日任务、已完成任务、空状态金句
+- 昨天/今天/明天/后天跳转路径
+
+认证：
+
+- 依赖现有 session cookie
+
+缓存：
+
+- 后端设置 `Cache-Control: no-store`
+
+当前 `/` 已切换到 Vue 版首页，旧模板首页保留在 `/classic`。
+
 ### Realtime Events
 
 ```http
@@ -134,6 +157,10 @@ POST /me/tasks/apply
 - `/sms/native/data`
 - `/tasks/parse-sms/native`
 - `/tasks/parse-sms/native-paste`
+
+第四阶段新增了首页 JSON 边界：
+
+- `/dashboard/data`
 
 这几个接口足够支撑 Vue 版管理页：
 

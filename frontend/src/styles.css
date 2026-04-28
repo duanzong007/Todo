@@ -5,6 +5,7 @@
   --accent: #c56d3a;
   --accent-strong: #a9572f;
   --bg-panel: rgba(255, 251, 245, 0.84);
+  --bg-panel-strong: #fff8ee;
   --shadow: 0 18px 54px rgba(92, 67, 44, 0.12);
   color: var(--ink);
   background: #f4efe7;
@@ -51,6 +52,880 @@ p,
 h1,
 h2 {
   margin: 0;
+}
+
+.focus-page-vue {
+  width: min(760px, calc(100% - 24px));
+  margin: 0 auto;
+  padding: 24px 0 96px;
+}
+
+.focus-hero-vue {
+  margin: 10px 0 20px;
+}
+
+.focus-hero-vue h1 {
+  margin: 0;
+  font-family: "Iowan Old Style", "Songti SC", serif;
+  font-size: clamp(2.2rem, 6vw, 4rem);
+  line-height: 0.96;
+}
+
+.focus-title-reload {
+  display: block;
+  width: fit-content;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  background: none;
+  box-shadow: none;
+  text-align: left;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.focus-title-reload:hover,
+.focus-title-reload:active {
+  transform: none;
+  background: none;
+}
+
+.focus-title-reload:focus-visible {
+  outline: none;
+}
+
+.focus-user-link {
+  display: inline-flex;
+  margin-bottom: 10px;
+  color: var(--accent-strong);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.focus-user-link:hover {
+  text-decoration: underline;
+}
+
+.focus-panel-vue {
+  position: relative;
+  z-index: 2;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 22px;
+  background: var(--bg-panel);
+  box-shadow: var(--shadow);
+  transition:
+    min-height 320ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 220ms ease,
+    transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.focus-panel-head-vue {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.section-kicker {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.focus-weekday {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  margin-bottom: 0;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.54);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-transform: none;
+}
+
+.focus-counter {
+  display: inline-flex;
+  min-width: 58px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.7);
+  background-size: 220% 100%;
+  font-weight: 700;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.focus-counter.is-pending {
+  border-color: rgba(179, 124, 77, 0.26);
+  color: rgba(113, 72, 39, 0.92);
+  background-image: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(245, 225, 203, 0.84) 26%,
+    rgba(255, 241, 226, 0.92) 48%,
+    rgba(236, 210, 181, 0.84) 74%,
+    rgba(255, 255, 255, 0.82) 100%
+  );
+  animation: focus-counter-flow 1.8s linear infinite;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+}
+
+@keyframes focus-counter-flow {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 200% 50%;
+  }
+}
+
+.focus-list-vue,
+.archive-list-vue {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.focus-list-vue > *:not(:last-child) {
+  margin-bottom: 12px;
+}
+
+.focus-card-vue {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(38, 33, 27, 0.08);
+  border-radius: 20px;
+  padding: 12px 14px;
+  background: var(--bg-panel-strong);
+  transition:
+    opacity 260ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 280ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 220ms ease;
+}
+
+.task-flow-move,
+.task-flow-enter-active,
+.task-flow-leave-active {
+  transition:
+    transform 340ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 240ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 240ms ease;
+}
+
+.task-flow-enter-from {
+  opacity: 0;
+  transform: translateY(12px) scale(0.985);
+  filter: blur(0.8px);
+}
+
+.task-flow-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.985);
+  filter: blur(0.8px);
+}
+
+.task-flow-leave-active {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+.focus-empty-fade-enter-active,
+.focus-empty-fade-leave-active {
+  transition:
+    opacity 240ms ease,
+    transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 240ms ease;
+}
+
+.focus-empty-fade-enter-from,
+.focus-empty-fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+  filter: blur(0.8px);
+}
+
+.task-importance-badge {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  z-index: 2;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(118, 95, 72, 0.14);
+  border-radius: 999px;
+  color: rgba(122, 95, 70, 0.94);
+  background: rgba(255, 255, 255, 0.68);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.focus-card-main-vue {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.task-kind-stack {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.task-kind {
+  display: inline-flex;
+  min-width: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(38, 33, 27, 0.06);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.task-kind.todo {
+  color: rgba(53, 84, 59, 0.82);
+  background: rgba(90, 132, 98, 0.09);
+}
+
+.task-kind.schedule {
+  color: rgba(49, 83, 122, 0.8);
+  background: rgba(73, 121, 181, 0.08);
+}
+
+.task-kind.ddl {
+  color: rgba(138, 68, 31, 0.82);
+  background: rgba(197, 109, 58, 0.09);
+}
+
+.task-status-mobile {
+  display: none;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.task-body-vue {
+  min-width: 0;
+}
+
+.task-body-vue h3 {
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: #2f2720;
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.28;
+}
+
+.task-body-vue .status,
+.task-body-vue .note {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.32;
+}
+
+.focus-actions-vue {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.inline-postpone-vue {
+  position: relative;
+}
+
+.inline-postpone-vue[open] {
+  z-index: 20;
+}
+
+.inline-postpone-vue summary {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(92, 48, 23, 0.08);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: rgba(92, 48, 23, 0.82);
+  background: rgba(240, 219, 199, 0.58);
+  font-size: 0.8rem;
+  font-weight: 600;
+  list-style: none;
+}
+
+.inline-postpone-vue summary::-webkit-details-marker {
+  display: none;
+}
+
+.postpone-form-panel-vue {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(38, 33, 27, 0.1);
+  border-radius: 16px;
+  padding: 10px;
+  background: rgba(255, 251, 245, 0.96);
+  box-shadow: 0 18px 34px rgba(72, 43, 20, 0.12);
+}
+
+.postpone-form-panel-vue .wheel-date-picker {
+  height: 42px;
+  gap: 6px;
+  padding: 6px 10px;
+}
+
+.postpone-form-panel-vue .wheel-date-picker.is-expanded {
+  height: 104px;
+  border-radius: 22px;
+  padding: 10px 12px;
+}
+
+.postpone-form-panel-vue button.secondary {
+  min-height: 42px;
+  border: 1px solid rgba(128, 91, 63, 0.18);
+  border-radius: 14px;
+  padding: 0 16px;
+  color: rgba(92, 48, 23, 0.82);
+  background: rgba(240, 219, 199, 0.58);
+  font-weight: 700;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
+}
+
+button.complete-toggle {
+  position: relative;
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  border: 1px solid rgba(90, 132, 98, 0.14);
+  border-radius: 999px;
+  padding: 0;
+  background: rgba(90, 132, 98, 0.08);
+  box-shadow: none;
+}
+
+button.complete-toggle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: 8px;
+  height: 5px;
+  border-left: 1.8px solid rgba(53, 84, 59, 0.88);
+  border-bottom: 1.8px solid rgba(53, 84, 59, 0.88);
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.focus-empty {
+  padding: 32px 8px 18px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-quote-block {
+  display: grid;
+  max-width: 520px;
+  justify-items: center;
+  gap: 10px;
+  margin: 0 auto;
+  padding: 2px 8px 0;
+  text-align: center;
+}
+
+.empty-quote {
+  max-width: 34ch;
+  color: rgba(77, 57, 40, 0.88);
+  font-family: "Iowan Old Style", "Songti SC", serif;
+  font-size: clamp(0.96rem, 1.55vw, 1.08rem);
+  font-weight: 400;
+  line-height: 1.92;
+  text-align: center;
+}
+
+.empty-quote-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  color: rgba(100, 79, 62, 0.82);
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+}
+
+.focus-drawers-vue {
+  position: relative;
+  z-index: 1;
+  margin-top: 16px;
+}
+
+.utility-drawer-vue {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 251, 245, 0.72);
+  box-shadow: var(--shadow);
+}
+
+.utility-drawer-summary {
+  width: 100%;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 18px;
+  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  list-style: none;
+  text-align: center;
+  transition:
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.utility-drawer-vue.open .utility-drawer-summary {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.drawer-body-vue {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 0 18px 18px;
+}
+
+.drawer-expand-enter-active,
+.drawer-expand-leave-active {
+  max-height: 900px;
+  overflow: hidden;
+  transition:
+    max-height 340ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 220ms ease,
+    transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    padding 320ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.drawer-expand-enter-from,
+.drawer-expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.quick-links {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.date-chip {
+  display: inline-flex;
+  min-width: 88px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(96, 54, 29, 0.08);
+  border-radius: 999px;
+  padding: 0 20px;
+  color: #60361d;
+  background: rgba(239, 227, 214, 0.92);
+  text-align: center;
+  font-weight: 700;
+}
+
+.mini-date-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.mini-date-form button {
+  min-height: 46px;
+  border: 1px solid rgba(128, 91, 63, 0.18);
+  border-radius: 16px;
+  padding: 0 18px;
+  color: rgba(92, 48, 23, 0.82);
+  background: rgba(240, 219, 199, 0.58);
+  font-weight: 700;
+}
+
+.archive-section-vue {
+  display: grid;
+  width: 100%;
+  gap: 12px;
+  border-top: 1px solid rgba(38, 33, 27, 0.08);
+  padding-top: 8px;
+  overflow: hidden;
+}
+
+.archive-section-vue.is-empty {
+  height: 0;
+  border-top-width: 0;
+  padding-top: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.archive-head-vue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.archive-head-vue p {
+  color: var(--muted);
+  font-size: 0.84rem;
+  letter-spacing: 0.04em;
+}
+
+.archive-head-vue span {
+  display: inline-flex;
+  min-width: 34px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(38, 33, 27, 0.08);
+  border-radius: 14px;
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.archive-list-vue > *:not(:last-child) {
+  margin-bottom: 10px;
+}
+
+.archive-card-vue {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid rgba(38, 33, 27, 0.06);
+  border-radius: 18px;
+  padding: 10px 12px;
+  background: rgba(255, 248, 238, 0.78);
+}
+
+.archive-card-main-vue {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.archive-restore {
+  min-height: 30px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  color: rgba(92, 48, 23, 0.82);
+  background: rgba(240, 219, 199, 0.58);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.inline-title-editor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: calc(1.08rem * 1.28);
+}
+
+.inline-title-editor input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: calc(1.08rem * 1.28);
+  min-height: 0;
+  max-height: calc(1.08rem * 1.28);
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  outline: none;
+  color: #2f2720;
+  background: transparent;
+  box-shadow: inset 0 -1px 0 rgba(197, 109, 58, 0.18);
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.28;
+}
+
+.composer-fab-vue {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 40;
+}
+
+.composer-fab-button {
+  display: grid;
+  width: 62px;
+  height: 62px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: #fffdf9;
+  background: var(--accent);
+  box-shadow: 0 22px 40px rgba(84, 49, 26, 0.22);
+  font-size: 2rem;
+  line-height: 1;
+  transition:
+    transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 220ms ease,
+    background-color 220ms ease;
+}
+
+.composer-fab-vue.open .composer-fab-button {
+  transform: rotate(45deg);
+  box-shadow: 0 20px 34px rgba(84, 49, 26, 0.18);
+}
+
+.composer-panel-vue {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 14px);
+  width: min(560px, calc(100vw - 32px));
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 14px;
+  background: rgba(255, 251, 245, 0.94);
+  box-shadow: 0 28px 64px rgba(72, 43, 20, 0.18);
+}
+
+.composer-pop-enter-active,
+.composer-pop-leave-active {
+  transform-origin: right bottom;
+  transition:
+    opacity 220ms ease,
+    transform 280ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 220ms ease;
+}
+
+.composer-pop-enter-from,
+.composer-pop-leave-to {
+  opacity: 0;
+  transform: translateY(12px) scale(0.975);
+  filter: blur(0.6px);
+}
+
+.composer-section-enter-active,
+.composer-section-leave-active {
+  transition:
+    opacity 190ms ease,
+    transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 180ms ease;
+}
+
+.composer-section-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+  filter: blur(0.5px);
+}
+
+.composer-section-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+  filter: blur(0.5px);
+}
+
+.composer-bar,
+.composer-tabs,
+.composer-tools-shortcuts,
+.composer-shortcuts,
+.schedule-mode-tabs,
+.weekday-picker-vue {
+  display: flex;
+  align-items: center;
+}
+
+.composer-bar {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.composer-tabs,
+.composer-tools-shortcuts,
+.composer-shortcuts,
+.schedule-mode-tabs,
+.weekday-picker-vue {
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.composer-tools-shortcuts {
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.composer-tab,
+.composer-shortcuts button,
+.schedule-mode-tabs button,
+.weekday-picker-vue label {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(92, 48, 23, 0.08);
+  border-radius: 999px;
+  padding: 0 14px;
+  color: rgba(92, 48, 23, 0.82);
+  background: rgba(240, 219, 199, 0.38);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.composer-tab.is-active,
+.schedule-mode-tabs button.active,
+.weekday-picker-vue label.active {
+  color: #7c431f;
+  background: rgba(197, 109, 58, 0.16);
+}
+
+.composer-tab-utility {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.composer-form-vue {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  border: 1px solid rgba(38, 33, 27, 0.08);
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(255, 248, 239, 0.78);
+}
+
+.composer-form-vue label {
+  display: grid;
+  gap: 8px;
+  color: rgba(72, 54, 36, 0.86);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.composer-form-vue input[type="text"],
+.composer-form-vue textarea {
+  width: 100%;
+  border: 1px solid rgba(128, 91, 63, 0.18);
+  border-radius: 16px;
+  padding: 0 14px;
+  outline: none;
+  color: #332b25;
+  background: rgba(255, 254, 250, 0.9);
+  font-weight: 760;
+}
+
+.composer-form-vue input[type="text"] {
+  min-height: 46px;
+}
+
+.composer-form-vue textarea {
+  min-height: 180px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.composer-form-vue > button[type="submit"] {
+  justify-self: end;
+  min-height: 42px;
+  border: 0;
+  border-radius: 16px;
+  padding: 0 18px;
+  color: #fffaf4;
+  background: var(--accent);
+  font-weight: 800;
+}
+
+.composer-stars {
+  min-height: 26px;
+}
+
+.batch-box {
+  display: grid;
+  gap: 10px;
+}
+
+.weekday-picker-vue input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .native-sms-page {
@@ -1271,6 +2146,130 @@ input[type="checkbox"] {
 }
 
 @media (max-width: 720px) {
+  .focus-page-vue {
+    width: min(100% - 20px, 760px);
+    padding-top: 20px;
+    padding-bottom: 110px;
+  }
+
+  .focus-panel-vue {
+    padding: 22px 20px;
+  }
+
+  .focus-card-vue {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .task-importance-badge {
+    top: -4px;
+    left: -4px;
+    width: 20px;
+    height: 20px;
+    font-size: 0.72rem;
+  }
+
+  .focus-card-main-vue {
+    align-items: flex-start;
+    min-width: 0;
+  }
+
+  .focus-card-vue .task-kind-stack {
+    width: 52px;
+    align-items: center;
+    gap: 3px;
+    padding-top: 1px;
+    text-align: center;
+  }
+
+  .focus-card-main-vue .task-body-vue,
+  .archive-card-main-vue .task-body-vue {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .focus-actions-vue {
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    margin-left: auto;
+  }
+
+  .focus-card-vue[data-kind-class="ddl"] .task-status-mobile,
+  .focus-card-vue[data-kind-class="ddl"] .task-body-vue > .status {
+    display: none;
+  }
+
+  .focus-card-vue[data-kind-class="ddl"] .task-status-mobile {
+    width: 100%;
+    text-align: center;
+  }
+
+  .focus-card-vue[data-kind-class="ddl"].is-mobile-ddl-ready:not(.is-mobile-ddl-compact) .task-body-vue > .status {
+    display: block;
+  }
+
+  .focus-card-vue[data-kind-class="ddl"].is-mobile-ddl-ready.is-mobile-ddl-compact .task-status-mobile {
+    display: block;
+  }
+
+  .quick-links {
+    gap: 7px;
+  }
+
+  .quick-links .date-chip {
+    min-width: 72px;
+    padding: 0 14px;
+  }
+
+  .mini-date-form {
+    flex-wrap: wrap;
+  }
+
+  .inline-title-editor {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .inline-title-editor input {
+    flex: 0 0 auto;
+    width: 100%;
+    align-self: stretch;
+  }
+
+  .composer-fab-vue {
+    right: 12px;
+    bottom: max(14px, env(safe-area-inset-bottom));
+  }
+
+  .composer-panel-vue {
+    right: -2px;
+    width: min(420px, calc(100vw - 24px));
+    max-height: min(76vh, 720px);
+    overflow-y: auto;
+  }
+
+  .composer-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .composer-tools-shortcuts {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .archive-card-main-vue {
+    align-items: center;
+  }
+
+  .archive-restore {
+    margin-left: auto;
+  }
+
   .native-sms-page {
     width: min(100vw - 12px, 680px);
     padding: 10px 0 24px;

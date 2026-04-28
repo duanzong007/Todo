@@ -2,14 +2,16 @@
 
 这是 Todo 前端迁移工程。
 
-当前已经进入第三阶段：Vue 版任务管理页和短信导入页。
+当前已经进入第四阶段：Vue 版首页、任务管理页和短信导入页。
 
 现阶段目标：
 
+- 用 Vue 重做 `/` 首页核心交互
 - 用 Vue 重做 `/me` 管理页的核心交互
 - 复用现有登录 Cookie
 - 复用 Go 后端任务管理逻辑
 - 通过 `/me/data` 读取管理页数据
+- 通过 `/dashboard/data` 读取首页完整数据
 - 通过 `/me/tasks/apply` 异步提交批量编辑、共享和删除
 - 继续复用 `/events` SSE 静默同步
 - 用 Vue 重做 `/sms/native` 短信导入页
@@ -45,6 +47,9 @@ TODO_BACKEND_URL=http://localhost:8080
 
 ## 当前入口
 
+- Go 服务里的 `/me` 已切换为 Vue 版管理页
+- Go 服务里的 `/` 已切换为 Vue 版首页
+- 旧 Go 模板首页保留在 `/classic`
 - Go 服务里的 `/me` 已切换为 Vue 版管理页
 - 旧 Go 模板管理页保留在 `/me/classic`
 - Go 服务里的 `/sms/native` 已切换为 Vue 版短信导入页

@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { APIError, applyAccountAction, fetchAccountData, openDashboardEvents } from "./api/client";
 import AccountSelect from "./components/AccountSelect.vue";
+import DashboardPage from "./components/DashboardPage.vue";
 import NativeSMSPage from "./components/NativeSMSPage.vue";
 import WheelDatePicker from "./components/WheelDatePicker.vue";
 import type {
@@ -76,6 +77,7 @@ let reloadTimer = 0;
 let noticeTimer = 0;
 
 const tasks = computed(() => account.value?.tasks ?? []);
+const isDashboardRoute = computed(() => currentPath.value === "/" || currentPath.value === "");
 const isNativeSMSRoute = computed(() => currentPath.value.startsWith("/sms/native"));
 const selectedTasks = computed(() => tasks.value.filter((task) => selectedIds.value.has(task.id)));
 const selectedCount = computed(() => selectedIds.value.size);
@@ -460,13 +462,13 @@ function statusText() {
 }
 
 onMounted(() => {
-  if (!isNativeSMSRoute.value) {
+  if (!isDashboardRoute.value && !isNativeSMSRoute.value) {
     void loadAccount();
     connectEvents();
   }
   window.addEventListener("popstate", () => {
     currentPath.value = window.location.pathname;
-    if (!isNativeSMSRoute.value) {
+    if (!isDashboardRoute.value && !isNativeSMSRoute.value) {
       void loadAccount(window.location.search);
     }
   });
@@ -482,7 +484,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <NativeSMSPage v-if="isNativeSMSRoute" />
+  <DashboardPage v-if="isDashboardRoute" />
+  <NativeSMSPage v-else-if="isNativeSMSRoute" />
   <main v-else class="account-shell">
     <section v-if="account" class="account-hero">
       <p class="eyebrow">Account</p>

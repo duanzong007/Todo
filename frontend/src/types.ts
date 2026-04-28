@@ -20,10 +20,11 @@ export interface TaskCard {
   importance: number;
   status_line: string;
   compact_status: string;
+  mobile_compact: boolean;
   note: string;
   can_complete: boolean;
   can_postpone: boolean;
-  postpone_mode: string;
+  postpone_mode: "date" | "datetime";
   postpone_value: string;
   postpone_min_value: string;
   return_date: string;
@@ -39,7 +40,7 @@ export interface CompletedTaskCard {
   status_line: string;
   note: string;
   can_postpone: boolean;
-  postpone_mode: string;
+  postpone_mode: "date" | "datetime";
   postpone_value: string;
   postpone_min_value: string;
   return_date: string;
@@ -49,6 +50,29 @@ export interface DashboardSnapshot {
   focus_tasks: TaskCard[];
   completed_tasks: CompletedTaskCard[];
   empty_quote?: QuoteView;
+}
+
+export interface DashboardPageData {
+  current_user: UserView;
+  error: string;
+  app_time_zone: string;
+  focus_title: string;
+  focus_weekday_label: string;
+  focus_day_marks: string[];
+  focus_date_iso: string;
+  today_date_iso: string;
+  tomorrow_date_iso: string;
+  day_after_date_iso: string;
+  focus_year: string;
+  focus_month: string;
+  focus_day: string;
+  focus_tasks: TaskCard[];
+  completed_tasks: CompletedTaskCard[];
+  empty_quote?: QuoteView;
+  yesterday_path: string;
+  today_path: string;
+  tomorrow_path: string;
+  day_after_tomorrow_path: string;
 }
 
 export interface AccountFilterOption {
