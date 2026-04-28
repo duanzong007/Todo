@@ -2369,7 +2369,7 @@ input[type="checkbox"] {
   }
 
   .focus-card-vue {
-    align-items: flex-start;
+    align-items: center;
     gap: 10px;
   }
 
@@ -2382,7 +2382,7 @@ input[type="checkbox"] {
   }
 
   .focus-card-main-vue {
-    align-items: flex-start;
+    align-items: center;
     min-width: 0;
   }
 
@@ -2390,7 +2390,6 @@ input[type="checkbox"] {
     width: 52px;
     align-items: center;
     gap: 3px;
-    padding-top: 1px;
     text-align: center;
   }
 
@@ -2402,6 +2401,7 @@ input[type="checkbox"] {
 
   .focus-actions-vue {
     flex: 0 0 auto;
+    align-self: center;
     align-items: center;
     justify-content: flex-end;
     gap: 5px;
