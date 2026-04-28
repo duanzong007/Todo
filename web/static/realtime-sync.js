@@ -65,7 +65,7 @@
       },
     }).then(async (response) => {
       if (!response.ok) {
-        throw new Error("snapshot request failed");
+        throw new Error("同步任务数据失败");
       }
       return response.json();
     });

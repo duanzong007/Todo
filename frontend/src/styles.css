@@ -60,6 +60,38 @@ h2 {
   padding: 24px 0 96px;
 }
 
+.title-swap-enter-active,
+.title-swap-leave-active,
+.weekday-swap-enter-active,
+.weekday-swap-leave-active,
+.count-swap-enter-active,
+.count-swap-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.title-swap-enter-from,
+.weekday-swap-enter-from,
+.count-swap-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.title-swap-leave-to,
+.weekday-swap-leave-to,
+.count-swap-leave-to {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
+.title-swap-enter-active,
+.title-swap-leave-active,
+.count-swap-enter-active,
+.count-swap-leave-active {
+  display: inline-block;
+}
+
 .focus-hero-vue {
   margin: 10px 0 20px;
 }
@@ -200,6 +232,7 @@ h2 {
 
 .focus-list-vue,
 .archive-list-vue {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -419,6 +452,20 @@ h2 {
   padding: 10px;
   background: rgba(255, 251, 245, 0.96);
   box-shadow: 0 18px 34px rgba(72, 43, 20, 0.12);
+  animation: postpone-panel-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes postpone-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    filter: blur(0.5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
 }
 
 .postpone-form-panel-vue .wheel-date-picker {
@@ -434,13 +481,16 @@ h2 {
 }
 
 .postpone-form-panel-vue button.secondary {
-  min-height: 42px;
+  min-width: 50px;
+  min-height: 34px;
   border: 1px solid rgba(128, 91, 63, 0.18);
-  border-radius: 14px;
-  padding: 0 16px;
+  border-radius: 12px;
+  padding: 0 12px;
   color: rgba(92, 48, 23, 0.82);
   background: rgba(240, 219, 199, 0.58);
+  font-size: 0.82rem;
   font-weight: 700;
+  line-height: 1;
   white-space: nowrap;
   writing-mode: horizontal-tb;
 }
@@ -613,28 +663,32 @@ button.complete-toggle::before {
 }
 
 .mini-date-form button {
-  min-height: 46px;
+  display: inline-flex;
+  min-width: 58px;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(128, 91, 63, 0.18);
-  border-radius: 16px;
-  padding: 0 18px;
+  border-radius: 14px;
+  padding: 0 14px;
   color: rgba(92, 48, 23, 0.82);
   background: rgba(240, 219, 199, 0.58);
+  font-size: 0.86rem;
   font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
 }
 
 .archive-section-vue {
   display: grid;
   width: 100%;
   gap: 12px;
-  border-top: 1px solid rgba(38, 33, 27, 0.08);
-  padding-top: 8px;
   overflow: hidden;
 }
 
 .archive-section-vue.is-empty {
   height: 0;
-  border-top-width: 0;
-  padding-top: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -652,7 +706,7 @@ button.complete-toggle::before {
   letter-spacing: 0.04em;
 }
 
-.archive-head-vue span {
+.archive-head-vue > span {
   display: inline-flex;
   min-width: 34px;
   height: 30px;
@@ -663,6 +717,14 @@ button.complete-toggle::before {
   padding: 0 10px;
   color: var(--muted);
   font-size: 0.84rem;
+}
+
+.archive-head-vue > span > span {
+  min-width: 0;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
 }
 
 .archive-list-vue > *:not(:last-child) {
@@ -703,7 +765,18 @@ button.complete-toggle::before {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: calc(1.08rem * 1.28);
+  min-height: 40px;
+  border: 1px solid rgba(207, 181, 151, 0.62);
+  border-radius: 16px;
+  padding: 6px 8px 6px 12px;
+  background: rgba(255, 253, 249, 0.98);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 10px 22px rgba(110, 69, 36, 0.07);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
 }
 
 .inline-title-editor input {
@@ -719,10 +792,21 @@ button.complete-toggle::before {
   outline: none;
   color: #2f2720;
   background: transparent;
-  box-shadow: inset 0 -1px 0 rgba(197, 109, 58, 0.18);
+  box-shadow: none;
   font-size: 1.08rem;
   font-weight: 600;
   line-height: 1.28;
+}
+
+.inline-edit-stars {
+  flex: 0 0 auto;
+  min-width: max-content;
+  border-left: 1px solid rgba(197, 109, 58, 0.12);
+  padding-left: 8px;
+}
+
+.inline-edit-stars label {
+  font-size: 1.04rem;
 }
 
 .composer-fab-vue {
@@ -759,12 +843,43 @@ button.complete-toggle::before {
   position: absolute;
   right: 0;
   bottom: calc(100% + 14px);
-  width: min(560px, calc(100vw - 32px));
+  width: min(178px, calc(100vw - 32px));
   border: 1px solid var(--line);
   border-radius: 24px;
-  padding: 14px;
+  padding: 12px;
   background: rgba(255, 251, 245, 0.94);
   box-shadow: 0 28px 64px rgba(72, 43, 20, 0.18);
+}
+
+.composer-choice-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.composer-choice-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(92, 48, 23, 0.08);
+  border-radius: 16px;
+  padding: 0 14px;
+  color: rgba(92, 48, 23, 0.84);
+  background: rgba(255, 248, 239, 0.86);
+  font-size: 0.9rem;
+  font-weight: 800;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.54);
+  transition:
+    background 180ms ease,
+    transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    border-color 180ms ease;
+}
+
+.composer-choice-button:hover {
+  border-color: rgba(197, 109, 58, 0.18);
+  background: rgba(240, 219, 199, 0.58);
+  transform: translateY(-1px);
 }
 
 .composer-pop-enter-active,
@@ -801,6 +916,99 @@ button.complete-toggle::before {
   opacity: 0;
   transform: translateY(-6px);
   filter: blur(0.5px);
+}
+
+.filter-date-field-enter-active,
+.filter-date-field-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.filter-date-field-enter-from,
+.filter-date-field-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.composer-modal-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+}
+
+.composer-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(42, 35, 29, 0.28);
+  backdrop-filter: blur(6px);
+}
+
+.composer-modal-card {
+  position: relative;
+  z-index: 1;
+  width: min(560px, calc(100vw - 28px));
+  max-height: min(82vh, 760px);
+  overflow-y: auto;
+  border: 1px solid rgba(38, 33, 27, 0.1);
+  border-radius: 28px;
+  padding: 18px;
+  background: rgba(255, 251, 245, 0.96);
+  box-shadow: 0 34px 82px rgba(72, 43, 20, 0.22);
+}
+
+.composer-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 2px;
+}
+
+.composer-modal-head h2 {
+  margin: 2px 0 0;
+  font-family: "Iowan Old Style", "Songti SC", serif;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.composer-modal-close {
+  min-height: 34px;
+  border: 1px solid rgba(92, 48, 23, 0.08);
+  border-radius: 999px;
+  padding: 0 14px;
+  color: rgba(92, 48, 23, 0.82);
+  background: rgba(240, 219, 199, 0.46);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.composer-modal-enter-active,
+.composer-modal-leave-active {
+  transition: opacity 220ms ease;
+}
+
+.composer-modal-enter-active .composer-modal-card,
+.composer-modal-leave-active .composer-modal-card {
+  transition:
+    opacity 240ms ease,
+    transform 280ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 220ms ease;
+}
+
+.composer-modal-enter-from,
+.composer-modal-leave-to {
+  opacity: 0;
+}
+
+.composer-modal-enter-from .composer-modal-card,
+.composer-modal-leave-to .composer-modal-card {
+  opacity: 0;
+  transform: translateY(14px) scale(0.98);
+  filter: blur(0.8px);
 }
 
 .composer-bar,
@@ -1932,19 +2140,6 @@ input[type="checkbox"] {
   margin: 0 -2px;
 }
 
-.wheel-clear-button {
-  position: relative;
-  z-index: 3;
-  min-height: 30px;
-  border: 0;
-  border-radius: 999px;
-  padding: 0 10px;
-  color: var(--muted);
-  background: rgba(240, 219, 199, 0.24);
-  font-size: 0.76rem;
-  font-weight: 800;
-}
-
 .star-rating {
   display: inline-flex;
   flex-direction: row-reverse;
@@ -2246,20 +2441,23 @@ input[type="checkbox"] {
 
   .composer-panel-vue {
     right: -2px;
-    width: min(420px, calc(100vw - 24px));
-    max-height: min(76vh, 720px);
-    overflow-y: auto;
+    width: min(176px, calc(100vw - 24px));
   }
 
-  .composer-bar {
-    align-items: flex-start;
-    flex-direction: column;
+  .composer-choice-ics {
+    display: none;
   }
 
-  .composer-tools-shortcuts {
-    width: 100%;
-    justify-content: flex-start;
-    margin-left: 0;
+  .composer-modal-shell {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .composer-modal-card {
+    width: min(100vw - 24px, 560px);
+    max-height: min(84vh, 760px);
+    border-radius: 26px 26px 22px 22px;
+    padding: 16px;
   }
 
   .archive-card-main-vue {

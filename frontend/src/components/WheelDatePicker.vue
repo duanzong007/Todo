@@ -608,13 +608,6 @@ function partUnit(part: Part) {
   }[part];
 }
 
-function clear() {
-  hasValue.value = false;
-  syncModel();
-  render();
-  scheduleCollapse();
-}
-
 function onDocumentPointerDown(event: PointerEvent) {
   if (!root.value || !(event.target instanceof Node) || root.value.contains(event.target)) {
     return;
@@ -673,6 +666,5 @@ onBeforeUnmount(() => {
       <span v-if="part === 'day' && mode === 'datetime'" class="date-unit date-divider">·</span>
       <span v-else class="date-unit">{{ partUnit(part) }}</span>
     </template>
-    <button v-if="modelValue" type="button" class="wheel-clear-button" @click.stop="clear">清空</button>
   </div>
 </template>

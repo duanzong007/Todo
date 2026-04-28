@@ -88,6 +88,7 @@ const allSelectedOnPage = computed(
 );
 const selectedOwnedOnly = computed(() => selectedTasks.value.length > 0 && selectedTasks.value.every((task) => task.is_owner));
 const limitValue = computed(() => selectedValue(account.value?.filter.limit_options ?? [], "10"));
+const hasDateFilter = computed(() => filterDraft.dateField.trim() !== "");
 const filteredShareUsers = computed(() => {
   const query = shareQuery.value.trim().toLowerCase();
   const users = account.value?.share_users ?? [];
@@ -222,8 +223,10 @@ function buildFilterParams(page = "1") {
   setParam(params, "scope", filterDraft.scope === "all" ? "" : filterDraft.scope);
   setParam(params, "date_field", filterDraft.dateField);
   setParam(params, "sort", filterDraft.sort === "updated_desc" ? "" : filterDraft.sort);
-  setParam(params, "date_from", filterDraft.dateFrom);
-  setParam(params, "date_to", filterDraft.dateTo);
+  if (hasDateFilter.value) {
+    setParam(params, "date_from", filterDraft.dateFrom);
+    setParam(params, "date_to", filterDraft.dateTo);
+  }
   filterDraft.types.forEach((value) => params.append("type", value));
   filterDraft.importances.forEach((value) => params.append("importance", value));
   setParam(params, "limit", limitValue.value === "10" ? "" : limitValue.value);
@@ -488,7 +491,7 @@ onBeforeUnmount(() => {
   <NativeSMSPage v-else-if="isNativeSMSRoute" />
   <main v-else class="account-shell">
     <section v-if="account" class="account-hero">
-      <p class="eyebrow">Account</p>
+      <p class="eyebrow">账户</p>
       <h1>{{ account.current_user.display_name }}</h1>
       <p class="subtle">任务管理</p>
       <div class="hero-actions">
@@ -588,7 +591,7 @@ onBeforeUnmount(() => {
     <div v-if="activeModal" class="modal-backdrop" @click.self="closeModal">
       <section v-if="activeModal === 'filter'" class="modal-card">
         <header>
-          <p class="eyebrow">Filter</p>
+          <p class="eyebrow">筛选</p>
           <h2>筛选任务</h2>
         </header>
         <div class="form-grid">
@@ -612,14 +615,18 @@ onBeforeUnmount(() => {
             <span>排序</span>
             <AccountSelect v-model="filterDraft.sort" :options="account?.filter.sort_options ?? []" />
           </label>
-          <label class="field">
+          <Transition name="filter-date-field">
+          <label v-if="hasDateFilter" class="field">
             <span>开始日期</span>
             <WheelDatePicker v-model="filterDraft.dateFrom" empty-label="开始日期" />
           </label>
-          <label class="field">
+          </Transition>
+          <Transition name="filter-date-field">
+          <label v-if="hasDateFilter" class="field">
             <span>结束日期</span>
             <WheelDatePicker v-model="filterDraft.dateTo" empty-label="结束日期" />
           </label>
+          </Transition>
         </div>
         <div class="choice-section">
           <span>类型</span>
@@ -643,7 +650,7 @@ onBeforeUnmount(() => {
 
       <section v-if="activeModal === 'edit'" class="modal-card">
         <header>
-          <p class="eyebrow">Edit</p>
+          <p class="eyebrow">编辑</p>
           <h2>编辑任务</h2>
         </header>
         <p class="subtle">已选 {{ selectedCount }} 条任务。批量编辑只支持星级和标题前后缀。</p>
@@ -690,7 +697,7 @@ onBeforeUnmount(() => {
 
       <section v-if="activeModal === 'share'" class="modal-card">
         <header>
-          <p class="eyebrow">Share</p>
+          <p class="eyebrow">共享</p>
           <h2>共享任务</h2>
         </header>
         <label class="field wide share-search-field">

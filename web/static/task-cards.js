@@ -1297,7 +1297,7 @@ function fetchTaskRequestSnapshot(request) {
     },
   }).then(async (response) => {
     if (!response.ok) {
-      throw new Error("request failed");
+      throw new Error("任务操作失败");
     }
     return response.json();
   });
@@ -1489,7 +1489,7 @@ function bindAsyncTaskForm(form) {
       });
 
       if (!response.ok) {
-        throw new Error("request failed");
+        throw new Error("任务操作失败");
       }
 
       if (response.redirected && window.loadFocusPage) {
@@ -1581,7 +1581,7 @@ async function submitInlineRename(form) {
     });
 
     if (!response.ok) {
-      throw new Error("rename request failed");
+      throw new Error("任务改名失败");
     }
   } catch (_error) {
     cancelInlineRename(card, originalTitle, originalImportance);

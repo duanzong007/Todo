@@ -14,12 +14,15 @@ const pendingCount = ref(0);
 const moreOpen = ref(false);
 const composerOpen = ref(false);
 const composerTab = ref<ComposerTab>("todo");
+const composerModal = ref<ComposerTab | "">("");
 const scheduleMode = ref<ScheduleMode>("single");
 const postponeOpen = ref("");
 const postponeDrafts = reactive<Record<string, string>>({});
 const editTaskID = ref("");
 const editTitle = ref("");
 const editImportance = ref("2");
+const editOriginalTitle = ref("");
+const editOriginalImportance = ref("2");
 const dateJumpValue = ref("");
 const icsInput = ref<HTMLInputElement | null>(null);
 
@@ -42,6 +45,8 @@ let eventStream: EventSource | null = null;
 let syncTimer = 0;
 let popStateHandler: (() => void) | null = null;
 let suppressRealtimeUntil = 0;
+let editPointerDownHandler: ((event: PointerEvent) => void) | null = null;
+let postponePointerDownHandler: ((event: PointerEvent) => void) | null = null;
 
 const focusTasks = computed(() => page.value?.focus_tasks ?? []);
 const completedTasks = computed(() => page.value?.completed_tasks ?? []);
@@ -207,42 +212,99 @@ function postponeTask(task: TaskCard | CompletedTaskCard, value: string) {
   const formData = taskFormData(task);
   formData.set("target_value", value);
   postponeOpen.value = "";
-  void mutate(`/tasks/${task.id}/postpone`, formData);
+  const remainsInView = optimisticallyPostpone(task, value);
+  void mutate(`/tasks/${task.id}/postpone`, formData, { reload: remainsInView, suppressRealtime: !remainsInView });
+}
+
+function optimisticallyPostpone(task: TaskCard | CompletedTaskCard, value: string) {
+  if (!page.value) return true;
+  const targetDate = value.split("T")[0];
+  if (targetDate && targetDate !== focusDate.value) {
+    page.value.focus_tasks = page.value.focus_tasks.filter((item) => item.id !== task.id);
+    return false;
+  }
+  const nextTasks = page.value.focus_tasks.map((item) =>
+    item.id === task.id
+      ? {
+          ...item,
+          postpone_value: value,
+        }
+      : item,
+  );
+  page.value.focus_tasks = nextTasks;
+  return true;
 }
 
 function setPostponeOpen(task: TaskCard | CompletedTaskCard, event: Event) {
   const details = event.target instanceof HTMLDetailsElement ? event.target : null;
   if (!details?.open) {
+    delete postponeDrafts[task.id];
     postponeOpen.value = "";
     return;
   }
   postponeOpen.value = task.id;
-  if (!postponeDrafts[task.id]) {
-    postponeDrafts[task.id] = task.postpone_value;
-  }
+  postponeDrafts[task.id] = task.postpone_value;
+}
+
+function closePostponeWithoutCommit() {
+  if (!postponeOpen.value) return;
+  delete postponeDrafts[postponeOpen.value];
+  postponeOpen.value = "";
+}
+
+function onPostponePointerDown(event: PointerEvent) {
+  if (!postponeOpen.value) return;
+  if (event.target instanceof Element && event.target.closest(".inline-postpone-vue")) return;
+  closePostponeWithoutCommit();
 }
 
 function startEdit(task: TaskCard | CompletedTaskCard) {
   editTaskID.value = task.id;
   editTitle.value = task.title;
   editImportance.value = String(task.importance || 2);
+  editOriginalTitle.value = task.title;
+  editOriginalImportance.value = String(task.importance || 2);
 }
 
 async function commitEdit(task: TaskCard | CompletedTaskCard) {
   const title = editTitle.value.trim();
   if (!title) {
-    editTaskID.value = "";
+    cancelEdit();
+    return;
+  }
+  const importance = editImportance.value || editOriginalImportance.value;
+  if (title === editOriginalTitle.value && importance === editOriginalImportance.value) {
+    cancelEdit();
     return;
   }
   const formData = new FormData();
   formData.set("title", title);
-  formData.set("importance", editImportance.value);
-  editTaskID.value = "";
+  formData.set("importance", importance);
+  cancelEdit();
   await mutate(`/tasks/${task.id}/rename`, formData);
 }
 
 function setEditImportance(value: string) {
   editImportance.value = value;
+}
+
+function cancelEdit() {
+  editTaskID.value = "";
+  editTitle.value = "";
+  editImportance.value = "2";
+  editOriginalTitle.value = "";
+  editOriginalImportance.value = "2";
+}
+
+function onEditPointerDown(event: PointerEvent) {
+  if (!editTaskID.value || !page.value) return;
+  if (event.target instanceof Element && event.target.closest(".inline-title-editor")) return;
+  const activeTask = [...page.value.focus_tasks, ...page.value.completed_tasks].find((task) => task.id === editTaskID.value);
+  if (activeTask) {
+    void commitEdit(activeTask);
+  } else {
+    cancelEdit();
+  }
 }
 
 function kindClass(task: TaskCard | CompletedTaskCard) {
@@ -320,7 +382,17 @@ function openSMS() {
     window.location.assign(`/sms/native?return=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`);
     return;
   }
-  composerTab.value = "sms";
+  openComposerModal("sms");
+}
+
+function openComposerModal(tab: ComposerTab) {
+  composerTab.value = tab;
+  composerModal.value = tab;
+  composerOpen.value = false;
+}
+
+function closeComposerModal() {
+  composerModal.value = "";
 }
 
 function openICS() {
@@ -338,24 +410,25 @@ async function importICS(event: Event) {
   input.value = "";
 }
 
-function closeComposerIfOutside(event: MouseEvent) {
-  if (!composerOpen.value) return;
-  const target = event.target;
-  if (target instanceof Element && target.closest(".composer-fab-vue")) return;
-  composerOpen.value = false;
-}
-
 onMounted(() => {
   void load();
   connectEvents();
   popStateHandler = () => void load(window.location.search);
-  document.addEventListener("pointerdown", closeComposerIfOutside);
+  editPointerDownHandler = onEditPointerDown;
+  postponePointerDownHandler = onPostponePointerDown;
+  document.addEventListener("pointerdown", postponePointerDownHandler);
+  document.addEventListener("pointerdown", editPointerDownHandler);
   window.addEventListener("popstate", popStateHandler);
 });
 
 onBeforeUnmount(() => {
   window.clearTimeout(syncTimer);
-  document.removeEventListener("pointerdown", closeComposerIfOutside);
+  if (editPointerDownHandler) {
+    document.removeEventListener("pointerdown", editPointerDownHandler);
+  }
+  if (postponePointerDownHandler) {
+    document.removeEventListener("pointerdown", postponePointerDownHandler);
+  }
   if (popStateHandler) {
     window.removeEventListener("popstate", popStateHandler);
   }
@@ -368,7 +441,9 @@ onBeforeUnmount(() => {
     <section v-if="page" class="focus-hero-vue">
       <a href="/me" class="focus-user-link">{{ page.current_user.display_name }}</a>
       <button type="button" class="focus-title-reload" @click="refresh">
-        <h1>{{ page.focus_title }}</h1>
+        <Transition name="title-swap" mode="out-in">
+          <h1 :key="page.focus_title">{{ page.focus_title }}</h1>
+        </Transition>
       </button>
     </section>
 
@@ -376,11 +451,17 @@ onBeforeUnmount(() => {
 
     <section class="focus-panel-vue">
       <div class="focus-panel-head-vue">
-        <p class="section-kicker focus-weekday">
+        <Transition name="weekday-swap" mode="out-in">
+        <p :key="`${focusDate}-weekday`" class="section-kicker focus-weekday">
           {{ page?.focus_weekday_label }}
           <template v-for="mark in page?.focus_day_marks ?? []" :key="mark"> · {{ mark }}</template>
         </p>
-        <span class="focus-counter" :class="{ 'is-pending': pendingCount > 0 }">{{ focusTasks.length }}</span>
+        </Transition>
+        <span class="focus-counter" :class="{ 'is-pending': pendingCount > 0 }">
+          <Transition name="count-swap" mode="out-in">
+            <span :key="focusTasks.length">{{ focusTasks.length }}</span>
+          </Transition>
+        </span>
       </div>
 
       <Transition name="focus-empty-fade" mode="out-in">
@@ -403,11 +484,11 @@ onBeforeUnmount(() => {
             <div class="task-body-vue">
               <template v-if="editTaskID === task.id">
                 <div class="inline-title-editor">
-                  <input v-model="editTitle" type="text" @keydown.enter.prevent="commitEdit(task)" @keydown.esc.prevent="editTaskID = ''" @blur="commitEdit(task)" />
-                  <div class="star-rating">
+                  <input v-model="editTitle" type="text" @keydown.enter.prevent="commitEdit(task)" @keydown.esc.prevent="cancelEdit" />
+                  <div class="star-rating inline-edit-stars" @pointerdown.stop @click.stop>
                     <template v-for="value in ['5', '4', '3', '2', '1']" :key="value">
                       <input :id="`edit-${task.id}-${value}`" type="radio" :checked="editImportance === value" />
-                      <label :for="`edit-${task.id}-${value}`" @mousedown.prevent @click.prevent="setEditImportance(value)">★</label>
+                      <label :for="`edit-${task.id}-${value}`" @pointerdown.prevent @click.prevent="setEditImportance(value)">★</label>
                     </template>
                   </div>
                 </div>
@@ -465,7 +546,11 @@ onBeforeUnmount(() => {
           <div class="archive-section-vue" :class="{ 'is-empty': completedTasks.length === 0 }">
             <div class="archive-head-vue">
               <p>已完成</p>
-              <span>{{ completedTasks.length }}</span>
+              <span>
+                <Transition name="count-swap" mode="out-in">
+                  <span :key="completedTasks.length">{{ completedTasks.length }}</span>
+                </Transition>
+              </span>
             </div>
             <TransitionGroup name="task-flow" tag="div" class="archive-list-vue">
               <article v-for="task in completedTasks" :key="task.id" class="archive-card-vue">
@@ -490,21 +575,31 @@ onBeforeUnmount(() => {
       <button type="button" class="composer-fab-button" @click.stop="composerOpen = !composerOpen">{{ composerOpen ? "×" : "+" }}</button>
       <Transition name="composer-pop">
       <div v-if="composerOpen" class="composer-panel-vue">
-        <div class="composer-bar">
-          <div class="composer-tabs">
-            <button type="button" class="composer-tab" :class="{ 'is-active': composerTab === 'todo' }" @click="composerTab = 'todo'">Todo</button>
-            <button type="button" class="composer-tab" :class="{ 'is-active': composerTab === 'schedule' }" @click="composerTab = 'schedule'">日程</button>
-            <button type="button" class="composer-tab" :class="{ 'is-active': composerTab === 'ddl' }" @click="composerTab = 'ddl'">DDL</button>
-          </div>
-          <div class="composer-tools-shortcuts">
-            <button type="button" class="composer-tab composer-tab-utility" @click="openSMS">短信</button>
-            <button type="button" class="composer-tab composer-tab-utility" @click="openICS">ICS</button>
-            <input ref="icsInput" type="file" accept=".ics,text/calendar" hidden @change="importICS" />
-          </div>
+        <div class="composer-choice-grid">
+          <button type="button" class="composer-choice-button" @click="openComposerModal('todo')">Todo</button>
+          <button type="button" class="composer-choice-button" @click="openComposerModal('schedule')">日程</button>
+          <button type="button" class="composer-choice-button" @click="openComposerModal('ddl')">DDL</button>
+          <button type="button" class="composer-choice-button" @click="openSMS">短信</button>
+          <button type="button" class="composer-choice-button composer-choice-ics" @click="openICS">ICS</button>
+          <input ref="icsInput" type="file" accept=".ics,text/calendar" hidden @change="importICS" />
         </div>
+      </div>
+      </Transition>
+    </div>
 
-        <Transition name="composer-section" mode="out-in">
-        <form v-if="composerTab === 'todo'" class="composer-form-vue" @submit.prevent="submitTodo">
+    <Transition name="composer-modal">
+    <div v-if="composerModal" class="composer-modal-shell" role="dialog" aria-modal="true">
+      <div class="composer-modal-backdrop"></div>
+      <section class="composer-modal-card">
+        <header class="composer-modal-head">
+          <div>
+            <p class="eyebrow">新建</p>
+            <h2>{{ composerModal === 'todo' ? 'Todo' : composerModal === 'schedule' ? '日程' : composerModal === 'ddl' ? 'DDL' : '短信' }}</h2>
+          </div>
+          <button type="button" class="composer-modal-close" @click="closeComposerModal">关闭</button>
+        </header>
+
+        <form v-if="composerModal === 'todo'" class="composer-form-vue" @submit.prevent="submitTodo">
           <label>标题<input v-model="forms.todoTitle" type="text" placeholder="例如：买电池" required /></label>
           <label>重要等级</label>
           <div class="star-rating composer-stars">
@@ -512,10 +607,8 @@ onBeforeUnmount(() => {
           </div>
           <button type="submit">添加 Todo</button>
         </form>
-        </Transition>
 
-        <Transition name="composer-section" mode="out-in">
-        <form v-if="composerTab === 'schedule'" class="composer-form-vue" @submit.prevent="submitSchedule">
+        <form v-if="composerModal === 'schedule'" class="composer-form-vue" @submit.prevent="submitSchedule">
           <label>标题<input v-model="forms.scheduleTitle" type="text" placeholder="例如：上课" required /></label>
           <div class="schedule-mode-tabs"><button type="button" :class="{ active: scheduleMode === 'single' }" @click="scheduleMode = 'single'">单次</button><button type="button" :class="{ active: scheduleMode === 'batch' }" @click="scheduleMode = 'batch'">批量</button></div>
           <div v-if="scheduleMode === 'single'" class="composer-shortcuts"><button type="button" @click="quickSetDate('schedule', todayDate)">今天</button><button type="button" @click="quickSetDate('schedule', tomorrowDate)">明天</button><button type="button" @click="quickSetDate('schedule', dayAfterDate)">后天</button></div>
@@ -530,26 +623,21 @@ onBeforeUnmount(() => {
           <label>重要等级</label><div class="star-rating composer-stars"><template v-for="value in ['5','4','3','2','1']" :key="value"><input :id="`schedule-${value}`" type="radio" :checked="forms.scheduleImportance === value" /><label :for="`schedule-${value}`" @click.prevent="forms.scheduleImportance = value">★</label></template></div>
           <button type="submit">添加日程</button>
         </form>
-        </Transition>
 
-        <Transition name="composer-section" mode="out-in">
-        <form v-if="composerTab === 'ddl'" class="composer-form-vue" @submit.prevent="submitDDL">
+        <form v-if="composerModal === 'ddl'" class="composer-form-vue" @submit.prevent="submitDDL">
           <label>标题<input v-model="forms.ddlTitle" type="text" placeholder="例如：交作业" required /></label>
           <div class="composer-shortcuts"><button type="button" @click="quickSetDate('ddl', todayDate)">今天</button><button type="button" @click="quickSetDate('ddl', tomorrowDate)">明天</button><button type="button" @click="quickSetDate('ddl', dayAfterDate)">后天</button></div>
           <WheelDatePicker v-model="forms.ddlValue" mode="datetime" />
           <label>重要等级</label><div class="star-rating composer-stars"><template v-for="value in ['5','4','3','2','1']" :key="value"><input :id="`ddl-${value}`" type="radio" :checked="forms.ddlImportance === value" /><label :for="`ddl-${value}`" @click.prevent="forms.ddlImportance = value">★</label></template></div>
           <button type="submit">添加 DDL</button>
         </form>
-        </Transition>
 
-        <Transition name="composer-section" mode="out-in">
-        <form v-if="composerTab === 'sms'" class="composer-form-vue" @submit.prevent="submitSMS">
+        <form v-if="composerModal === 'sms'" class="composer-form-vue" @submit.prevent="submitSMS">
           <label>短信内容<textarea v-model="forms.smsInput" placeholder="直接粘贴取件短信；一次贴很多条也可以。" required></textarea></label>
           <button type="submit">解析短信</button>
         </form>
-        </Transition>
-      </div>
-      </Transition>
+      </section>
     </div>
+    </Transition>
   </main>
 </template>

@@ -1,4 +1,4 @@
-const CACHE_NAME = "todo-pwa-v15";
+const CACHE_NAME = "todo-pwa-v24";
 const OFFLINE_URL = "/static/pwa/offline.html";
 const NAVIGATION_NETWORK_TIMEOUT_MS = 4500;
 const STATIC_NETWORK_TIMEOUT_MS = 2200;
@@ -27,7 +27,7 @@ const STATIC_ASSETS = [
 
 function timeoutReject(ms) {
   return new Promise((_, reject) => {
-    setTimeout(() => reject(new Error("timeout")), ms);
+    setTimeout(() => reject(new Error("请求超时")), ms);
   });
 }
 
@@ -67,6 +67,21 @@ async function resolvePreloadedResponse(preloadResponsePromise, timeoutMs) {
 
 function staticCacheKey(url) {
   return url.search ? `${url.pathname}${url.search}` : url.pathname;
+}
+
+function plainTextResponse(message, status = 503) {
+  return new Response(message, {
+    status,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+async function offlineResponse(message = "网络连接失败，请稍后重试。") {
+  const cachedOffline = await caches.match(OFFLINE_URL);
+  return cachedOffline || plainTextResponse(message);
 }
 
 self.addEventListener("install", (event) => {
@@ -124,16 +139,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname === "/events" || url.pathname === "/dashboard/snapshot") {
-    event.respondWith(fetch(request));
+  if (url.pathname === "/events" || url.pathname === "/dashboard/snapshot" || url.pathname === "/dashboard/data") {
+    event.respondWith(fetch(request).catch(() => plainTextResponse("实时同步暂时不可用。")));
     return;
   }
 
   if (url.pathname === "/me") {
     event.respondWith(
       fetch(request).catch(async () => {
-        const offlineResponse = await caches.match(OFFLINE_URL);
-        return offlineResponse || Response.error();
+        return offlineResponse();
       })
     );
     return;
@@ -158,7 +172,7 @@ self.addEventListener("fetch", (event) => {
           return cachedResponse;
         }
 
-        return caches.match(OFFLINE_URL);
+        return offlineResponse();
       })()
     );
     return;
@@ -170,7 +184,7 @@ self.addEventListener("fetch", (event) => {
     url.pathname === "/favicon.ico";
 
   if (!isStaticAsset) {
-    event.respondWith(fetch(request));
+    event.respondWith(fetch(request).catch(() => plainTextResponse("网络连接失败，请稍后重试。")));
     return;
   }
 
@@ -189,7 +203,7 @@ self.addEventListener("fetch", (event) => {
       }
 
       const response = await networkResponse;
-      return response || caches.match(cacheKey);
+      return response || (await caches.match(cacheKey)) || plainTextResponse("静态资源加载失败，请刷新重试。");
     })()
   );
 });

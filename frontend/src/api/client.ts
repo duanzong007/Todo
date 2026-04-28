@@ -69,7 +69,7 @@ export async function fetchDashboardSnapshot(focusDate?: string): Promise<Dashbo
   });
 
   if (!response.ok) {
-    await parseError(response, response.status === 401 ? "unauthorized" : "snapshot request failed");
+    await parseError(response, response.status === 401 ? "未登录" : "同步首页数据失败");
   }
 
   return response.json() as Promise<DashboardSnapshot>;
@@ -85,7 +85,7 @@ export async function fetchDashboardPage(search = window.location.search): Promi
   });
 
   if (!response.ok) {
-    await parseError(response, response.status === 401 ? "unauthorized" : "dashboard request failed");
+    await parseError(response, response.status === 401 ? "未登录" : "首页数据加载失败");
   }
 
   return response.json() as Promise<DashboardPageData>;
@@ -119,7 +119,7 @@ export async function fetchAccountData(search = window.location.search): Promise
   });
 
   if (!response.ok) {
-    await parseError(response, response.status === 401 ? "unauthorized" : "account request failed");
+    await parseError(response, response.status === 401 ? "未登录" : "任务管理数据加载失败");
   }
 
   return response.json() as Promise<AccountPageData>;
@@ -153,7 +153,7 @@ export async function fetchNativeSMSData(search = window.location.search): Promi
   });
 
   if (!response.ok) {
-    await parseError(response, response.status === 401 ? "unauthorized" : "native sms request failed");
+    await parseError(response, response.status === 401 ? "未登录" : "短信导入页加载失败");
   }
 
   return response.json() as Promise<NativeSMSPageData>;
