@@ -761,7 +761,7 @@ onBeforeUnmount(() => {
 
     <Transition name="composer-modal">
       <div v-if="composerModal" class="composer-modal-shell" role="dialog" aria-modal="true">
-        <div class="composer-modal-backdrop"></div>
+        <div class="composer-modal-backdrop" @click="closeComposerModal"></div>
         <section class="composer-modal-card">
           <header class="composer-modal-head">
             <div>
@@ -785,6 +785,12 @@ onBeforeUnmount(() => {
 
           <form v-if="composerModal === 'schedule'" class="composer-form-vue" @submit.prevent="submitSchedule">
             <label>标题<input v-model="forms.scheduleTitle" type="text" placeholder="例如：上课" required /></label>
+            <label>重要等级</label>
+            <div class="star-rating composer-stars"><template v-for="value in ['5', '4', '3', '2', '1']"
+                :key="value"><input :id="`schedule-${value}`" type="radio"
+                  :checked="forms.scheduleImportance === value" /><label :for="`schedule-${value}`"
+                  @click.prevent="forms.scheduleImportance = value">★</label></template>
+            </div>
             <div class="schedule-mode-tabs"><button type="button" :class="{ active: scheduleMode === 'single' }"
                 @click="scheduleMode = 'single'">单次</button><button type="button"
                 :class="{ active: scheduleMode === 'batch' }" @click="scheduleMode = 'batch'">批量</button></div>
@@ -807,27 +813,22 @@ onBeforeUnmount(() => {
                     v-model="forms.batchWeekdays" type="checkbox" :value="value" />{{ label }}</label>
               </div>
             </div>
-            <label>重要等级</label>
-            <div class="star-rating composer-stars"><template v-for="value in ['5', '4', '3', '2', '1']"
-                :key="value"><input :id="`schedule-${value}`" type="radio"
-                  :checked="forms.scheduleImportance === value" /><label :for="`schedule-${value}`"
-                  @click.prevent="forms.scheduleImportance = value">★</label></template>
-            </div>
             <button type="submit">添加日程</button>
           </form>
 
           <form v-if="composerModal === 'ddl'" class="composer-form-vue" @submit.prevent="submitDDL">
             <label>标题<input v-model="forms.ddlTitle" type="text" placeholder="例如：交作业" required /></label>
-            <div class="composer-shortcuts"><button type="button"
-                @click="quickSetDate('ddl', todayDate)">今天</button><button type="button"
-                @click="quickSetDate('ddl', tomorrowDate)">明天</button><button type="button"
-                @click="quickSetDate('ddl', dayAfterDate)">后天</button></div>
-            <WheelDatePicker v-model="forms.ddlValue" mode="datetime" />
             <label>重要等级</label>
             <div class="star-rating composer-stars"><template v-for="value in ['5', '4', '3', '2', '1']"
                 :key="value"><input :id="`ddl-${value}`" type="radio" :checked="forms.ddlImportance === value" /><label
                   :for="`ddl-${value}`" @click.prevent="forms.ddlImportance = value">★</label></template>
             </div>
+            <p class="composer-field-title">时间</p>
+            <div class="composer-shortcuts"><button type="button"
+                @click="quickSetDate('ddl', todayDate)">今天</button><button type="button"
+                @click="quickSetDate('ddl', tomorrowDate)">明天</button><button type="button"
+                @click="quickSetDate('ddl', dayAfterDate)">后天</button></div>
+            <WheelDatePicker v-model="forms.ddlValue" mode="datetime" />
             <button type="submit">添加 DDL</button>
           </form>
 

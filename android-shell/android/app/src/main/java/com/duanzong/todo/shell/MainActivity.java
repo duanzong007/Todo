@@ -4,6 +4,7 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
@@ -21,8 +22,10 @@ import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    private static final long NETWORK_RECOVERY_STARTUP_GRACE_MS = 3500L;
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
+    private long networkRecoveryEnabledAtMs = 0L;
     private final Runnable networkRecoveryRunnable = new Runnable() {
         @Override
         public void run() {
@@ -120,6 +123,8 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
+        networkRecoveryEnabledAtMs = SystemClock.elapsedRealtime() + NETWORK_RECOVERY_STARTUP_GRACE_MS;
+
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
             public void onAvailable(Network network) {
@@ -157,6 +162,10 @@ public class MainActivity extends BridgeActivity {
 
     private void scheduleNetworkRecoveryReload() {
         if (getBridge() == null || getBridge().getWebView() == null) {
+            return;
+        }
+
+        if (SystemClock.elapsedRealtime() < networkRecoveryEnabledAtMs) {
             return;
         }
 

@@ -3,7 +3,7 @@
     return;
   }
 
-  const SW_URL = "/sw.js?v=20260405-native-shell-1";
+  const SW_URL = "/sw.js?v=20260428-native-startup-1";
   let refreshing = false;
 
   function isNativeShell() {
@@ -40,6 +40,7 @@
   }
 
   async function disablePWAForNativeShell() {
+    refreshing = true;
     try {
       const registrations = await navigator.serviceWorker.getRegistrations();
       await Promise.all(registrations.map((registration) => registration.unregister()));
@@ -51,7 +52,7 @@
   }
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (refreshing) {
+    if (refreshing || isNativeShell()) {
       return;
     }
     refreshing = true;

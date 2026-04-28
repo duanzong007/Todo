@@ -16,6 +16,16 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+summary,
+label,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
 
 body {
@@ -36,6 +46,13 @@ select {
 
 button {
   cursor: pointer;
+}
+
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+summary:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible) {
+  outline: none;
 }
 
 button:disabled {
@@ -1095,6 +1112,13 @@ button.complete-toggle::before {
   color: rgba(72, 54, 36, 0.86);
   font-size: 0.86rem;
   font-weight: 700;
+}
+
+.composer-field-title {
+  margin: 0;
+  color: rgba(72, 54, 36, 0.86);
+  font-size: 0.86rem;
+  font-weight: 800;
 }
 
 .composer-form-vue input[type="text"],
@@ -2499,6 +2523,10 @@ input[type="checkbox"] {
     max-height: min(84vh, 760px);
     border-radius: 26px 26px 22px 22px;
     padding: 16px;
+  }
+
+  .composer-modal-backdrop {
+    pointer-events: none;
   }
 
   .postpone-form-panel-vue {
