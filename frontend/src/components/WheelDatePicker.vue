@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 
-type PickerMode = "date" | "datetime";
+type PickerMode = "date" | "datetime" | "time";
 type Part = "year" | "month" | "day" | "hour" | "minute";
 
 interface PickerState {
@@ -38,10 +38,12 @@ const props = withDefaults(
     modelValue: string;
     mode?: PickerMode;
     emptyLabel?: string;
+    minValue?: string;
   }>(),
   {
     mode: "date",
     emptyLabel: "选择日期",
+    minValue: "",
   },
 );
 
@@ -73,16 +75,19 @@ const inputTimers = reactive<Record<Part, number>>({
 let collapseTimer = 0;
 
 const orderedParts = computed<Part[]>(() => {
+  if (props.mode === "time") {
+    return ["hour", "minute"];
+  }
   return props.mode === "datetime" ? ["year", "month", "day", "hour", "minute"] : ["year", "month", "day"];
 });
 
 const isEmpty = computed(() => !hasValue.value);
 
 watch(
-  () => [props.modelValue, props.mode] as const,
+  () => [props.modelValue, props.mode, props.minValue] as const,
   ([value, mode]) => {
     hasValue.value = value.trim() !== "";
-    Object.assign(state, normalizeState(parseValue(value, mode)));
+    Object.assign(state, clampStateToBounds(normalizeState(parseValue(value, mode))));
     render();
   },
 );
@@ -124,18 +129,28 @@ function parseValue(value: string, mode: PickerMode): PickerState {
 
   const match =
     mode === "datetime"
-      ? raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/)
-      : raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      ? raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/)
+      : mode === "time"
+        ? raw.match(/^(\d{2}):(\d{2})$/)
+        : raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
   if (!match) {
     return fallback;
+  }
+
+  if (mode === "time") {
+    return normalizeState({
+      ...fallback,
+      hour: Number.parseInt(match[1], 10),
+      minute: Number.parseInt(match[2], 10),
+    });
   }
 
   return normalizeState({
     year: Number.parseInt(match[1], 10),
     month: Number.parseInt(match[2], 10),
     day: Number.parseInt(match[3], 10),
-    hour: mode === "datetime" ? Number.parseInt(match[4], 10) : fallback.hour,
-    minute: mode === "datetime" ? Number.parseInt(match[5], 10) : fallback.minute,
+    hour: mode === "datetime" ? Number.parseInt(match[4] || String(fallback.hour), 10) : fallback.hour,
+    minute: mode === "datetime" ? Number.parseInt(match[5] || String(fallback.minute), 10) : fallback.minute,
   });
 }
 
@@ -162,10 +177,29 @@ function daysInMonth(year: number, month: number) {
 }
 
 function buildDateFromState(value: PickerState) {
-  if (props.mode === "datetime") {
+  if (props.mode === "datetime" || props.mode === "time") {
     return new Date(value.year, value.month - 1, value.day, value.hour, value.minute, 0, 0);
   }
   return new Date(value.year, value.month - 1, value.day, 12, 0, 0, 0);
+}
+
+function minState() {
+  if (!props.minValue) {
+    return null;
+  }
+  return normalizeState(parseValue(props.minValue, props.mode));
+}
+
+function stateTime(value: PickerState) {
+  return buildDateFromState(value).getTime();
+}
+
+function clampStateToBounds(value: PickerState) {
+  const min = minState();
+  if (!min) {
+    return value;
+  }
+  return stateTime(value) < stateTime(min) ? min : value;
 }
 
 function dateToState(value: Date): PickerState {
@@ -180,6 +214,9 @@ function dateToState(value: Date): PickerState {
 
 function formatValue(value: PickerState) {
   const normalized = normalizeState(value);
+  if (props.mode === "time") {
+    return `${pad2(normalized.hour)}:${pad2(normalized.minute)}`;
+  }
   const date = `${String(normalized.year).padStart(4, "0")}-${pad2(normalized.month)}-${pad2(normalized.day)}`;
   if (props.mode === "datetime") {
     return `${date}T${pad2(normalized.hour)}:${pad2(normalized.minute)}`;
@@ -235,7 +272,7 @@ function applyDelta(source: PickerState, part: Part, delta: number): PickerState
     nextDate.setMinutes(nextDate.getMinutes() + delta);
   }
 
-  return normalizeState(dateToState(nextDate));
+  return clampStateToBounds(normalizeState(dateToState(nextDate)));
 }
 
 function activateValue() {
@@ -418,7 +455,7 @@ function commitInputBuffer(part: Part) {
     return;
   }
 
-  Object.assign(state, normalizeState({ ...state, [part]: parsed }));
+  Object.assign(state, clampStateToBounds(normalizeState({ ...state, [part]: parsed })));
   activateValue();
   clearInputBuffer(part);
   syncModel();
@@ -633,28 +670,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    ref="root"
-    class="wheel-date-picker account-wheel-picker"
-    :class="{ 'is-expanded': expanded, 'is-empty': isEmpty, 'is-datetime': mode === 'datetime' }"
-    :data-empty-label="emptyLabel"
-  >
+  <div ref="root" class="wheel-date-picker account-wheel-picker"
+    :class="{ 'is-expanded': expanded, 'is-empty': isEmpty, 'is-datetime': mode === 'datetime', 'is-time': mode === 'time' }"
+    :data-empty-label="emptyLabel">
     <template v-for="part in orderedParts" :key="part">
-      <div
-        class="wheel-column"
-        :class="{ 'is-focused': focusedPart === part, 'is-buffering': inputBuffers[part] }"
-        :data-part="part"
-        tabindex="0"
-        @click="onColumnClick($event, part)"
-        @focus="focusedPart = part"
-        @blur="focusedPart = ''; commitInputBuffer(part)"
-        @wheel="onWheel($event, part)"
-        @keydown="onKeydown($event, part)"
-        @pointerdown="onPointerDown($event, part)"
-        @pointermove="onPointerMove($event, part)"
-        @pointerup="clearPointer($event, part)"
-        @pointercancel="clearPointer($event, part)"
-      >
+      <div class="wheel-column" :class="{ 'is-focused': focusedPart === part, 'is-buffering': inputBuffers[part] }"
+        :data-part="part" tabindex="0" @click="onColumnClick($event, part)" @focus="focusedPart = part"
+        @blur="focusedPart = ''; commitInputBuffer(part)" @wheel="onWheel($event, part)"
+        @keydown="onKeydown($event, part)" @pointerdown="onPointerDown($event, part)"
+        @pointermove="onPointerMove($event, part)" @pointerup="clearPointer($event, part)"
+        @pointercancel="clearPointer($event, part)">
         <div class="wheel-track" :style="trackStyle(part)">
           <span class="wheel-item" data-slot="far-prev">{{ displayValue(part, -2) }}</span>
           <span class="wheel-item" data-slot="prev">{{ displayValue(part, -1) }}</span>

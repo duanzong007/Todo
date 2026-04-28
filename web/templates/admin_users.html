@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,6 +17,7 @@
     <link rel="stylesheet" href="/static/styles.css?v=20260320-importance-badge-4">
     <script defer src="/static/pwa-register.js?v=20260405-native-shell-1"></script>
 </head>
+
 <body>
     <main class="page">
         <section class="topbar">
@@ -53,27 +55,28 @@
                 <span>{{ len .PendingUsers }}</span>
             </div>
             {{ if .PendingUsers }}
-                {{ range .PendingUsers }}
-                <article class="approval-card">
-                    <div class="task-body">
-                        <h3>{{ .DisplayName }}</h3>
-                        <p class="status">@{{ .Username }}</p>
-                        <p class="note">注册时间 {{ .CreatedAt }}</p>
-                    </div>
-                    <div class="task-actions dual">
-                        <form action="/admin/users/{{ .ID }}/approve" method="post">
-                            <button type="submit">批准使用</button>
-                        </form>
-                        <form action="/admin/users/{{ .ID }}/reject" method="post">
-                            <button type="submit" class="danger">拒绝并删除</button>
-                        </form>
-                    </div>
-                </article>
-                {{ end }}
+            {{ range .PendingUsers }}
+            <article class="approval-card">
+                <div class="task-body">
+                    <h3>{{ .DisplayName }}</h3>
+                    <p class="status">@{{ .Username }}</p>
+                    <p class="note">注册时间 {{ .CreatedAt }}</p>
+                </div>
+                <div class="task-actions dual">
+                    <form action="/admin/users/{{ .ID }}/approve" method="post">
+                        <button type="submit">批准使用</button>
+                    </form>
+                    <form action="/admin/users/{{ .ID }}/reject" method="post">
+                        <button type="submit" class="danger">拒绝并删除</button>
+                    </form>
+                </div>
+            </article>
+            {{ end }}
             {{ else }}
-                <p class="empty">当前没有待审批用户。</p>
+            <p class="empty">当前没有待审批用户。</p>
             {{ end }}
         </section>
     </main>
 </body>
+
 </html>

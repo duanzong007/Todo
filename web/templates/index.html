@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,6 +17,7 @@
     <link rel="stylesheet" href="/static/styles.css?v=20260413-overflow-fix-3">
     <script defer src="/static/pwa-register.js?v=20260405-native-shell-1"></script>
 </head>
+
 <body>
     <main class="focus-page" data-focus-date="{{ .FocusDateISO }}" data-app-timezone="{{ .AppTimeZone }}">
         <section class="focus-hero">
@@ -43,12 +45,16 @@
             {{ if .FocusTasks }}
             <div class="focus-list">
                 {{ range .FocusTasks }}
-                <article class="focus-card{{ if eq .KindClass "ddl" }} is-mobile-ddl-ready{{ if .MobileCompact }} is-mobile-ddl-compact{{ end }}{{ end }}" data-task-card data-task-id="{{ .ID }}" data-kind-label="{{ .KindLabel }}" data-kind-class="{{ .KindClass }}" data-importance="{{ .Importance }}">
+                <article class="focus-card{{ if eq .KindClass " ddl" }} is-mobile-ddl-ready{{ if .MobileCompact }}
+                    is-mobile-ddl-compact{{ end }}{{ end }}" data-task-card data-task-id="{{ .ID }}"
+                    data-kind-label="{{ .KindLabel }}" data-kind-class="{{ .KindClass }}"
+                    data-importance="{{ .Importance }}">
                     <span class="task-importance-badge" aria-label="重要等级 {{ .Importance }}">{{ .Importance }}</span>
                     <div class="focus-card-main">
                         <div class="task-kind-stack">
                             <span class="task-kind task-kind-{{ .KindClass }}">{{ .KindLabel }}</span>
-                            {{ if .CompactStatus }}<span class="task-status-mobile" aria-hidden="true">{{ .CompactStatus }}</span>{{ end }}
+                            {{ if .CompactStatus }}<span class="task-status-mobile" aria-hidden="true">{{ .CompactStatus
+                                }}</span>{{ end }}
                         </div>
                         <div class="task-body">
                             <h3>{{ .Title }}</h3>
@@ -61,12 +67,16 @@
                         {{ if .CanPostpone }}
                         <details class="inline-postpone" data-postpone-panel data-task-id="{{ .ID }}">
                             <summary>延期</summary>
-                            <form action="/tasks/{{ .ID }}/postpone" method="post" class="postpone-form-panel" data-postpone-form data-async-task-form>
+                            <form action="/tasks/{{ .ID }}/postpone" method="post" class="postpone-form-panel"
+                                data-postpone-form data-async-task-form>
                                 <input type="hidden" name="return_date" value="{{ .ReturnDate }}">
-                                <div class="wheel-date-picker postpone-wheel-picker{{ if eq .PostponeMode "datetime" }} is-datetime{{ end }}" data-postpone-picker data-picker-mode="{{ .PostponeMode }}" data-initial-value="{{ .PostponeValue }}" data-min-value="{{ .PostponeMin }}">
+                                <div class="wheel-date-picker postpone-wheel-picker{{ if eq .PostponeMode " datetime" }}
+                                    is-datetime{{ end }}" data-postpone-picker data-picker-mode="{{ .PostponeMode }}"
+                                    data-initial-value="{{ .PostponeValue }}" data-min-value="{{ .PostponeMin }}">
                                     <input type="hidden" name="target_value" value="{{ .PostponeValue }}">
 
-                                    <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="年份">
+                                    <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton"
+                                        aria-label="年份">
                                         <div class="wheel-track">
                                             <span class="wheel-item" data-slot="far-prev"></span>
                                             <span class="wheel-item" data-slot="prev"></span>
@@ -77,7 +87,8 @@
                                     </div>
                                     <span class="date-unit">年</span>
 
-                                    <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="月份">
+                                    <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton"
+                                        aria-label="月份">
                                         <div class="wheel-track">
                                             <span class="wheel-item" data-slot="far-prev"></span>
                                             <span class="wheel-item" data-slot="prev"></span>
@@ -88,7 +99,8 @@
                                     </div>
                                     <span class="date-unit">月</span>
 
-                                    <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="日期">
+                                    <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton"
+                                        aria-label="日期">
                                         <div class="wheel-track">
                                             <span class="wheel-item" data-slot="far-prev"></span>
                                             <span class="wheel-item" data-slot="prev"></span>
@@ -102,7 +114,8 @@
                                     {{ if eq .PostponeMode "datetime" }}
                                     <span class="date-unit date-divider">·</span>
 
-                                    <div class="wheel-column" data-part="hour" tabindex="0" role="spinbutton" aria-label="小时">
+                                    <div class="wheel-column" data-part="hour" tabindex="0" role="spinbutton"
+                                        aria-label="小时">
                                         <div class="wheel-track">
                                             <span class="wheel-item" data-slot="far-prev"></span>
                                             <span class="wheel-item" data-slot="prev"></span>
@@ -113,7 +126,8 @@
                                     </div>
                                     <span class="date-unit">时</span>
 
-                                    <div class="wheel-column" data-part="minute" tabindex="0" role="spinbutton" aria-label="分钟">
+                                    <div class="wheel-column" data-part="minute" tabindex="0" role="spinbutton"
+                                        aria-label="分钟">
                                         <div class="wheel-track">
                                             <span class="wheel-item" data-slot="far-prev"></span>
                                             <span class="wheel-item" data-slot="prev"></span>
@@ -149,9 +163,12 @@
                     <p class="empty-quote">{{ .EmptyQuote.Text }}</p>
                     {{ if .EmptyQuote.HasMeta }}
                     <p class="empty-quote-meta">
-                        {{ if .EmptyQuote.Author }}<span class="empty-quote-author">{{ .EmptyQuote.Author }}</span>{{ end }}
-                        {{ if and .EmptyQuote.Author .EmptyQuote.Source }}<span class="empty-quote-sep">·</span>{{ end }}
-                        {{ if .EmptyQuote.Source }}<span class="empty-quote-source">{{ .EmptyQuote.Source }}</span>{{ end }}
+                        {{ if .EmptyQuote.Author }}<span class="empty-quote-author">{{ .EmptyQuote.Author }}</span>{{
+                        end }}
+                        {{ if and .EmptyQuote.Author .EmptyQuote.Source }}<span class="empty-quote-sep">·</span>{{ end
+                        }}
+                        {{ if .EmptyQuote.Source }}<span class="empty-quote-source">{{ .EmptyQuote.Source }}</span>{{
+                        end }}
                     </p>
                     {{ end }}
                 </div>
@@ -168,10 +185,12 @@
                 <summary>更多</summary>
                 <div class="drawer-body">
                     <div class="quick-links">
-                        <a href="{{ .YesterdayPath }}" class="secondary action-link date-chip" data-focus-nav-link>昨天</a>
+                        <a href="{{ .YesterdayPath }}" class="secondary action-link date-chip"
+                            data-focus-nav-link>昨天</a>
                         <a href="{{ .TodayPath }}" class="secondary action-link date-chip" data-focus-nav-link>今天</a>
                         <a href="{{ .TomorrowPath }}" class="secondary action-link date-chip" data-focus-nav-link>明天</a>
-                        <a href="{{ .DayAfterTomorrowPath }}" class="secondary action-link date-chip" data-focus-nav-link>后天</a>
+                        <a href="{{ .DayAfterTomorrowPath }}" class="secondary action-link date-chip"
+                            data-focus-nav-link>后天</a>
                     </div>
                     <form action="/" method="get" class="mini-date-form" data-date-picker data-focus-nav-form>
                         <div class="wheel-date-picker" aria-label="选择日期">
@@ -222,15 +241,11 @@
                         </div>
                         <div class="archive-list" data-archive-list>
                             {{ range .CompletedTasks }}
-                            <article class="archive-card"
-                                data-task-id="{{ .ID }}"
-                                data-kind-label="{{ .KindLabel }}"
-                                data-kind-class="{{ .KindClass }}"
-                                data-importance="{{ .Importance }}"
+                            <article class="archive-card" data-task-id="{{ .ID }}" data-kind-label="{{ .KindLabel }}"
+                                data-kind-class="{{ .KindClass }}" data-importance="{{ .Importance }}"
                                 data-status-line="{{ .StatusLine }}"
                                 data-can-postpone="{{ if .CanPostpone }}1{{ else }}0{{ end }}"
-                                data-postpone-mode="{{ .PostponeMode }}"
-                                data-postpone-value="{{ .PostponeValue }}"
+                                data-postpone-mode="{{ .PostponeMode }}" data-postpone-value="{{ .PostponeValue }}"
                                 data-postpone-min-value="{{ .PostponeMin }}">
                                 <div class="archive-card-main">
                                     <span class="task-kind task-kind-{{ .KindClass }}">{{ .KindLabel }}</span>
@@ -239,7 +254,8 @@
                                         <p class="status">{{ .FinishedLine }}</p>
                                         {{ if .Note }}<p class="note">{{ .Note }}</p>{{ end }}
                                     </div>
-                                    <form action="/tasks/{{ .ID }}/restore" method="post" class="archive-actions" data-restore-form data-async-task-form>
+                                    <form action="/tasks/{{ .ID }}/restore" method="post" class="archive-actions"
+                                        data-restore-form data-async-task-form>
                                         <input type="hidden" name="return_date" value="{{ .ReturnDate }}">
                                         <button type="submit" class="secondary archive-restore">撤销</button>
                                     </form>
@@ -263,24 +279,30 @@
                             <button type="button" class="composer-tab" data-composer-tab="ddl">DDL</button>
                         </div>
                         <div class="composer-tools-shortcuts">
-                            <button type="button" class="composer-tab composer-tab-utility" data-composer-tab="sms">短信</button>
-                            <button type="button" class="composer-tab composer-tab-utility" data-ics-upload-button>ICS</button>
+                            <button type="button" class="composer-tab composer-tab-utility"
+                                data-composer-tab="sms">短信</button>
+                            <button type="button" class="composer-tab composer-tab-utility"
+                                data-ics-upload-button>ICS</button>
                         </div>
                     </div>
-                    <form action="/imports/ics" method="post" enctype="multipart/form-data" class="composer-hidden-upload" data-async-focus-form>
+                    <form action="/imports/ics" method="post" enctype="multipart/form-data"
+                        class="composer-hidden-upload" data-async-focus-form>
                         <input type="hidden" name="return_date" value="{{ .FocusDateISO }}">
-                        <input id="ics-file" name="ics_file" type="file" accept=".ics,text/calendar" data-ics-upload-input hidden>
+                        <input id="ics-file" name="ics_file" type="file" accept=".ics,text/calendar"
+                            data-ics-upload-input hidden>
                     </form>
 
                     <section class="composer-sections">
-                        <form action="/tasks/manual" method="post" class="composer-form is-active" data-composer-section="todo" data-async-focus-form>
+                        <form action="/tasks/manual" method="post" class="composer-form is-active"
+                            data-composer-section="todo" data-async-focus-form>
                             <input type="hidden" name="return_date" value="{{ .FocusDateISO }}">
                             <input type="hidden" name="task_type" value="todo">
 
                             <div class="composer-form-grid">
                                 <div class="composer-field">
                                     <label for="todo-title">标题</label>
-                                    <input id="todo-title" name="title" type="text" placeholder="例如：买电池" autocomplete="off" required>
+                                    <input id="todo-title" name="title" type="text" placeholder="例如：买电池"
+                                        autocomplete="off" required>
                                 </div>
                                 <div class="composer-field">
                                     <label>重要等级</label>
@@ -304,14 +326,16 @@
                             </div>
                         </form>
 
-                        <form action="/tasks/manual" method="post" class="composer-form" data-composer-section="schedule" data-async-focus-form hidden>
+                        <form action="/tasks/manual" method="post" class="composer-form"
+                            data-composer-section="schedule" data-async-focus-form hidden>
                             <input type="hidden" name="return_date" value="{{ .FocusDateISO }}">
                             <input type="hidden" name="task_type" value="schedule">
 
                             <div class="composer-form-grid">
                                 <div class="composer-field">
                                     <label for="schedule-title">标题</label>
-                                    <input id="schedule-title" name="title" type="text" placeholder="例如：开组会" autocomplete="off" required>
+                                    <input id="schedule-title" name="title" type="text" placeholder="例如：开组会"
+                                        autocomplete="off" required>
                                 </div>
                                 <div class="composer-field">
                                     <label>重要等级</label>
@@ -322,7 +346,8 @@
                                         <label for="schedule-importance-4" title="4 星">★</label>
                                         <input id="schedule-importance-3" name="importance" type="radio" value="3">
                                         <label for="schedule-importance-3" title="3 星">★</label>
-                                        <input id="schedule-importance-2" name="importance" type="radio" value="2" checked>
+                                        <input id="schedule-importance-2" name="importance" type="radio" value="2"
+                                            checked>
                                         <label for="schedule-importance-2" title="2 星">★</label>
                                         <input id="schedule-importance-1" name="importance" type="radio" value="1">
                                         <label for="schedule-importance-1" title="1 星">★</label>
@@ -332,21 +357,33 @@
                                     <div class="composer-field-head">
                                         <label>日期</label>
                                         <div class="composer-inline-tabs" role="tablist" aria-label="日程添加模式">
-                                            <input type="hidden" name="schedule_mode" value="single" data-schedule-mode-input>
-                                            <button type="button" class="composer-inline-tab is-active" data-schedule-mode-button data-schedule-mode-value="single">单次</button>
-                                            <button type="button" class="composer-inline-tab" data-schedule-mode-button data-schedule-mode-value="batch">批量</button>
+                                            <input type="hidden" name="schedule_mode" value="single"
+                                                data-schedule-mode-input>
+                                            <button type="button" class="composer-inline-tab is-active"
+                                                data-schedule-mode-button data-schedule-mode-value="single">单次</button>
+                                            <button type="button" class="composer-inline-tab" data-schedule-mode-button
+                                                data-schedule-mode-value="batch">批量</button>
                                         </div>
                                     </div>
                                     <div class="composer-date-stack" data-schedule-mode-panel="single">
                                         <div class="composer-shortcuts">
-                                            <button type="button" class="composer-shortcut" data-composer-date-shortcut data-target-mode="date" data-shortcut-value="{{ .TodayDateISO }}">今天</button>
-                                            <button type="button" class="composer-shortcut" data-composer-date-shortcut data-target-mode="date" data-shortcut-value="{{ .TomorrowDateISO }}">明天</button>
-                                            <button type="button" class="composer-shortcut" data-composer-date-shortcut data-target-mode="date" data-shortcut-value="{{ .DayAfterDateISO }}">后天</button>
+                                            <button type="button" class="composer-shortcut" data-composer-date-shortcut
+                                                data-target-mode="date"
+                                                data-shortcut-value="{{ .TodayDateISO }}">今天</button>
+                                            <button type="button" class="composer-shortcut" data-composer-date-shortcut
+                                                data-target-mode="date"
+                                                data-shortcut-value="{{ .TomorrowDateISO }}">明天</button>
+                                            <button type="button" class="composer-shortcut" data-composer-date-shortcut
+                                                data-target-mode="date"
+                                                data-shortcut-value="{{ .DayAfterDateISO }}">后天</button>
                                         </div>
-                                        <div class="wheel-date-picker composer-wheel-picker" data-composer-picker data-picker-mode="date" data-initial-value="{{ .TodayDateISO }}">
-                                            <input type="hidden" name="scheduled_value" value="{{ .TodayDateISO }}" data-picker-value>
+                                        <div class="wheel-date-picker composer-wheel-picker" data-composer-picker
+                                            data-picker-mode="date" data-initial-value="{{ .TodayDateISO }}">
+                                            <input type="hidden" name="scheduled_value" value="{{ .TodayDateISO }}"
+                                                data-picker-value>
 
-                                            <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="年份">
+                                            <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton"
+                                                aria-label="年份">
                                                 <div class="wheel-track">
                                                     <span class="wheel-item" data-slot="far-prev"></span>
                                                     <span class="wheel-item" data-slot="prev"></span>
@@ -357,7 +394,8 @@
                                             </div>
                                             <span class="date-unit">年</span>
 
-                                            <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="月份">
+                                            <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton"
+                                                aria-label="月份">
                                                 <div class="wheel-track">
                                                     <span class="wheel-item" data-slot="far-prev"></span>
                                                     <span class="wheel-item" data-slot="prev"></span>
@@ -368,7 +406,8 @@
                                             </div>
                                             <span class="date-unit">月</span>
 
-                                            <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="日期">
+                                            <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton"
+                                                aria-label="日期">
                                                 <div class="wheel-track">
                                                     <span class="wheel-item" data-slot="far-prev"></span>
                                                     <span class="wheel-item" data-slot="prev"></span>
@@ -385,10 +424,14 @@
                                         <div class="composer-batch-grid">
                                             <div class="composer-field composer-field-compact">
                                                 <label>起始日期</label>
-                                                <div class="wheel-date-picker composer-wheel-picker" data-composer-picker data-picker-mode="date" data-initial-value="{{ .TodayDateISO }}">
-                                                    <input type="hidden" name="batch_start_value" value="{{ .TodayDateISO }}" data-picker-value>
+                                                <div class="wheel-date-picker composer-wheel-picker"
+                                                    data-composer-picker data-picker-mode="date"
+                                                    data-initial-value="{{ .TodayDateISO }}">
+                                                    <input type="hidden" name="batch_start_value"
+                                                        value="{{ .TodayDateISO }}" data-picker-value>
 
-                                                    <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="起始年份">
+                                                    <div class="wheel-column" data-part="year" tabindex="0"
+                                                        role="spinbutton" aria-label="起始年份">
                                                         <div class="wheel-track">
                                                             <span class="wheel-item" data-slot="far-prev"></span>
                                                             <span class="wheel-item" data-slot="prev"></span>
@@ -399,7 +442,8 @@
                                                     </div>
                                                     <span class="date-unit">年</span>
 
-                                                    <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="起始月份">
+                                                    <div class="wheel-column" data-part="month" tabindex="0"
+                                                        role="spinbutton" aria-label="起始月份">
                                                         <div class="wheel-track">
                                                             <span class="wheel-item" data-slot="far-prev"></span>
                                                             <span class="wheel-item" data-slot="prev"></span>
@@ -410,7 +454,8 @@
                                                     </div>
                                                     <span class="date-unit">月</span>
 
-                                                    <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="起始日期">
+                                                    <div class="wheel-column" data-part="day" tabindex="0"
+                                                        role="spinbutton" aria-label="起始日期">
                                                         <div class="wheel-track">
                                                             <span class="wheel-item" data-slot="far-prev"></span>
                                                             <span class="wheel-item" data-slot="prev"></span>
@@ -425,10 +470,14 @@
 
                                             <div class="composer-field composer-field-compact">
                                                 <label>截止日期</label>
-                                                <div class="wheel-date-picker composer-wheel-picker" data-composer-picker data-picker-mode="date" data-initial-value="{{ .TodayDateISO }}">
-                                                    <input type="hidden" name="batch_end_value" value="{{ .TodayDateISO }}" data-picker-value>
+                                                <div class="wheel-date-picker composer-wheel-picker"
+                                                    data-composer-picker data-picker-mode="date"
+                                                    data-initial-value="{{ .TodayDateISO }}">
+                                                    <input type="hidden" name="batch_end_value"
+                                                        value="{{ .TodayDateISO }}" data-picker-value>
 
-                                                    <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="截止年份">
+                                                    <div class="wheel-column" data-part="year" tabindex="0"
+                                                        role="spinbutton" aria-label="截止年份">
                                                         <div class="wheel-track">
                                                             <span class="wheel-item" data-slot="far-prev"></span>
                                                             <span class="wheel-item" data-slot="prev"></span>
@@ -439,7 +488,8 @@
                                                     </div>
                                                     <span class="date-unit">年</span>
 
-                                                    <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="截止月份">
+                                                    <div class="wheel-column" data-part="month" tabindex="0"
+                                                        role="spinbutton" aria-label="截止月份">
                                                         <div class="wheel-track">
                                                             <span class="wheel-item" data-slot="far-prev"></span>
                                                             <span class="wheel-item" data-slot="prev"></span>
@@ -450,7 +500,8 @@
                                                     </div>
                                                     <span class="date-unit">月</span>
 
-                                                    <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="截止日期">
+                                                    <div class="wheel-column" data-part="day" tabindex="0"
+                                                        role="spinbutton" aria-label="截止日期">
                                                         <div class="wheel-track">
                                                             <span class="wheel-item" data-slot="far-prev"></span>
                                                             <span class="wheel-item" data-slot="prev"></span>
@@ -467,19 +518,26 @@
                                         <div class="composer-field">
                                             <label>重复周次</label>
                                             <div class="weekday-picker" aria-label="选择重复的星期">
-                                                <input id="schedule-weekday-mon" class="weekday-input" type="checkbox" name="batch_weekdays" value="mon">
+                                                <input id="schedule-weekday-mon" class="weekday-input" type="checkbox"
+                                                    name="batch_weekdays" value="mon">
                                                 <label for="schedule-weekday-mon" class="weekday-chip">周一</label>
-                                                <input id="schedule-weekday-tue" class="weekday-input" type="checkbox" name="batch_weekdays" value="tue">
+                                                <input id="schedule-weekday-tue" class="weekday-input" type="checkbox"
+                                                    name="batch_weekdays" value="tue">
                                                 <label for="schedule-weekday-tue" class="weekday-chip">周二</label>
-                                                <input id="schedule-weekday-wed" class="weekday-input" type="checkbox" name="batch_weekdays" value="wed">
+                                                <input id="schedule-weekday-wed" class="weekday-input" type="checkbox"
+                                                    name="batch_weekdays" value="wed">
                                                 <label for="schedule-weekday-wed" class="weekday-chip">周三</label>
-                                                <input id="schedule-weekday-thu" class="weekday-input" type="checkbox" name="batch_weekdays" value="thu">
+                                                <input id="schedule-weekday-thu" class="weekday-input" type="checkbox"
+                                                    name="batch_weekdays" value="thu">
                                                 <label for="schedule-weekday-thu" class="weekday-chip">周四</label>
-                                                <input id="schedule-weekday-fri" class="weekday-input" type="checkbox" name="batch_weekdays" value="fri">
+                                                <input id="schedule-weekday-fri" class="weekday-input" type="checkbox"
+                                                    name="batch_weekdays" value="fri">
                                                 <label for="schedule-weekday-fri" class="weekday-chip">周五</label>
-                                                <input id="schedule-weekday-sat" class="weekday-input" type="checkbox" name="batch_weekdays" value="sat">
+                                                <input id="schedule-weekday-sat" class="weekday-input" type="checkbox"
+                                                    name="batch_weekdays" value="sat">
                                                 <label for="schedule-weekday-sat" class="weekday-chip">周六</label>
-                                                <input id="schedule-weekday-sun" class="weekday-input" type="checkbox" name="batch_weekdays" value="sun">
+                                                <input id="schedule-weekday-sun" class="weekday-input" type="checkbox"
+                                                    name="batch_weekdays" value="sun">
                                                 <label for="schedule-weekday-sun" class="weekday-chip">周日</label>
                                             </div>
                                         </div>
@@ -492,14 +550,16 @@
                             </div>
                         </form>
 
-                        <form action="/tasks/manual" method="post" class="composer-form" data-composer-section="ddl" data-async-focus-form hidden>
+                        <form action="/tasks/manual" method="post" class="composer-form" data-composer-section="ddl"
+                            data-async-focus-form hidden>
                             <input type="hidden" name="return_date" value="{{ .FocusDateISO }}">
                             <input type="hidden" name="task_type" value="ddl">
 
                             <div class="composer-form-grid">
                                 <div class="composer-field">
                                     <label for="ddl-title">标题</label>
-                                    <input id="ddl-title" name="title" type="text" placeholder="例如：交作业" autocomplete="off" required>
+                                    <input id="ddl-title" name="title" type="text" placeholder="例如：交作业"
+                                        autocomplete="off" required>
                                 </div>
                                 <div class="composer-field">
                                     <label>重要等级</label>
@@ -519,14 +579,24 @@
                                 <div class="composer-field">
                                     <label>截止时间</label>
                                     <div class="composer-shortcuts">
-                                        <button type="button" class="composer-shortcut" data-composer-date-shortcut data-target-mode="datetime" data-shortcut-value="{{ .TodayDateISO }}">今天</button>
-                                        <button type="button" class="composer-shortcut" data-composer-date-shortcut data-target-mode="datetime" data-shortcut-value="{{ .TomorrowDateISO }}">明天</button>
-                                        <button type="button" class="composer-shortcut" data-composer-date-shortcut data-target-mode="datetime" data-shortcut-value="{{ .DayAfterDateISO }}">后天</button>
+                                        <button type="button" class="composer-shortcut" data-composer-date-shortcut
+                                            data-target-mode="datetime"
+                                            data-shortcut-value="{{ .TodayDateISO }}">今天</button>
+                                        <button type="button" class="composer-shortcut" data-composer-date-shortcut
+                                            data-target-mode="datetime"
+                                            data-shortcut-value="{{ .TomorrowDateISO }}">明天</button>
+                                        <button type="button" class="composer-shortcut" data-composer-date-shortcut
+                                            data-target-mode="datetime"
+                                            data-shortcut-value="{{ .DayAfterDateISO }}">后天</button>
                                     </div>
-                                    <div class="wheel-date-picker composer-wheel-picker is-datetime" data-composer-picker data-picker-mode="datetime" data-initial-value="{{ .TodayDateISO }}T08:00">
-                                        <input type="hidden" name="deadline_value" value="{{ .TodayDateISO }}T08:00" data-picker-value>
+                                    <div class="wheel-date-picker composer-wheel-picker is-datetime"
+                                        data-composer-picker data-picker-mode="datetime"
+                                        data-initial-value="{{ .TodayDateISO }}T08:00">
+                                        <input type="hidden" name="deadline_value" value="{{ .TodayDateISO }}T08:00"
+                                            data-picker-value>
 
-                                        <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="年份">
+                                        <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton"
+                                            aria-label="年份">
                                             <div class="wheel-track">
                                                 <span class="wheel-item" data-slot="far-prev"></span>
                                                 <span class="wheel-item" data-slot="prev"></span>
@@ -537,7 +607,8 @@
                                         </div>
                                         <span class="date-unit">年</span>
 
-                                        <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="月份">
+                                        <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton"
+                                            aria-label="月份">
                                             <div class="wheel-track">
                                                 <span class="wheel-item" data-slot="far-prev"></span>
                                                 <span class="wheel-item" data-slot="prev"></span>
@@ -548,7 +619,8 @@
                                         </div>
                                         <span class="date-unit">月</span>
 
-                                        <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="日期">
+                                        <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton"
+                                            aria-label="日期">
                                             <div class="wheel-track">
                                                 <span class="wheel-item" data-slot="far-prev"></span>
                                                 <span class="wheel-item" data-slot="prev"></span>
@@ -561,7 +633,8 @@
 
                                         <span class="date-unit date-divider">·</span>
 
-                                        <div class="wheel-column" data-part="hour" tabindex="0" role="spinbutton" aria-label="小时">
+                                        <div class="wheel-column" data-part="hour" tabindex="0" role="spinbutton"
+                                            aria-label="小时">
                                             <div class="wheel-track">
                                                 <span class="wheel-item" data-slot="far-prev"></span>
                                                 <span class="wheel-item" data-slot="prev"></span>
@@ -572,7 +645,8 @@
                                         </div>
                                         <span class="date-unit">时</span>
 
-                                        <div class="wheel-column" data-part="minute" tabindex="0" role="spinbutton" aria-label="分钟">
+                                        <div class="wheel-column" data-part="minute" tabindex="0" role="spinbutton"
+                                            aria-label="分钟">
                                             <div class="wheel-track">
                                                 <span class="wheel-item" data-slot="far-prev"></span>
                                                 <span class="wheel-item" data-slot="prev"></span>
@@ -591,19 +665,16 @@
                             </div>
                         </form>
 
-                        <form action="/tasks/parse-sms" method="post" class="composer-form" data-composer-section="sms" data-async-focus-form hidden>
+                        <form action="/tasks/parse-sms" method="post" class="composer-form" data-composer-section="sms"
+                            data-async-focus-form hidden>
                             <input type="hidden" name="return_date" value="{{ .FocusDateISO }}">
 
                             <div class="composer-form-grid">
                                 <div class="composer-field">
                                     <label for="sms-input">短信内容</label>
-                                    <textarea
-                                        id="sms-input"
-                                        name="sms_input"
+                                    <textarea id="sms-input" name="sms_input"
                                         class="composer-textarea composer-sms-textarea"
-                                        placeholder="直接粘贴取件短信；一次贴很多条也可以。"
-                                        autocomplete="off"
-                                        spellcheck="false"
+                                        placeholder="直接粘贴取件短信；一次贴很多条也可以。" autocomplete="off" spellcheck="false"
                                         required></textarea>
                                 </div>
                             </div>
@@ -625,4 +696,5 @@
     <script src="/static/task-cards.js?v=20260320-inline-edit-importance-4" defer></script>
     <script src="/static/realtime-sync.js?v=20260416-realtime-init-1" defer></script>
 </body>
+
 </html>

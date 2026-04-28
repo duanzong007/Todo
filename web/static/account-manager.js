@@ -598,7 +598,7 @@
           }
           scheduleAccountReload();
         });
-        stream.onerror = () => {};
+        stream.onerror = () => { };
         window.addEventListener("beforeunload", () => {
           stream.close();
         }, { once: true });

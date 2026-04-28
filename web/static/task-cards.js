@@ -1255,7 +1255,7 @@ function applyTaskSnapshotQuietly(snapshot) {
 
 function enqueueTaskMutation(run) {
   const queued = taskMutationQueue.then(run, run);
-  taskMutationQueue = queued.catch(() => {});
+  taskMutationQueue = queued.catch(() => { });
   return queued;
 }
 
@@ -1667,8 +1667,8 @@ function startInlineRename(card) {
 
   let closed = false;
   let internalPointerAt = 0;
-  let outsidePointerCleanup = () => {};
-  let focusCleanup = () => {};
+  let outsidePointerCleanup = () => { };
+  let focusCleanup = () => { };
 
   const closeEditor = (action) => {
     if (closed) {
@@ -1800,7 +1800,7 @@ function bindInlineRename(card) {
     event.preventDefault();
     const now = Date.now();
     const lastTapAt = Number(label.dataset.lastTapAt || "0");
-    if (lastTapAt && now-lastTapAt <= TOUCH_RENAME_DOUBLE_TAP_MS) {
+    if (lastTapAt && now - lastTapAt <= TOUCH_RENAME_DOUBLE_TAP_MS) {
       label.dataset.lastTapAt = "0";
       startInlineRename(card);
       return;

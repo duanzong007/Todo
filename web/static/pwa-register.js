@@ -65,7 +65,7 @@
     }
 
     navigator.serviceWorker.register(SW_URL).then((registration) => {
-      registration.update().catch(() => {});
+      registration.update().catch(() => { });
     }).catch((error) => {
       console.warn("failed to register service worker", error);
     });

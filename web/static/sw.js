@@ -101,7 +101,7 @@ self.addEventListener("activate", (event) => {
         )
       ),
       self.registration.navigationPreload
-        ? self.registration.navigationPreload.enable().catch(() => {})
+        ? self.registration.navigationPreload.enable().catch(() => { })
         : Promise.resolve(),
     ]).then(() => self.clients.claim())
   );

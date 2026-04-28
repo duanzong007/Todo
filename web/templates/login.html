@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,6 +17,7 @@
     <link rel="stylesheet" href="/static/styles.css?v=20260320-importance-badge-4">
     <script defer src="/static/pwa-register.js?v=20260405-native-shell-1"></script>
 </head>
+
 <body>
     <main class="auth-shell">
         <section class="auth-panel">
@@ -32,7 +34,8 @@
 
             <form action="{{ .Action }}" method="post" class="auth-form">
                 <label for="username">用户名</label>
-                <input id="username" name="username" type="text" value="{{ .UsernameValue }}" autocomplete="username" required>
+                <input id="username" name="username" type="text" value="{{ .UsernameValue }}" autocomplete="username"
+                    required>
 
                 <label for="password">密码</label>
                 <input id="password" name="password" type="password" autocomplete="current-password" required>
@@ -48,4 +51,5 @@
         </section>
     </main>
 </body>
+
 </html>

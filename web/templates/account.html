@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,6 +19,7 @@
     <script defer src="/static/postpone-picker.js?v=20260329-account-wheel-2"></script>
     <script defer src="/static/account-manager.js?v=20260329-account-wheel-2"></script>
 </head>
+
 <body>
     <main class="page account-page" data-account-page>
         <section class="panel account-panel">
@@ -43,20 +45,23 @@
         <div class="account-manage-toolbar">
             <div class="account-manage-row account-manage-row-primary">
                 <div class="account-head-stack">
-                    <button type="button" class="secondary account-drawer-toggle" data-account-toggle="filter">筛选器</button>
+                    <button type="button" class="secondary account-drawer-toggle"
+                        data-account-toggle="filter">筛选器</button>
                     <p class="account-filter-summary">{{ .Filter.Summary }}</p>
                 </div>
 
                 <div class="account-toolbar-actions">
                     <button type="button" class="secondary" data-account-open-panel="edit">编辑</button>
                     <button type="button" class="secondary" data-account-open-panel="share">共享</button>
-                    <button type="submit" class="danger" data-account-submit-action="delete" form="account-actions-form">删除</button>
+                    <button type="submit" class="danger" data-account-submit-action="delete"
+                        form="account-actions-form">删除</button>
                 </div>
             </div>
         </div>
 
         <section class="panel account-manage-panel" data-account-manage>
-            <form id="account-actions-form" action="/me/tasks/apply" method="post" class="account-bulk-form" data-account-actions-form>
+            <form id="account-actions-form" action="/me/tasks/apply" method="post" class="account-bulk-form"
+                data-account-actions-form>
                 <input type="hidden" name="return_query" value="{{ .ReturnQuery }}">
                 <input type="hidden" name="selected_ids" value="" data-selected-task-ids>
                 <input type="hidden" name="action" value="apply" data-account-action>
@@ -64,11 +69,11 @@
                 <div class="account-manage-header">
                     <div class="account-manage-row account-manage-row-secondary">
                         <div class="account-selection-pill">
-                        <label class="account-select-all">
-                            <input type="checkbox" data-select-all-tasks>
-                            <span>全选</span>
-                        </label>
-                        <p class="account-selection-copy" data-selection-copy>尚未选择任务</p>
+                            <label class="account-select-all">
+                                <input type="checkbox" data-select-all-tasks>
+                                <span>全选</span>
+                            </label>
+                            <p class="account-selection-copy" data-selection-copy>尚未选择任务</p>
                         </div>
 
                         <span class="account-task-count">{{ .Pagination.TotalItems }}</span>
@@ -86,10 +91,12 @@
                             <label for="share-search">共享给用户</label>
                             <p class="account-help">可按显示名或用户名过滤。</p>
                         </div>
-                        <input id="share-search" type="text" placeholder="按显示名或用户名过滤" autocomplete="off" data-share-user-search>
+                        <input id="share-search" type="text" placeholder="按显示名或用户名过滤" autocomplete="off"
+                            data-share-user-search>
                         <div class="share-user-list" data-share-user-list>
                             {{ range .ShareUsers }}
-                            <label class="share-user-option" data-share-user-option data-search-text="{{ .DisplayName }} {{ .Username }}">
+                            <label class="share-user-option" data-share-user-option
+                                data-search-text="{{ .DisplayName }} {{ .Username }}">
                                 <input type="checkbox" name="share_user_id" value="{{ .ID }}">
                                 <span>{{ .DisplayName }}</span>
                                 <small>@{{ .Username }}</small>
@@ -106,17 +113,11 @@
                 {{ if .Tasks }}
                 <div class="account-task-list" data-account-task-list>
                     {{ range .Tasks }}
-                    <label class="account-task-card"
-                        data-account-task
-                        data-task-id="{{ .ID }}"
-                        data-task-type="{{ .KindClass }}"
-                        data-task-title="{{ .Title }}"
-                        data-task-importance="{{ .Importance }}"
-                        data-is-owner="{{ if .IsOwner }}1{{ else }}0{{ end }}"
-                        data-schedule-mode="{{ .ScheduleMode }}"
-                        data-schedule-value="{{ .ScheduleValue }}"
-                        data-deadline-date="{{ .DeadlineDate }}"
-                        data-deadline-time="{{ .DeadlineTime }}">
+                    <label class="account-task-card" data-account-task data-task-id="{{ .ID }}"
+                        data-task-type="{{ .KindClass }}" data-task-title="{{ .Title }}"
+                        data-task-importance="{{ .Importance }}" data-is-owner="{{ if .IsOwner }}1{{ else }}0{{ end }}"
+                        data-schedule-mode="{{ .ScheduleMode }}" data-schedule-value="{{ .ScheduleValue }}"
+                        data-deadline-date="{{ .DeadlineDate }}" data-deadline-time="{{ .DeadlineTime }}">
                         <input type="checkbox" value="{{ .ID }}" data-account-task-checkbox>
                         <div class="account-task-body">
                             <div class="account-task-head">
@@ -124,12 +125,14 @@
                                     <span class="task-kind task-kind-{{ .KindClass }}">{{ .KindLabel }}</span>
                                     <span class="account-task-importance">{{ .Importance }} 级</span>
                                 </div>
-                                <span class="account-task-status account-task-status-{{ .StatusClass }}">{{ .StatusLabel }}</span>
+                                <span class="account-task-status account-task-status-{{ .StatusClass }}">{{ .StatusLabel
+                                    }}</span>
                             </div>
 
                             <div class="account-task-title-row">
                                 <h3>{{ .Title }}</h3>
-                                {{ if .DateLine }}<p class="account-task-meta account-task-date">{{ .DateLine }}</p>{{ end }}
+                                {{ if .DateLine }}<p class="account-task-meta account-task-date">{{ .DateLine }}</p>{{
+                                end }}
                             </div>
                             {{ if .SharedLine }}<p class="account-task-meta">{{ .SharedLine }}</p>{{ end }}
                             {{ if .Note }}<p class="account-task-note">{{ .Note }}</p>{{ end }}
@@ -142,61 +145,73 @@
                 <div class="focus-empty account-empty">
                     <p>当前筛选下没有任务。</p>
                     <p class="note">换一个筛选条件，或者先回首页添加新的任务。</p>
-                    </div>
+                </div>
                 {{ end }}
             </form>
 
             {{ if .Tasks }}
             <div class="account-footer-controls">
-            {{ if gt .Pagination.TotalPages 1 }}
-            <form action="/me" method="get" class="account-pagination" data-account-preserve-scroll>
-                {{ if .Filter.Query }}<input type="hidden" name="q" value="{{ .Filter.Query }}">{{ end }}
-                {{ range .Filter.StatusOptions }}{{ if .Selected }}<input type="hidden" name="status" value="{{ .Value }}">{{ end }}{{ end }}
-                {{ range .Filter.ScopeOptions }}{{ if .Selected }}<input type="hidden" name="scope" value="{{ .Value }}">{{ end }}{{ end }}
-                {{ range .Filter.DateFieldOptions }}{{ if .Selected }}<input type="hidden" name="date_field" value="{{ .Value }}">{{ end }}{{ end }}
-                {{ range .Filter.SortOptions }}{{ if .Selected }}<input type="hidden" name="sort" value="{{ .Value }}">{{ end }}{{ end }}
-                {{ if .Filter.DateFrom }}<input type="hidden" name="date_from" value="{{ .Filter.DateFrom }}">{{ end }}
-                {{ if .Filter.DateTo }}<input type="hidden" name="date_to" value="{{ .Filter.DateTo }}">{{ end }}
-                {{ range .Filter.TypeOptions }}{{ if .Checked }}<input type="hidden" name="type" value="{{ .Value }}">{{ end }}{{ end }}
-                {{ range .Filter.ImportanceOptions }}{{ if .Checked }}<input type="hidden" name="importance" value="{{ .Value }}">{{ end }}{{ end }}
-                <input type="hidden" name="limit" value="{{ .Filter.LimitValue }}">
-                <input type="hidden" name="page" value="{{ .Pagination.Page }}" data-account-page-value>
+                {{ if gt .Pagination.TotalPages 1 }}
+                <form action="/me" method="get" class="account-pagination" data-account-preserve-scroll>
+                    {{ if .Filter.Query }}<input type="hidden" name="q" value="{{ .Filter.Query }}">{{ end }}
+                    {{ range .Filter.StatusOptions }}{{ if .Selected }}<input type="hidden" name="status"
+                        value="{{ .Value }}">{{ end }}{{ end }}
+                    {{ range .Filter.ScopeOptions }}{{ if .Selected }}<input type="hidden" name="scope"
+                        value="{{ .Value }}">{{ end }}{{ end }}
+                    {{ range .Filter.DateFieldOptions }}{{ if .Selected }}<input type="hidden" name="date_field"
+                        value="{{ .Value }}">{{ end }}{{ end }}
+                    {{ range .Filter.SortOptions }}{{ if .Selected }}<input type="hidden" name="sort"
+                        value="{{ .Value }}">{{ end }}{{ end }}
+                    {{ if .Filter.DateFrom }}<input type="hidden" name="date_from" value="{{ .Filter.DateFrom }}">{{ end
+                    }}
+                    {{ if .Filter.DateTo }}<input type="hidden" name="date_to" value="{{ .Filter.DateTo }}">{{ end }}
+                    {{ range .Filter.TypeOptions }}{{ if .Checked }}<input type="hidden" name="type"
+                        value="{{ .Value }}">{{ end }}{{ end }}
+                    {{ range .Filter.ImportanceOptions }}{{ if .Checked }}<input type="hidden" name="importance"
+                        value="{{ .Value }}">{{ end }}{{ end }}
+                    <input type="hidden" name="limit" value="{{ .Filter.LimitValue }}">
+                    <input type="hidden" name="page" value="{{ .Pagination.Page }}" data-account-page-value>
 
-                <button type="submit" class="secondary" data-account-page-target="{{ .Pagination.PrevPage }}"{{ if not .Pagination.HasPrev }} disabled{{ end }}>上一页</button>
-                <div class="account-page-picker">
-                    <label for="account-page">页码</label>
-                    <input
-                        id="account-page"
-                        type="text"
-                        inputmode="numeric"
-                        pattern="[0-9]*"
-                        value="{{ .Pagination.Page }}"
-                        data-account-page-input
-                        data-total-pages="{{ .Pagination.TotalPages }}">
-                    <span>/ {{ .Pagination.TotalPages }} 页</span>
-                </div>
-                <button type="submit" class="secondary" data-account-page-target="{{ .Pagination.NextPage }}"{{ if not .Pagination.HasNext }} disabled{{ end }}>下一页</button>
-            </form>
-            {{ end }}
-            <form action="/me" method="get" class="account-list-footer" data-account-preserve-scroll>
-                {{ if .Filter.Query }}<input type="hidden" name="q" value="{{ .Filter.Query }}">{{ end }}
-                {{ range .Filter.StatusOptions }}{{ if .Selected }}<input type="hidden" name="status" value="{{ .Value }}">{{ end }}{{ end }}
-                {{ range .Filter.ScopeOptions }}{{ if .Selected }}<input type="hidden" name="scope" value="{{ .Value }}">{{ end }}{{ end }}
-                {{ range .Filter.DateFieldOptions }}{{ if .Selected }}<input type="hidden" name="date_field" value="{{ .Value }}">{{ end }}{{ end }}
-                {{ range .Filter.SortOptions }}{{ if .Selected }}<input type="hidden" name="sort" value="{{ .Value }}">{{ end }}{{ end }}
-                {{ if .Filter.DateFrom }}<input type="hidden" name="date_from" value="{{ .Filter.DateFrom }}">{{ end }}
-                {{ if .Filter.DateTo }}<input type="hidden" name="date_to" value="{{ .Filter.DateTo }}">{{ end }}
-                {{ range .Filter.TypeOptions }}{{ if .Checked }}<input type="hidden" name="type" value="{{ .Value }}">{{ end }}{{ end }}
-                {{ range .Filter.ImportanceOptions }}{{ if .Checked }}<input type="hidden" name="importance" value="{{ .Value }}">{{ end }}{{ end }}
-                <input type="hidden" name="page" value="{{ .Pagination.Page }}">
+                    <button type="submit" class="secondary" data-account-page-target="{{ .Pagination.PrevPage }}" {{ if
+                        not .Pagination.HasPrev }} disabled{{ end }}>上一页</button>
+                    <div class="account-page-picker">
+                        <label for="account-page">页码</label>
+                        <input id="account-page" type="text" inputmode="numeric" pattern="[0-9]*"
+                            value="{{ .Pagination.Page }}" data-account-page-input
+                            data-total-pages="{{ .Pagination.TotalPages }}">
+                        <span>/ {{ .Pagination.TotalPages }} 页</span>
+                    </div>
+                    <button type="submit" class="secondary" data-account-page-target="{{ .Pagination.NextPage }}" {{ if
+                        not .Pagination.HasNext }} disabled{{ end }}>下一页</button>
+                </form>
+                {{ end }}
+                <form action="/me" method="get" class="account-list-footer" data-account-preserve-scroll>
+                    {{ if .Filter.Query }}<input type="hidden" name="q" value="{{ .Filter.Query }}">{{ end }}
+                    {{ range .Filter.StatusOptions }}{{ if .Selected }}<input type="hidden" name="status"
+                        value="{{ .Value }}">{{ end }}{{ end }}
+                    {{ range .Filter.ScopeOptions }}{{ if .Selected }}<input type="hidden" name="scope"
+                        value="{{ .Value }}">{{ end }}{{ end }}
+                    {{ range .Filter.DateFieldOptions }}{{ if .Selected }}<input type="hidden" name="date_field"
+                        value="{{ .Value }}">{{ end }}{{ end }}
+                    {{ range .Filter.SortOptions }}{{ if .Selected }}<input type="hidden" name="sort"
+                        value="{{ .Value }}">{{ end }}{{ end }}
+                    {{ if .Filter.DateFrom }}<input type="hidden" name="date_from" value="{{ .Filter.DateFrom }}">{{ end
+                    }}
+                    {{ if .Filter.DateTo }}<input type="hidden" name="date_to" value="{{ .Filter.DateTo }}">{{ end }}
+                    {{ range .Filter.TypeOptions }}{{ if .Checked }}<input type="hidden" name="type"
+                        value="{{ .Value }}">{{ end }}{{ end }}
+                    {{ range .Filter.ImportanceOptions }}{{ if .Checked }}<input type="hidden" name="importance"
+                        value="{{ .Value }}">{{ end }}{{ end }}
+                    <input type="hidden" name="page" value="{{ .Pagination.Page }}">
 
-                <label for="account-limit">显示数量</label>
-                <select id="account-limit" name="limit" data-account-limit-select data-account-custom-select data-account-select-center-menu>
-                    {{ range .Filter.LimitOptions }}
-                    <option value="{{ .Value }}"{{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
-                    {{ end }}
-                </select>
-            </form>
+                    <label for="account-limit">显示数量</label>
+                    <select id="account-limit" name="limit" data-account-limit-select data-account-custom-select
+                        data-account-select-center-menu>
+                        {{ range .Filter.LimitOptions }}
+                        <option value="{{ .Value }}" {{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
+                        {{ end }}
+                    </select>
+                </form>
             </div>
             {{ end }}
         </section>
@@ -209,7 +224,8 @@
                         <p class="section-kicker">筛选器</p>
                         <p class="account-panel-copy">{{ .Filter.Summary }}</p>
                     </div>
-                    <button type="button" class="secondary account-modal-close" data-account-close-panel="filter">关闭</button>
+                    <button type="button" class="secondary account-modal-close"
+                        data-account-close-panel="filter">关闭</button>
                 </div>
 
                 <form action="/me" method="get" class="account-filter-form">
@@ -218,14 +234,15 @@
                     <div class="account-filter-grid">
                         <div class="account-field account-field-wide">
                             <label for="task-query">搜索</label>
-                            <input id="task-query" name="q" type="text" value="{{ .Filter.Query }}" placeholder="按标题或备注搜索">
+                            <input id="task-query" name="q" type="text" value="{{ .Filter.Query }}"
+                                placeholder="按标题或备注搜索">
                         </div>
 
                         <div class="account-field">
                             <label for="task-status">状态</label>
                             <select id="task-status" name="status" data-account-custom-select>
                                 {{ range .Filter.StatusOptions }}
-                                <option value="{{ .Value }}"{{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
+                                <option value="{{ .Value }}" {{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
                                 {{ end }}
                             </select>
                         </div>
@@ -234,7 +251,7 @@
                             <label for="task-scope">范围</label>
                             <select id="task-scope" name="scope" data-account-custom-select>
                                 {{ range .Filter.ScopeOptions }}
-                                <option value="{{ .Value }}"{{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
+                                <option value="{{ .Value }}" {{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
                                 {{ end }}
                             </select>
                         </div>
@@ -244,7 +261,8 @@
                             <div class="account-chip-grid">
                                 {{ range .Filter.TypeOptions }}
                                 <label class="account-check-chip">
-                                    <input type="checkbox" name="type" value="{{ .Value }}"{{ if .Checked }} checked{{ end }}>
+                                    <input type="checkbox" name="type" value="{{ .Value }}" {{ if .Checked }} checked{{
+                                        end }}>
                                     <span>{{ .Label }}</span>
                                 </label>
                                 {{ end }}
@@ -256,7 +274,8 @@
                             <div class="account-chip-grid">
                                 {{ range .Filter.ImportanceOptions }}
                                 <label class="account-check-chip">
-                                    <input type="checkbox" name="importance" value="{{ .Value }}"{{ if .Checked }} checked{{ end }}>
+                                    <input type="checkbox" name="importance" value="{{ .Value }}" {{ if .Checked }}
+                                        checked{{ end }}>
                                     <span>{{ .Label }}</span>
                                 </label>
                                 {{ end }}
@@ -267,7 +286,7 @@
                             <label for="task-date-field">日期维度</label>
                             <select id="task-date-field" name="date_field" data-account-custom-select>
                                 {{ range .Filter.DateFieldOptions }}
-                                <option value="{{ .Value }}"{{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
+                                <option value="{{ .Value }}" {{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
                                 {{ end }}
                             </select>
                         </div>
@@ -276,7 +295,7 @@
                             <label for="task-sort">排序</label>
                             <select id="task-sort" name="sort" data-account-custom-select>
                                 {{ range .Filter.SortOptions }}
-                                <option value="{{ .Value }}"{{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
+                                <option value="{{ .Value }}" {{ if .Selected }} selected{{ end }}>{{ .Label }}</option>
                                 {{ end }}
                             </select>
                         </div>
@@ -284,19 +303,17 @@
                         <div class="account-field">
                             <div class="account-field-head">
                                 <label>起始日期</label>
-                                <button type="button" class="secondary account-wheel-clear" data-wheel-clear-target="account-filter-date-from">清空</button>
+                                <button type="button" class="secondary account-wheel-clear"
+                                    data-wheel-clear-target="account-filter-date-from">清空</button>
                             </div>
-                            <div
-                                id="account-filter-date-from"
+                            <div id="account-filter-date-from"
                                 class="wheel-date-picker account-wheel-picker{{ if not .Filter.DateFrom }} is-empty{{ end }}"
-                                data-composer-picker
-                                data-picker-mode="date"
-                                data-allow-empty="1"
-                                data-empty-label="未设置"
+                                data-composer-picker data-picker-mode="date" data-allow-empty="1" data-empty-label="未设置"
                                 data-initial-value="{{ .Filter.DateFrom }}">
                                 <input type="hidden" name="date_from" value="{{ .Filter.DateFrom }}" data-picker-value>
 
-                                <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="起始年份">
+                                <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton"
+                                    aria-label="起始年份">
                                     <div class="wheel-track">
                                         <span class="wheel-item" data-slot="far-prev"></span>
                                         <span class="wheel-item" data-slot="prev"></span>
@@ -307,7 +324,8 @@
                                 </div>
                                 <span class="date-unit">年</span>
 
-                                <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="起始月份">
+                                <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton"
+                                    aria-label="起始月份">
                                     <div class="wheel-track">
                                         <span class="wheel-item" data-slot="far-prev"></span>
                                         <span class="wheel-item" data-slot="prev"></span>
@@ -318,7 +336,8 @@
                                 </div>
                                 <span class="date-unit">月</span>
 
-                                <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="起始日期">
+                                <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton"
+                                    aria-label="起始日期">
                                     <div class="wheel-track">
                                         <span class="wheel-item" data-slot="far-prev"></span>
                                         <span class="wheel-item" data-slot="prev"></span>
@@ -334,19 +353,17 @@
                         <div class="account-field">
                             <div class="account-field-head">
                                 <label>截止日期</label>
-                                <button type="button" class="secondary account-wheel-clear" data-wheel-clear-target="account-filter-date-to">清空</button>
+                                <button type="button" class="secondary account-wheel-clear"
+                                    data-wheel-clear-target="account-filter-date-to">清空</button>
                             </div>
-                            <div
-                                id="account-filter-date-to"
+                            <div id="account-filter-date-to"
                                 class="wheel-date-picker account-wheel-picker{{ if not .Filter.DateTo }} is-empty{{ end }}"
-                                data-composer-picker
-                                data-picker-mode="date"
-                                data-allow-empty="1"
-                                data-empty-label="未设置"
+                                data-composer-picker data-picker-mode="date" data-allow-empty="1" data-empty-label="未设置"
                                 data-initial-value="{{ .Filter.DateTo }}">
                                 <input type="hidden" name="date_to" value="{{ .Filter.DateTo }}" data-picker-value>
 
-                                <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="截止年份">
+                                <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton"
+                                    aria-label="截止年份">
                                     <div class="wheel-track">
                                         <span class="wheel-item" data-slot="far-prev"></span>
                                         <span class="wheel-item" data-slot="prev"></span>
@@ -357,7 +374,8 @@
                                 </div>
                                 <span class="date-unit">年</span>
 
-                                <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton" aria-label="截止月份">
+                                <div class="wheel-column" data-part="month" tabindex="0" role="spinbutton"
+                                    aria-label="截止月份">
                                     <div class="wheel-track">
                                         <span class="wheel-item" data-slot="far-prev"></span>
                                         <span class="wheel-item" data-slot="prev"></span>
@@ -368,7 +386,8 @@
                                 </div>
                                 <span class="date-unit">月</span>
 
-                                <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton" aria-label="截止日期">
+                                <div class="wheel-column" data-part="day" tabindex="0" role="spinbutton"
+                                    aria-label="截止日期">
                                     <div class="wheel-track">
                                         <span class="wheel-item" data-slot="far-prev"></span>
                                         <span class="wheel-item" data-slot="prev"></span>
@@ -398,45 +417,50 @@
                         <p class="section-kicker">编辑</p>
                         <p class="account-panel-copy" data-edit-summary>选中任务后可以修改。</p>
                     </div>
-                    <button type="button" class="secondary account-modal-close" data-account-close-panel="edit">关闭</button>
+                    <button type="button" class="secondary account-modal-close"
+                        data-account-close-panel="edit">关闭</button>
                 </div>
 
                 <div class="account-bulk-grid">
                     <div class="account-bulk-block account-bulk-block-wide" data-single-only hidden>
                         <label for="replace-title">单条改名</label>
-                        <input id="replace-title" name="replace_title" type="text" placeholder="只在单选时生效" autocomplete="off" form="account-actions-form">
+                        <input id="replace-title" name="replace_title" type="text" placeholder="只在单选时生效"
+                            autocomplete="off" form="account-actions-form">
                     </div>
 
                     <div class="account-bulk-block">
                         <div class="account-field-head">
                             <label>改星级</label>
-                            <button type="button" class="secondary account-clear-stars" data-clear-importance>保持原样</button>
+                            <button type="button" class="secondary account-clear-stars"
+                                data-clear-importance>保持原样</button>
                         </div>
                         <div class="star-rating account-star-rating" aria-label="批量修改星级">
-                            <input id="manage-importance-5" name="importance" type="radio" value="5" form="account-actions-form">
+                            <input id="manage-importance-5" name="importance" type="radio" value="5"
+                                form="account-actions-form">
                             <label for="manage-importance-5" title="5 星">★</label>
-                            <input id="manage-importance-4" name="importance" type="radio" value="4" form="account-actions-form">
+                            <input id="manage-importance-4" name="importance" type="radio" value="4"
+                                form="account-actions-form">
                             <label for="manage-importance-4" title="4 星">★</label>
-                            <input id="manage-importance-3" name="importance" type="radio" value="3" form="account-actions-form">
+                            <input id="manage-importance-3" name="importance" type="radio" value="3"
+                                form="account-actions-form">
                             <label for="manage-importance-3" title="3 星">★</label>
-                            <input id="manage-importance-2" name="importance" type="radio" value="2" form="account-actions-form">
+                            <input id="manage-importance-2" name="importance" type="radio" value="2"
+                                form="account-actions-form">
                             <label for="manage-importance-2" title="2 星">★</label>
-                            <input id="manage-importance-1" name="importance" type="radio" value="1" form="account-actions-form">
+                            <input id="manage-importance-1" name="importance" type="radio" value="1"
+                                form="account-actions-form">
                             <label for="manage-importance-1" title="1 星">★</label>
                         </div>
                     </div>
 
-                    <div class="account-bulk-block account-bulk-block-wide" data-single-only hidden data-time-editor-block hidden>
+                    <div class="account-bulk-block account-bulk-block-wide" data-single-only hidden
+                        data-time-editor-block hidden>
                         <label data-time-editor-label>单条改时间</label>
-                        <div
-                            id="account-schedule-wheel"
-                            class="wheel-date-picker account-wheel-picker"
-                            data-composer-picker
-                            data-picker-mode="date"
-                            data-initial-value="{{ .TodayDateISO }}"
-                            data-time-editor="date"
-                            hidden>
-                            <input type="hidden" name="schedule_date" value="" data-picker-value form="account-actions-form">
+                        <div id="account-schedule-wheel" class="wheel-date-picker account-wheel-picker"
+                            data-composer-picker data-picker-mode="date" data-initial-value="{{ .TodayDateISO }}"
+                            data-time-editor="date" hidden>
+                            <input type="hidden" name="schedule_date" value="" data-picker-value
+                                form="account-actions-form">
 
                             <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="年份">
                                 <div class="wheel-track">
@@ -472,15 +496,11 @@
                             <span class="date-unit">日</span>
                         </div>
 
-                        <div
-                            id="account-deadline-wheel"
-                            class="wheel-date-picker account-wheel-picker is-datetime"
-                            data-composer-picker
-                            data-picker-mode="datetime"
-                            data-initial-value="{{ .TodayDateISO }}T08:00"
-                            data-time-editor="datetime"
-                            hidden>
-                            <input type="hidden" name="deadline_value" value="" data-picker-value form="account-actions-form">
+                        <div id="account-deadline-wheel" class="wheel-date-picker account-wheel-picker is-datetime"
+                            data-composer-picker data-picker-mode="datetime"
+                            data-initial-value="{{ .TodayDateISO }}T08:00" data-time-editor="datetime" hidden>
+                            <input type="hidden" name="deadline_value" value="" data-picker-value
+                                form="account-actions-form">
 
                             <div class="wheel-column" data-part="year" tabindex="0" role="spinbutton" aria-label="年份">
                                 <div class="wheel-track">
@@ -543,12 +563,14 @@
 
                     <div class="account-bulk-block">
                         <label for="title-prefix">批量前缀</label>
-                        <input id="title-prefix" name="title_prefix" type="text" placeholder="例如：本周-" form="account-actions-form">
+                        <input id="title-prefix" name="title_prefix" type="text" placeholder="例如：本周-"
+                            form="account-actions-form">
                     </div>
 
                     <div class="account-bulk-block">
                         <label for="title-suffix">批量后缀</label>
-                        <input id="title-suffix" name="title_suffix" type="text" placeholder="例如：-已同步" form="account-actions-form">
+                        <input id="title-suffix" name="title_suffix" type="text" placeholder="例如：-已同步"
+                            form="account-actions-form">
                     </div>
                 </div>
 
@@ -559,4 +581,5 @@
         </section>
     </main>
 </body>
+
 </html>

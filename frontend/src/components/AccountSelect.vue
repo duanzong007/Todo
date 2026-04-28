@@ -60,25 +60,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    ref="root"
-    class="account-select"
-    :class="{ 'is-open': isOpen, 'account-select-center-menu': centerMenu, 'is-compact': compact }"
-  >
+  <div ref="root" class="account-select"
+    :class="{ 'is-open': isOpen, 'account-select-center-menu': centerMenu, 'is-compact': compact }">
     <button type="button" class="account-select-trigger" @click="isOpen = !isOpen">
       <span class="account-select-label">{{ selectedLabel }}</span>
       <span class="account-select-caret" aria-hidden="true"></span>
     </button>
     <div v-if="isOpen" class="account-select-menu">
-      <button
-        v-for="option in options"
-        :key="option.value"
-        type="button"
-        class="account-select-option"
-        :class="{ 'is-selected': option.value === modelValue }"
-        :aria-pressed="option.value === modelValue"
-        @click="selectOption(option.value)"
-      >
+      <button v-for="option in options" :key="option.value" type="button" class="account-select-option"
+        :class="{ 'is-selected': option.value === modelValue }" :aria-pressed="option.value === modelValue"
+        @click="selectOption(option.value)">
         {{ option.label }}
       </button>
     </div>

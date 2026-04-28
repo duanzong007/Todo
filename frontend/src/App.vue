@@ -510,8 +510,10 @@ onBeforeUnmount(() => {
       </div>
       <div class="manager-actions-right">
         <button class="soft-button" type="button" :disabled="!hasSelection" @click="openEdit">编辑</button>
-        <button class="soft-button" type="button" :disabled="!hasSelection || !selectedOwnedOnly" @click="openShare">共享</button>
-        <button class="danger-button" type="button" :disabled="!hasSelection || !selectedOwnedOnly" @click="submitDelete">
+        <button class="soft-button" type="button" :disabled="!hasSelection || !selectedOwnedOnly"
+          @click="openShare">共享</button>
+        <button class="danger-button" type="button" :disabled="!hasSelection || !selectedOwnedOnly"
+          @click="submitDelete">
           删除
         </button>
       </div>
@@ -520,7 +522,8 @@ onBeforeUnmount(() => {
     <section class="task-panel">
       <div class="task-panel-head">
         <label class="select-pill">
-          <input type="checkbox" :checked="allSelectedOnPage" @change="togglePageSelection(($event.target as HTMLInputElement).checked)" />
+          <input type="checkbox" :checked="allSelectedOnPage"
+            @change="togglePageSelection(($event.target as HTMLInputElement).checked)" />
           <span>全选</span>
           <small>{{ selectedCount > 0 ? `已选 ${selectedCount} 条` : "尚未选择任务" }}</small>
         </label>
@@ -537,11 +540,8 @@ onBeforeUnmount(() => {
       <div v-else-if="tasks.length" class="task-list">
         <article v-for="task in tasks" :key="task.id" class="task-card" :class="{ selected: selectedIds.has(task.id) }">
           <label class="row-check">
-            <input
-              type="checkbox"
-              :checked="selectedIds.has(task.id)"
-              @change="toggleTask(task.id, ($event.target as HTMLInputElement).checked)"
-            />
+            <input type="checkbox" :checked="selectedIds.has(task.id)"
+              @change="toggleTask(task.id, ($event.target as HTMLInputElement).checked)" />
           </label>
           <div class="task-main">
             <div class="task-meta-row">
@@ -563,27 +563,25 @@ onBeforeUnmount(() => {
 
       <footer v-if="account" class="pagination-row">
         <div class="page-controls">
-          <button class="soft-button compact" type="button" :disabled="!account.pagination.has_prev" @click="changePage(account.pagination.prev_page)">
+          <button class="soft-button compact" type="button" :disabled="!account.pagination.has_prev"
+            @click="changePage(account.pagination.prev_page)">
             上一页
           </button>
           <label class="page-input">
             <span>第</span>
-            <input
-              type="number"
-              min="1"
-              :max="account.pagination.total_pages"
-              :value="account.pagination.page"
-              @change="changePage(Number(($event.target as HTMLInputElement).value || 1))"
-            />
+            <input type="number" min="1" :max="account.pagination.total_pages" :value="account.pagination.page"
+              @change="changePage(Number(($event.target as HTMLInputElement).value || 1))" />
             <span>/ {{ account.pagination.total_pages }} 页</span>
           </label>
-          <button class="soft-button compact" type="button" :disabled="!account.pagination.has_next" @click="changePage(account.pagination.next_page)">
+          <button class="soft-button compact" type="button" :disabled="!account.pagination.has_next"
+            @click="changePage(account.pagination.next_page)">
             下一页
           </button>
         </div>
         <label class="limit-select">
           <span>显示</span>
-          <AccountSelect :model-value="limitValue" :options="account.filter.limit_options" center-menu compact @change="changeLimit" />
+          <AccountSelect :model-value="limitValue" :options="account.filter.limit_options" center-menu compact
+            @change="changeLimit" />
         </label>
       </footer>
     </section>
@@ -616,16 +614,16 @@ onBeforeUnmount(() => {
             <AccountSelect v-model="filterDraft.sort" :options="account?.filter.sort_options ?? []" />
           </label>
           <Transition name="filter-date-field">
-          <label v-if="hasDateFilter" class="field">
-            <span>开始日期</span>
-            <WheelDatePicker v-model="filterDraft.dateFrom" empty-label="开始日期" />
-          </label>
+            <label v-if="hasDateFilter" class="field">
+              <span>开始日期</span>
+              <WheelDatePicker v-model="filterDraft.dateFrom" empty-label="开始日期" />
+            </label>
           </Transition>
           <Transition name="filter-date-field">
-          <label v-if="hasDateFilter" class="field">
-            <span>结束日期</span>
-            <WheelDatePicker v-model="filterDraft.dateTo" empty-label="结束日期" />
-          </label>
+            <label v-if="hasDateFilter" class="field">
+              <span>结束日期</span>
+              <WheelDatePicker v-model="filterDraft.dateTo" empty-label="结束日期" />
+            </label>
           </Transition>
         </div>
         <div class="choice-section">
@@ -706,11 +704,8 @@ onBeforeUnmount(() => {
         </label>
         <div class="share-list">
           <label v-for="user in filteredShareUsers" :key="user.id" class="share-user">
-            <input
-              type="checkbox"
-              :checked="shareSelection.has(user.id)"
-              @change="toggleShareUser(user, ($event.target as HTMLInputElement).checked)"
-            />
+            <input type="checkbox" :checked="shareSelection.has(user.id)"
+              @change="toggleShareUser(user, ($event.target as HTMLInputElement).checked)" />
             <span>
               <strong>{{ user.display_name }}</strong>
               <small>{{ user.username }}</small>
@@ -720,7 +715,8 @@ onBeforeUnmount(() => {
         </div>
         <footer class="modal-actions">
           <button class="soft-button" type="button" @click="closeModal">取消</button>
-          <button class="primary-button" type="button" :disabled="shareSelection.size === 0 || Boolean(loadingMessage)" @click="submitShare">
+          <button class="primary-button" type="button" :disabled="shareSelection.size === 0 || Boolean(loadingMessage)"
+            @click="submitShare">
             {{ loadingMessage || "共享" }}
           </button>
         </footer>

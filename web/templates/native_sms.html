@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,8 +8,10 @@
     <meta name="theme-color" content="#c56d3a">
     <link rel="stylesheet" href="/static/styles.css?v=20260414-native-sms-paste-1">
 </head>
+
 <body>
-    <main class="native-sms-page" data-native-sms-page data-user-id="{{ .UserID }}" data-return-path="{{ .ReturnPath }}" data-app-timezone="{{ .AppTimeZone }}">
+    <main class="native-sms-page" data-native-sms-page data-user-id="{{ .UserID }}" data-return-path="{{ .ReturnPath }}"
+        data-app-timezone="{{ .AppTimeZone }}">
         <section class="native-sms-panel panel">
             <header class="native-sms-header">
                 <div class="native-sms-header-copy">
@@ -45,23 +48,20 @@
             </template>
         </section>
 
-            <div class="native-sms-modal-shell" data-native-paste-modal hidden>
-                <div class="native-sms-modal-backdrop" data-native-paste-close></div>
-                <section class="native-sms-modal panel" role="dialog" aria-modal="true" aria-labelledby="native-paste-title">
-                    <div class="native-sms-modal-head">
-                        <div>
-                            <h2 id="native-paste-title">粘贴短信</h2>
-                        </div>
+        <div class="native-sms-modal-shell" data-native-paste-modal hidden>
+            <div class="native-sms-modal-backdrop" data-native-paste-close></div>
+            <section class="native-sms-modal panel" role="dialog" aria-modal="true"
+                aria-labelledby="native-paste-title">
+                <div class="native-sms-modal-head">
+                    <div>
+                        <h2 id="native-paste-title">粘贴短信</h2>
                     </div>
+                </div>
 
                 <label class="native-sms-paste-field" for="native-paste-input">
                     <span>短信内容</span>
-                    <textarea
-                        id="native-paste-input"
-                        data-native-paste-input
-                        rows="8"
-                        placeholder="直接粘贴短信内容；一次贴很多条也可以。"
-                    ></textarea>
+                    <textarea id="native-paste-input" data-native-paste-input rows="8"
+                        placeholder="直接粘贴短信内容；一次贴很多条也可以。"></textarea>
                 </label>
 
                 <div class="native-sms-modal-actions">
@@ -74,4 +74,5 @@
 
     <script defer src="/static/native-sms.js?v=20260414-native-sms-paste-1"></script>
 </body>
+
 </html>

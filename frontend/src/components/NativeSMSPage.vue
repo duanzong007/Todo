@@ -462,18 +462,10 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="native-sms-list">
-        <article
-          v-for="message in activeMessages"
-          :key="message.id"
-          class="native-sms-item"
-          :class="{ 'is-selected': selectedIDs.has(message.id) }"
-          tabindex="0"
-          role="button"
-          :aria-pressed="selectedIDs.has(message.id)"
-          @click="toggleSelection(message.id)"
-          @keydown.enter.prevent="toggleSelection(message.id)"
-          @keydown.space.prevent="toggleSelection(message.id)"
-        >
+        <article v-for="message in activeMessages" :key="message.id" class="native-sms-item"
+          :class="{ 'is-selected': selectedIDs.has(message.id) }" tabindex="0" role="button"
+          :aria-pressed="selectedIDs.has(message.id)" @click="toggleSelection(message.id)"
+          @keydown.enter.prevent="toggleSelection(message.id)" @keydown.space.prevent="toggleSelection(message.id)">
           <div class="native-sms-item-main">
             <div class="native-sms-item-head">
               <p class="native-sms-item-sender">{{ message.address || "短信" }}</p>
@@ -485,7 +477,8 @@ onBeforeUnmount(() => {
 
         <div v-if="activeMessages.length === 0" class="native-sms-empty">
           <p>{{ mode === "history" ? "最近没有历史记录。" : "最近没有新的短信。" }}</p>
-          <button v-if="mode === 'new'" type="button" class="secondary native-sms-empty-action" @click="pasteOpen = true">粘贴短信</button>
+          <button v-if="mode === 'new'" type="button" class="secondary native-sms-empty-action"
+            @click="pasteOpen = true">粘贴短信</button>
         </div>
       </div>
     </section>
@@ -498,13 +491,8 @@ onBeforeUnmount(() => {
         </div>
         <label class="native-sms-paste-field" for="native-paste-input">
           <span>短信内容</span>
-          <textarea
-            id="native-paste-input"
-            ref="pasteInputRef"
-            v-model="pasteInput"
-            rows="8"
-            placeholder="直接粘贴短信内容；一次贴很多条也可以。"
-          ></textarea>
+          <textarea id="native-paste-input" ref="pasteInputRef" v-model="pasteInput" rows="8"
+            placeholder="直接粘贴短信内容；一次贴很多条也可以。"></textarea>
         </label>
         <div class="native-sms-modal-actions">
           <button type="button" class="secondary" @click="pasteOpen = false">取消</button>
