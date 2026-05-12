@@ -11,6 +11,7 @@
   },
   "android": {
     "allowMixedContent": true,
-    "webContentsDebuggingEnabled": true
+    "webContentsDebuggingEnabled": true,
+    "appendUserAgent": "TodoAndroidShell/1.0"
   }
 }

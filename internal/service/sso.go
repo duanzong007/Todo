@@ -96,15 +96,16 @@ func NewSSOClient(ctx context.Context, cfg SSOConfig) (*SSOClient, error) {
 	}, nil
 }
 
-func (c *SSOClient) AuthCodeURL(state, nonce string) string {
-	return c.oauth2Config.AuthCodeURL(
+func (c *SSOClient) AuthCodeURL(state, nonce, redirectURL string) string {
+	config := c.oauthConfigForRedirect(redirectURL)
+	return config.AuthCodeURL(
 		state,
 		oauth2.AccessTypeOnline,
 		oauth2.SetAuthURLParam("nonce", nonce),
 	)
 }
 
-func (c *SSOClient) ExchangeCode(ctx context.Context, code, nonce string) (repository.SSOUserInput, error) {
+func (c *SSOClient) ExchangeCode(ctx context.Context, code, nonce, redirectURL string) (repository.SSOUserInput, error) {
 	if strings.TrimSpace(code) == "" {
 		return repository.SSOUserInput{}, fmt.Errorf("%w: missing code", ErrInvalidSSOLogin)
 	}
@@ -112,7 +113,8 @@ func (c *SSOClient) ExchangeCode(ctx context.Context, code, nonce string) (repos
 		return repository.SSOUserInput{}, fmt.Errorf("%w: missing nonce", ErrInvalidSSOLogin)
 	}
 
-	token, err := c.oauth2Config.Exchange(ctx, code)
+	config := c.oauthConfigForRedirect(redirectURL)
+	token, err := config.Exchange(ctx, code)
 	if err != nil {
 		return repository.SSOUserInput{}, fmt.Errorf("%w: exchange code: %v", ErrInvalidSSOLogin, err)
 	}
@@ -155,6 +157,14 @@ func (c *SSOClient) ExchangeCode(ctx context.Context, code, nonce string) (repos
 
 func (c *SSOClient) AutoRegister() bool {
 	return c.autoRegister
+}
+
+func (c *SSOClient) oauthConfigForRedirect(redirectURL string) oauth2.Config {
+	config := c.oauth2Config
+	if normalized := strings.TrimSpace(redirectURL); normalized != "" {
+		config.RedirectURL = normalized
+	}
+	return config
 }
 
 func normalizeScopes(scopes []string) []string {

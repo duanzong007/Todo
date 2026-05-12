@@ -8,48 +8,50 @@ import (
 )
 
 type Config struct {
-	Addr                 string
-	DatabaseURL          string
-	QuotesDatabaseURL    string
-	Timezone             string
-	AutoMigrate          bool
-	MigrationsDir        string
-	ICSImportHorizonDays int
-	MaxUploadSizeBytes   int64
-	SessionCookieName    string
-	SessionTTLHours      int
-	SessionSecureCookie  bool
-	SSOProviderName      string
-	SSOIssuerURL         string
-	SSOClientID          string
-	SSOClientSecret      string
-	SSORedirectURL       string
-	SSOScopes            []string
-	SSOAutoRegister      bool
-	SSOAutoApprove       bool
+	Addr                  string
+	DatabaseURL           string
+	QuotesDatabaseURL     string
+	Timezone              string
+	AutoMigrate           bool
+	MigrationsDir         string
+	ICSImportHorizonDays  int
+	MaxUploadSizeBytes    int64
+	SessionCookieName     string
+	SessionTTLHours       int
+	SessionSecureCookie   bool
+	SSOProviderName       string
+	SSOIssuerURL          string
+	SSOClientID           string
+	SSOClientSecret       string
+	SSORedirectURL        string
+	SSOAndroidRedirectURL string
+	SSOScopes             []string
+	SSOAutoRegister       bool
+	SSOAutoApprove        bool
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		Addr:                 env("APP_ADDR", ":8080"),
-		DatabaseURL:          env("DATABASE_URL", "postgres://todo:todo@localhost:5432/todo?sslmode=disable"),
-		QuotesDatabaseURL:    env("QUOTES_DATABASE_URL", ""),
-		Timezone:             env("APP_TIMEZONE", "Asia/Shanghai"),
-		AutoMigrate:          envBool("AUTO_MIGRATE", true),
-		MigrationsDir:        env("MIGRATIONS_DIR", "db/migrations"),
-		ICSImportHorizonDays: envInt("ICS_IMPORT_HORIZON_DAYS", 180),
-		MaxUploadSizeBytes:   envInt64("MAX_UPLOAD_SIZE_BYTES", 4<<20),
-		SessionCookieName:    env("SESSION_COOKIE_NAME", "todo_session"),
-		SessionTTLHours:      envInt("SESSION_TTL_HOURS", 720),
-		SessionSecureCookie:  envBool("SESSION_SECURE_COOKIE", false),
-		SSOProviderName:      env("SSO_PROVIDER_NAME", "soid"),
-		SSOIssuerURL:         env("SSO_ISSUER_URL", ""),
-		SSOClientID:          env("SSO_CLIENT_ID", ""),
-		SSOClientSecret:      env("SSO_CLIENT_SECRET", ""),
-		SSORedirectURL:       env("SSO_REDIRECT_URL", ""),
-		SSOScopes:            envList("SSO_SCOPES", []string{"openid", "profile", "email"}),
-		SSOAutoRegister:      envBool("SSO_AUTO_REGISTER", true),
-		SSOAutoApprove:       envBool("SSO_AUTO_APPROVE", true),
+		Addr:                  env("APP_ADDR", ":8080"),
+		DatabaseURL:           env("DATABASE_URL", "postgres://todo:todo@localhost:5432/todo?sslmode=disable"),
+		QuotesDatabaseURL:     env("QUOTES_DATABASE_URL", ""),
+		Timezone:              env("APP_TIMEZONE", "Asia/Shanghai"),
+		AutoMigrate:           envBool("AUTO_MIGRATE", true),
+		MigrationsDir:         env("MIGRATIONS_DIR", "db/migrations"),
+		ICSImportHorizonDays:  envInt("ICS_IMPORT_HORIZON_DAYS", 180),
+		MaxUploadSizeBytes:    envInt64("MAX_UPLOAD_SIZE_BYTES", 4<<20),
+		SessionCookieName:     env("SESSION_COOKIE_NAME", "todo_session"),
+		SessionTTLHours:       envInt("SESSION_TTL_HOURS", 720),
+		SessionSecureCookie:   envBool("SESSION_SECURE_COOKIE", false),
+		SSOProviderName:       env("SSO_PROVIDER_NAME", "soid"),
+		SSOIssuerURL:          env("SSO_ISSUER_URL", ""),
+		SSOClientID:           env("SSO_CLIENT_ID", ""),
+		SSOClientSecret:       env("SSO_CLIENT_SECRET", ""),
+		SSORedirectURL:        env("SSO_REDIRECT_URL", ""),
+		SSOAndroidRedirectURL: env("SSO_ANDROID_REDIRECT_URL", ""),
+		SSOScopes:             envList("SSO_SCOPES", []string{"openid", "profile", "email"}),
+		SSOAutoRegister:       envBool("SSO_AUTO_REGISTER", true),
+		SSOAutoApprove:        envBool("SSO_AUTO_APPROVE", true),
 	}
 
 	if cfg.ICSImportHorizonDays < 1 {

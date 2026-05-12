@@ -29,6 +29,18 @@ cp capacitor.config.example.json capacitor.config.json
 
 然后把 `capacitor.config.json` 里的 `server.url` 和 `allowNavigation` 改成你自己的服务地址。这个文件已经加入 `.gitignore`，不会提交到仓库。
 
+SSO 登录会通过系统浏览器完成。SOID 应用里需要登记安卓壳回调：
+
+```text
+todo-shell://auth/sso/callback
+```
+
+后端环境变量同时配置：
+
+```text
+SSO_ANDROID_REDIRECT_URL=todo-shell://auth/sso/callback
+```
+
 ## 图标与启动图
 
 安卓图标和启动图都从仓库根目录的 `logo.png` 生成。

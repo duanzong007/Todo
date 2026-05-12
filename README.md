@@ -223,9 +223,15 @@ docker compose up --build
 | `SSO_CLIENT_ID` | OIDC client id | 空 |
 | `SSO_CLIENT_SECRET` | OIDC client secret | 空 |
 | `SSO_REDIRECT_URL` | OIDC 回调地址 | 空 |
+| `SSO_ANDROID_REDIRECT_URL` | 安卓壳使用的 deep link 回调地址 | `todo-shell://auth/sso/callback` |
 | `SSO_SCOPES` | OIDC scope 列表 | `openid profile email` |
 | `SSO_AUTO_REGISTER` | SSO 新用户是否自动创建本地账号 | `true` |
 | `SSO_AUTO_APPROVE` | SSO 新用户是否自动批准启用 | `true` |
+
+SOID 应用里需要同时登记两个 redirect URI：
+
+- Web/PWA：`https://你的 Todo 域名/auth/sso/callback`
+- Android 壳：`todo-shell://auth/sso/callback`
 
 ## 输入与解析说明
 

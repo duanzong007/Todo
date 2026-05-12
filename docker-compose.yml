@@ -39,6 +39,7 @@ services:
       SSO_CLIENT_ID: ${SSO_CLIENT_ID:-}
       SSO_CLIENT_SECRET: ${SSO_CLIENT_SECRET:-}
       SSO_REDIRECT_URL: ${SSO_REDIRECT_URL:-}
+      SSO_ANDROID_REDIRECT_URL: ${SSO_ANDROID_REDIRECT_URL:-todo-shell://auth/sso/callback}
       SSO_SCOPES: ${SSO_SCOPES:-openid profile email}
       SSO_AUTO_REGISTER: ${SSO_AUTO_REGISTER:-true}
       SSO_AUTO_APPROVE: ${SSO_AUTO_APPROVE:-true}

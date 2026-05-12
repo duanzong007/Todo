@@ -31,31 +31,34 @@ type contextKey string
 const currentUserContextKey contextKey = "current-user"
 
 const (
-	ssoStateCookieName    = "todo_sso_state"
-	ssoNonceCookieName    = "todo_sso_nonce"
-	ssoReturnToCookieName = "todo_sso_return_to"
+	ssoStateCookieName       = "todo_sso_state"
+	ssoNonceCookieName       = "todo_sso_nonce"
+	ssoReturnToCookieName    = "todo_sso_return_to"
+	ssoRedirectURLCookieName = "todo_sso_redirect_url"
 )
 
 type HandlerOptions struct {
-	TemplateDir       string
-	StaticDir         string
-	MaxUploadSize     int64
-	Location          *time.Location
-	SessionCookieName string
-	SessionSecure     bool
+	TemplateDir           string
+	StaticDir             string
+	MaxUploadSize         int64
+	Location              *time.Location
+	SessionCookieName     string
+	SessionSecure         bool
+	SSOAndroidRedirectURL string
 }
 
 type Handler struct {
-	taskService       *service.TaskService
-	authService       *service.AuthService
-	quoteService      *service.QuoteService
-	eventHub          *dashboardEventHub
-	templates         *template.Template
-	staticDir         string
-	maxUploadSize     int64
-	location          *time.Location
-	sessionCookieName string
-	sessionSecure     bool
+	taskService           *service.TaskService
+	authService           *service.AuthService
+	quoteService          *service.QuoteService
+	eventHub              *dashboardEventHub
+	templates             *template.Template
+	staticDir             string
+	maxUploadSize         int64
+	location              *time.Location
+	sessionCookieName     string
+	sessionSecure         bool
+	ssoAndroidRedirectURL string
 }
 
 type UserView struct {
@@ -233,16 +236,17 @@ func NewHandler(taskService *service.TaskService, authService *service.AuthServi
 	}
 
 	return &Handler{
-		taskService:       taskService,
-		authService:       authService,
-		quoteService:      quoteService,
-		eventHub:          newDashboardEventHub(),
-		templates:         templates,
-		staticDir:         options.StaticDir,
-		maxUploadSize:     options.MaxUploadSize,
-		location:          options.Location,
-		sessionCookieName: options.SessionCookieName,
-		sessionSecure:     options.SessionSecure,
+		taskService:           taskService,
+		authService:           authService,
+		quoteService:          quoteService,
+		eventHub:              newDashboardEventHub(),
+		templates:             templates,
+		staticDir:             options.StaticDir,
+		maxUploadSize:         options.MaxUploadSize,
+		location:              options.Location,
+		sessionCookieName:     options.SessionCookieName,
+		sessionSecure:         options.SessionSecure,
+		ssoAndroidRedirectURL: strings.TrimSpace(options.SSOAndroidRedirectURL),
 	}, nil
 }
 
@@ -348,7 +352,8 @@ func (h *Handler) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	code := strings.TrimSpace(r.URL.Query().Get("code"))
-	result, err := h.authService.LoginWithSSO(r.Context(), code, expectedNonce, r.UserAgent(), clientIPAddress(r))
+	redirectURL := h.cookieValue(r, ssoRedirectURLCookieName)
+	result, err := h.authService.LoginWithSSO(r.Context(), code, expectedNonce, redirectURL, r.UserAgent(), clientIPAddress(r))
 	if err != nil {
 		h.clearSSOCookies(w)
 		http.Error(w, humanizeError(err), http.StatusUnauthorized)
@@ -1002,7 +1007,7 @@ func (h *Handler) clearSessionCookie(w http.ResponseWriter) {
 }
 
 func (h *Handler) clearSSOCookies(w http.ResponseWriter) {
-	for _, name := range []string{ssoStateCookieName, ssoNonceCookieName, ssoReturnToCookieName} {
+	for _, name := range []string{ssoStateCookieName, ssoNonceCookieName, ssoReturnToCookieName, ssoRedirectURLCookieName} {
 		http.SetCookie(w, &http.Cookie{
 			Name:     name,
 			Value:    "",
@@ -1049,7 +1054,8 @@ func (h *Handler) redirectToSSO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authURL, err := h.authService.SSOAuthCodeURL(state, nonce)
+	redirectURL := h.ssoRedirectURL(r)
+	authURL, err := h.authService.SSOAuthCodeURL(state, nonce, redirectURL)
 	if err != nil {
 		http.Error(w, humanizeError(err), http.StatusServiceUnavailable)
 		return
@@ -1059,7 +1065,15 @@ func (h *Handler) redirectToSSO(w http.ResponseWriter, r *http.Request) {
 	h.setShortLivedCookie(w, ssoStateCookieName, state, 600)
 	h.setShortLivedCookie(w, ssoNonceCookieName, nonce, 600)
 	h.setShortLivedCookie(w, ssoReturnToCookieName, returnTo, 600)
+	h.setShortLivedCookie(w, ssoRedirectURLCookieName, redirectURL, 600)
 	http.Redirect(w, r, authURL, http.StatusFound)
+}
+
+func (h *Handler) ssoRedirectURL(r *http.Request) string {
+	if h.ssoAndroidRedirectURL != "" && isAndroidShellRequest(r) {
+		return h.ssoAndroidRedirectURL
+	}
+	return ""
 }
 
 func (h *Handler) redirectHome(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
@@ -1125,6 +1139,10 @@ func safeReturnTo(value string) string {
 		return "/"
 	}
 	return parsed.RequestURI()
+}
+
+func isAndroidShellRequest(r *http.Request) bool {
+	return strings.Contains(r.UserAgent(), "TodoAndroidShell/")
 }
 
 func buildUserView(user domain.User) *UserView {

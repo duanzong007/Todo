@@ -96,12 +96,13 @@ func main() {
 	)
 
 	handler, err := web.NewHandler(taskService, authService, quoteService, web.HandlerOptions{
-		TemplateDir:       "web/templates",
-		StaticDir:         "web/static",
-		MaxUploadSize:     cfg.MaxUploadSizeBytes,
-		Location:          location,
-		SessionCookieName: cfg.SessionCookieName,
-		SessionSecure:     cfg.SessionSecureCookie,
+		TemplateDir:           "web/templates",
+		StaticDir:             "web/static",
+		MaxUploadSize:         cfg.MaxUploadSizeBytes,
+		Location:              location,
+		SessionCookieName:     cfg.SessionCookieName,
+		SessionSecure:         cfg.SessionSecureCookie,
+		SSOAndroidRedirectURL: cfg.SSOAndroidRedirectURL,
 	})
 	if err != nil {
 		log.Fatalf("build handler: %v", err)

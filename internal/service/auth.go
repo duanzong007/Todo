@@ -80,19 +80,19 @@ func (s *AuthService) SSOConfigured() bool {
 	return s.ssoClient != nil
 }
 
-func (s *AuthService) SSOAuthCodeURL(state, nonce string) (string, error) {
+func (s *AuthService) SSOAuthCodeURL(state, nonce, redirectURL string) (string, error) {
 	if s.ssoClient == nil {
 		return "", ErrSSONotConfigured
 	}
-	return s.ssoClient.AuthCodeURL(state, nonce), nil
+	return s.ssoClient.AuthCodeURL(state, nonce, redirectURL), nil
 }
 
-func (s *AuthService) LoginWithSSO(ctx context.Context, code, nonce, userAgent, ipAddress string) (AuthResult, error) {
+func (s *AuthService) LoginWithSSO(ctx context.Context, code, nonce, redirectURL, userAgent, ipAddress string) (AuthResult, error) {
 	if s.ssoClient == nil {
 		return AuthResult{}, ErrSSONotConfigured
 	}
 
-	input, err := s.ssoClient.ExchangeCode(ctx, code, nonce)
+	input, err := s.ssoClient.ExchangeCode(ctx, code, nonce, redirectURL)
 	if err != nil {
 		return AuthResult{}, err
 	}

@@ -1,5 +1,7 @@
 package com.duanzong.todo.shell;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
@@ -17,7 +19,18 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.getcapacitor.BridgeActivity;
 
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+
 public class MainActivity extends BridgeActivity {
+    private static final String ANDROID_SHELL_USER_AGENT_SUFFIX = " TodoAndroidShell/1.0";
+    private static final String SSO_CALLBACK_SCHEME = "todo-shell";
+    private static final String SSO_CALLBACK_HOST = "auth";
+    private static final String SSO_CALLBACK_PATH = "/sso/callback";
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SmsBridgePlugin.class);
@@ -25,6 +38,14 @@ public class MainActivity extends BridgeActivity {
         configureWindowAppearance();
         configureWebViewPersistence();
         configureBridgeInsetsHandling();
+        handleSSOCallbackIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleSSOCallbackIntent(intent);
     }
 
     @Override
@@ -48,6 +69,10 @@ public class MainActivity extends BridgeActivity {
         WebSettings settings = webView.getSettings();
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
+        String userAgent = settings.getUserAgentString();
+        if (userAgent == null || !userAgent.contains(ANDROID_SHELL_USER_AGENT_SUFFIX.trim())) {
+            settings.setUserAgentString((userAgent == null ? "" : userAgent) + ANDROID_SHELL_USER_AGENT_SUFFIX);
+        }
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
         webView.setVerticalScrollBarEnabled(false);
         webView.setHorizontalScrollBarEnabled(false);
@@ -89,6 +114,72 @@ public class MainActivity extends BridgeActivity {
         });
 
         ViewCompat.requestApplyInsets(container);
+    }
+
+    private void handleSSOCallbackIntent(Intent intent) {
+        if (intent == null || intent.getData() == null || getBridge() == null || getBridge().getWebView() == null) {
+            return;
+        }
+
+        Uri callbackUri = intent.getData();
+        if (!SSO_CALLBACK_SCHEME.equals(callbackUri.getScheme())
+            || !SSO_CALLBACK_HOST.equals(callbackUri.getHost())
+            || !SSO_CALLBACK_PATH.equals(callbackUri.getPath())) {
+            return;
+        }
+
+        WebView webView = getBridge().getWebView();
+        String currentUrl = webView.getUrl();
+        String serverOrigin = resolveServerOrigin(currentUrl);
+
+        if (serverOrigin == null || serverOrigin.trim().isEmpty()) {
+            return;
+        }
+
+        Uri.Builder target = new Uri.Builder()
+            .scheme(Uri.parse(serverOrigin).getScheme())
+            .encodedAuthority(Uri.parse(serverOrigin).getAuthority())
+            .path("/auth/sso/callback");
+        String query = callbackUri.getEncodedQuery();
+        if (query != null && !query.isEmpty()) {
+            target.encodedQuery(query);
+        }
+        webView.loadUrl(target.build().toString());
+    }
+
+    private String resolveServerOrigin(String currentUrl) {
+        Uri currentUri = currentUrl == null ? null : Uri.parse(currentUrl);
+        if (isHttpURL(currentUri)) {
+            return currentUri.getScheme() + "://" + currentUri.getAuthority();
+        }
+
+        try (InputStream input = getAssets().open("capacitor.config.json")) {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+            JSONObject config = new JSONObject(output.toString(StandardCharsets.UTF_8.name()));
+            JSONObject server = config.optJSONObject("server");
+            if (server == null) {
+                return null;
+            }
+            Uri serverUri = Uri.parse(server.optString("url", ""));
+            if (!isHttpURL(serverUri)) {
+                return null;
+            }
+            return serverUri.getScheme() + "://" + serverUri.getAuthority();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean isHttpURL(Uri uri) {
+        if (uri == null || uri.getScheme() == null || uri.getAuthority() == null) {
+            return false;
+        }
+        return "http".equals(uri.getScheme()) || "https".equals(uri.getScheme());
     }
 
 }
