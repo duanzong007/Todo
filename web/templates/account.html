@@ -96,10 +96,9 @@
                         <div class="share-user-list" data-share-user-list>
                             {{ range .ShareUsers }}
                             <label class="share-user-option" data-share-user-option
-                                data-search-text="{{ .DisplayName }} {{ .Username }}">
+                                data-search-text="{{ .DisplayName }}">
                                 <input type="checkbox" name="share_user_id" value="{{ .ID }}">
                                 <span>{{ .DisplayName }}</span>
-                                <small>@{{ .Username }}</small>
                             </label>
                             {{ end }}
                         </div>

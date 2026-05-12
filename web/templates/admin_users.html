@@ -37,7 +37,7 @@
             <div>
                 <p class="eyebrow">Admin</p>
                 <h1>待审批用户</h1>
-                <p class="hero-copy">新账号注册后默认不能使用系统，只有在这里批准后才会获得登录权限。</p>
+                <p class="hero-copy">SSO 新账号进入审批队列后，只有在这里批准后才会获得登录权限。</p>
             </div>
             <div class="hero-date">{{ len .PendingUsers }} 待处理</div>
         </section>
@@ -59,8 +59,7 @@
             <article class="approval-card">
                 <div class="task-body">
                     <h3>{{ .DisplayName }}</h3>
-                    <p class="status">@{{ .Username }}</p>
-                    <p class="note">注册时间 {{ .CreatedAt }}</p>
+                    <p class="note">创建时间 {{ .CreatedAt }}</p>
                 </div>
                 <div class="task-actions dual">
                     <form action="/admin/users/{{ .ID }}/approve" method="post">

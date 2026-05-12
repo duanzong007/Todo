@@ -32,27 +32,3 @@ func TestValidateUsername(t *testing.T) {
 		})
 	}
 }
-
-func TestValidatePassword(t *testing.T) {
-	tests := []struct {
-		name      string
-		input     string
-		wantError bool
-	}{
-		{name: "valid", input: "password123"},
-		{name: "too short", input: "short", wantError: true},
-		{name: "only spaces", input: "        ", wantError: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validatePassword(tt.input)
-			if tt.wantError && err == nil {
-				t.Fatalf("expected error, got nil")
-			}
-			if !tt.wantError && err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-		})
-	}
-}

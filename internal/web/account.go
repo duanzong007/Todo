@@ -493,7 +493,7 @@ func buildShareableUserCards(users []domain.User) []ShareableUserCard {
 		items = append(items, ShareableUserCard{
 			ID:          user.ID.String(),
 			DisplayName: user.DisplayName,
-			Username:    user.Username,
+			Username:    user.DisplayName,
 		})
 	}
 	return items

@@ -34,7 +34,14 @@ services:
       SESSION_COOKIE_NAME: todo_session
       SESSION_TTL_HOURS: "720"
       SESSION_SECURE_COOKIE: "false"
-      ALLOW_REGISTRATION: "true"
+      SSO_PROVIDER_NAME: soid
+      SSO_ISSUER_URL: ${SSO_ISSUER_URL:-}
+      SSO_CLIENT_ID: ${SSO_CLIENT_ID:-}
+      SSO_CLIENT_SECRET: ${SSO_CLIENT_SECRET:-}
+      SSO_REDIRECT_URL: ${SSO_REDIRECT_URL:-}
+      SSO_SCOPES: ${SSO_SCOPES:-openid profile email}
+      SSO_AUTO_REGISTER: ${SSO_AUTO_REGISTER:-true}
+      SSO_AUTO_APPROVE: ${SSO_AUTO_APPROVE:-true}
       DATABASE_URL: postgres://todo:todo@db:5432/todo?sslmode=disable
     ports:
       - "8080:8080"

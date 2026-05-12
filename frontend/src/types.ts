@@ -1,6 +1,5 @@
 export interface UserView {
   display_name: string;
-  username: string;
   is_admin: boolean;
 }
 
@@ -137,7 +136,6 @@ export interface ManagedTaskCard {
 export interface ShareableUserCard {
   id: string;
   display_name: string;
-  username: string;
 }
 
 export interface AccountPageData {

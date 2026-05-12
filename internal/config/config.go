@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -18,7 +19,14 @@ type Config struct {
 	SessionCookieName    string
 	SessionTTLHours      int
 	SessionSecureCookie  bool
-	AllowRegistration    bool
+	SSOProviderName      string
+	SSOIssuerURL         string
+	SSOClientID          string
+	SSOClientSecret      string
+	SSORedirectURL       string
+	SSOScopes            []string
+	SSOAutoRegister      bool
+	SSOAutoApprove       bool
 }
 
 func Load() (Config, error) {
@@ -34,7 +42,14 @@ func Load() (Config, error) {
 		SessionCookieName:    env("SESSION_COOKIE_NAME", "todo_session"),
 		SessionTTLHours:      envInt("SESSION_TTL_HOURS", 720),
 		SessionSecureCookie:  envBool("SESSION_SECURE_COOKIE", false),
-		AllowRegistration:    envBool("ALLOW_REGISTRATION", true),
+		SSOProviderName:      env("SSO_PROVIDER_NAME", "soid"),
+		SSOIssuerURL:         env("SSO_ISSUER_URL", ""),
+		SSOClientID:          env("SSO_CLIENT_ID", ""),
+		SSOClientSecret:      env("SSO_CLIENT_SECRET", ""),
+		SSORedirectURL:       env("SSO_REDIRECT_URL", ""),
+		SSOScopes:            envList("SSO_SCOPES", []string{"openid", "profile", "email"}),
+		SSOAutoRegister:      envBool("SSO_AUTO_REGISTER", true),
+		SSOAutoApprove:       envBool("SSO_AUTO_APPROVE", true),
 	}
 
 	if cfg.ICSImportHorizonDays < 1 {
@@ -48,6 +63,9 @@ func Load() (Config, error) {
 	}
 	if cfg.SessionCookieName == "" {
 		return Config{}, fmt.Errorf("SESSION_COOKIE_NAME must not be empty")
+	}
+	if strings.TrimSpace(cfg.SSOProviderName) == "" {
+		return Config{}, fmt.Errorf("SSO_PROVIDER_NAME must not be empty")
 	}
 
 	return cfg, nil
@@ -97,4 +115,25 @@ func envInt64(key string, fallback int64) int64 {
 		return fallback
 	}
 	return parsed
+}
+
+func envList(key string, fallback []string) []string {
+	value, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(value) == "" {
+		return fallback
+	}
+
+	parts := strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || r == ' '
+	})
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if normalized := strings.TrimSpace(part); normalized != "" {
+			values = append(values, normalized)
+		}
+	}
+	if len(values) == 0 {
+		return fallback
+	}
+	return values
 }

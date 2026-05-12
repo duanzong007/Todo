@@ -2,6 +2,8 @@ package web
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +30,12 @@ type contextKey string
 
 const currentUserContextKey contextKey = "current-user"
 
+const (
+	ssoStateCookieName    = "todo_sso_state"
+	ssoNonceCookieName    = "todo_sso_nonce"
+	ssoReturnToCookieName = "todo_sso_return_to"
+)
+
 type HandlerOptions struct {
 	TemplateDir       string
 	StaticDir         string
@@ -35,7 +43,6 @@ type HandlerOptions struct {
 	Location          *time.Location
 	SessionCookieName string
 	SessionSecure     bool
-	AllowRegistration bool
 }
 
 type Handler struct {
@@ -49,7 +56,6 @@ type Handler struct {
 	location          *time.Location
 	sessionCookieName string
 	sessionSecure     bool
-	allowRegistration bool
 }
 
 type UserView struct {
@@ -173,20 +179,6 @@ type AdminPageData struct {
 	PendingUsers []PendingUserCard
 }
 
-type AuthPageData struct {
-	Title            string
-	Heading          string
-	Message          string
-	Error            string
-	Action           string
-	SubmitLabel      string
-	AlternativeLabel string
-	AlternativePath  string
-	ShowDisplayName  bool
-	UsernameValue    string
-	DisplayNameValue string
-}
-
 type TaskCard struct {
 	ID            string `json:"id"`
 	Title         string `json:"title"`
@@ -251,7 +243,6 @@ func NewHandler(taskService *service.TaskService, authService *service.AuthServi
 		location:          options.Location,
 		sessionCookieName: options.SessionCookieName,
 		sessionSecure:     options.SessionSecure,
-		allowRegistration: options.AllowRegistration,
 	}, nil
 }
 
@@ -265,9 +256,8 @@ func (h *Handler) Router() http.Handler {
 	router.Get("/sw.js", h.handleServiceWorker)
 
 	router.Get("/login", h.handleLoginPage)
-	router.Post("/login", h.handleLogin)
-	router.Get("/register", h.handleRegisterPage)
-	router.Post("/register", h.handleRegister)
+	router.Get("/auth/sso/start", h.handleSSOStart)
+	router.Get("/auth/sso/callback", h.handleSSOCallback)
 	router.Post("/logout", h.handleLogout)
 
 	router.Group(func(r chi.Router) {
@@ -331,113 +321,50 @@ func (h *Handler) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := AuthPageData{
-		Title:         "登录",
-		Heading:       "登录你的 Todo 账户",
-		Message:       r.URL.Query().Get("msg"),
-		Error:         r.URL.Query().Get("err"),
-		Action:        "/login",
-		SubmitLabel:   "登录",
-		UsernameValue: strings.TrimSpace(r.URL.Query().Get("username")),
-	}
-	if h.allowRegistration {
-		data.AlternativeLabel = "注册新账号"
-		data.AlternativePath = "/register"
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "login.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	h.redirectToSSO(w, r)
 }
 
-func (h *Handler) handleRegisterPage(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleSSOStart(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.optionalCurrentUser(r); ok {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
-	if !h.allowRegistration {
-		h.redirectToLogin(w, r, "", "当前已关闭注册")
-		return
-	}
 
-	data := AuthPageData{
-		Title:            "注册",
-		Heading:          "创建你的 Todo 账户",
-		Message:          r.URL.Query().Get("msg"),
-		Error:            r.URL.Query().Get("err"),
-		Action:           "/register",
-		SubmitLabel:      "提交注册申请",
-		AlternativeLabel: "已有账号，去登录",
-		AlternativePath:  "/login",
-		ShowDisplayName:  true,
-		UsernameValue:    strings.TrimSpace(r.URL.Query().Get("username")),
-		DisplayNameValue: strings.TrimSpace(r.URL.Query().Get("display_name")),
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "register.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	h.redirectToSSO(w, r)
 }
 
-func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		h.redirectToLogin(w, r, "", "请求解析失败")
+func (h *Handler) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
+	if authError := strings.TrimSpace(r.URL.Query().Get("error")); authError != "" {
+		http.Error(w, "SSO 登录失败："+authError, http.StatusUnauthorized)
 		return
 	}
 
-	username := strings.TrimSpace(r.FormValue("username"))
-	password := r.FormValue("password")
+	expectedState := h.cookieValue(r, ssoStateCookieName)
+	expectedNonce := h.cookieValue(r, ssoNonceCookieName)
+	if expectedState == "" || expectedNonce == "" || r.URL.Query().Get("state") != expectedState {
+		h.clearSSOCookies(w)
+		http.Error(w, "SSO 登录状态已失效，请重新登录", http.StatusUnauthorized)
+		return
+	}
 
-	result, err := h.authService.Login(r.Context(), username, password, r.UserAgent(), clientIPAddress(r))
+	code := strings.TrimSpace(r.URL.Query().Get("code"))
+	result, err := h.authService.LoginWithSSO(r.Context(), code, expectedNonce, r.UserAgent(), clientIPAddress(r))
 	if err != nil {
-		h.redirectToAuth(
-			w,
-			r,
-			"/login",
-			"",
-			humanizeError(err),
-			map[string]string{"username": username},
-		)
+		h.clearSSOCookies(w)
+		http.Error(w, humanizeError(err), http.StatusUnauthorized)
 		return
 	}
 
+	returnTo := safeReturnTo(h.cookieValue(r, ssoReturnToCookieName))
+	h.clearSSOCookies(w)
 	h.setSessionCookie(w, result.Token, result.ExpiresAt)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
-}
-
-func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
-	if !h.allowRegistration {
-		h.redirectToLogin(w, r, "", "当前已关闭注册")
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		h.redirectToRegister(w, r, "", "请求解析失败", "", "")
-		return
-	}
-
-	username := strings.TrimSpace(r.FormValue("username"))
-	displayName := strings.TrimSpace(r.FormValue("display_name"))
-	password := r.FormValue("password")
-
-	result, err := h.authService.Register(r.Context(), username, displayName, password, r.UserAgent(), clientIPAddress(r))
-	if err != nil {
-		h.redirectToRegister(w, r, "", humanizeError(err), username, displayName)
-		return
-	}
-
-	if result.PendingApproval {
-		h.redirectToLogin(w, r, "注册申请已提交，等待管理员审批后再登录", "")
-		return
-	}
-
-	h.setSessionCookie(w, result.Token, result.ExpiresAt)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, returnTo, http.StatusSeeOther)
 }
 
 func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	_ = h.authService.Logout(r.Context(), h.sessionToken(r))
 	h.clearSessionCookie(w)
-	h.redirectToLogin(w, r, "已退出登录", "")
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
 func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -964,7 +891,7 @@ func (h *Handler) handleApproveUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.redirectToAdminUsers(w, r, fmt.Sprintf("已批准 @%s", approvedUser.Username), "")
+	h.redirectToAdminUsers(w, r, fmt.Sprintf("已批准 %s", approvedUser.DisplayName), "")
 }
 
 func (h *Handler) handleRejectUser(w http.ResponseWriter, r *http.Request) {
@@ -981,7 +908,7 @@ func (h *Handler) handleRejectUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.redirectToAdminUsers(w, r, fmt.Sprintf("已拒绝并删除 @%s", rejectedUser.Username), "")
+	h.redirectToAdminUsers(w, r, fmt.Sprintf("已拒绝并删除 %s", rejectedUser.DisplayName), "")
 }
 
 func (h *Handler) requireAuth(next http.Handler) http.Handler {
@@ -1049,6 +976,18 @@ func (h *Handler) setSessionCookie(w http.ResponseWriter, token string, expiresA
 	})
 }
 
+func (h *Handler) setShortLivedCookie(w http.ResponseWriter, name, value string, maxAge int) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   h.sessionSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
 func (h *Handler) clearSessionCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     h.sessionCookieName,
@@ -1062,12 +1001,65 @@ func (h *Handler) clearSessionCookie(w http.ResponseWriter) {
 	})
 }
 
+func (h *Handler) clearSSOCookies(w http.ResponseWriter) {
+	for _, name := range []string{ssoStateCookieName, ssoNonceCookieName, ssoReturnToCookieName} {
+		http.SetCookie(w, &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			Expires:  time.Unix(0, 0),
+			HttpOnly: true,
+			Secure:   h.sessionSecure,
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
+}
+
 func (h *Handler) sessionToken(r *http.Request) string {
 	cookie, err := r.Cookie(h.sessionCookieName)
 	if err != nil {
 		return ""
 	}
 	return cookie.Value
+}
+
+func (h *Handler) cookieValue(r *http.Request, name string) string {
+	cookie, err := r.Cookie(name)
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+func (h *Handler) redirectToSSO(w http.ResponseWriter, r *http.Request) {
+	if !h.authService.SSOConfigured() {
+		http.Error(w, "SSO 尚未配置，请设置 SSO_ISSUER_URL、SSO_CLIENT_ID、SSO_CLIENT_SECRET 和 SSO_REDIRECT_URL", http.StatusServiceUnavailable)
+		return
+	}
+
+	state, err := randomURLToken()
+	if err != nil {
+		http.Error(w, "生成 SSO state 失败", http.StatusInternalServerError)
+		return
+	}
+	nonce, err := randomURLToken()
+	if err != nil {
+		http.Error(w, "生成 SSO nonce 失败", http.StatusInternalServerError)
+		return
+	}
+
+	authURL, err := h.authService.SSOAuthCodeURL(state, nonce)
+	if err != nil {
+		http.Error(w, humanizeError(err), http.StatusServiceUnavailable)
+		return
+	}
+
+	returnTo := safeReturnTo(r.URL.Query().Get("next"))
+	h.setShortLivedCookie(w, ssoStateCookieName, state, 600)
+	h.setShortLivedCookie(w, ssoNonceCookieName, nonce, 600)
+	h.setShortLivedCookie(w, ssoReturnToCookieName, returnTo, 600)
+	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
 func (h *Handler) redirectHome(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
@@ -1083,18 +1075,11 @@ func (h *Handler) redirectToAdminUsers(w http.ResponseWriter, r *http.Request, m
 }
 
 func (h *Handler) redirectToLogin(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
-	h.redirectWithQuery(w, r, "/login", message, errorMessage, nil)
-}
-
-func (h *Handler) redirectToRegister(w http.ResponseWriter, r *http.Request, message, errorMessage, username, displayName string) {
-	h.redirectWithQuery(w, r, "/register", message, errorMessage, map[string]string{
-		"username":     username,
-		"display_name": displayName,
-	})
-}
-
-func (h *Handler) redirectToAuth(w http.ResponseWriter, r *http.Request, path, message, errorMessage string, extra map[string]string) {
-	h.redirectWithQuery(w, r, path, message, errorMessage, extra)
+	extra := map[string]string{}
+	if r.Method == http.MethodGet && r.URL.Path != "/login" && r.URL.Path != "/auth/sso/callback" {
+		extra["next"] = r.URL.RequestURI()
+	}
+	h.redirectWithQuery(w, r, "/login", message, errorMessage, extra)
 }
 
 func (h *Handler) redirectWithQuery(w http.ResponseWriter, r *http.Request, path, message, errorMessage string, extra map[string]string) {
@@ -1119,10 +1104,33 @@ func (h *Handler) redirectWithQuery(w http.ResponseWriter, r *http.Request, path
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
+func randomURLToken() (string, error) {
+	buffer := make([]byte, 32)
+	if _, err := rand.Read(buffer); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buffer), nil
+}
+
+func safeReturnTo(value string) string {
+	normalized := strings.TrimSpace(value)
+	if normalized == "" {
+		return "/"
+	}
+	parsed, err := url.Parse(normalized)
+	if err != nil || parsed.IsAbs() || parsed.Host != "" || !strings.HasPrefix(parsed.Path, "/") {
+		return "/"
+	}
+	if parsed.Path == "/login" || parsed.Path == "/auth/sso/start" || parsed.Path == "/auth/sso/callback" {
+		return "/"
+	}
+	return parsed.RequestURI()
+}
+
 func buildUserView(user domain.User) *UserView {
 	return &UserView{
 		DisplayName: user.DisplayName,
-		Username:    user.Username,
+		Username:    user.DisplayName,
 		IsAdmin:     user.IsAdmin(),
 	}
 }
@@ -1133,7 +1141,7 @@ func buildPendingUserCards(users []domain.User, location *time.Location) []Pendi
 		cards = append(cards, PendingUserCard{
 			ID:          user.ID.String(),
 			DisplayName: user.DisplayName,
-			Username:    user.Username,
+			Username:    user.DisplayName,
 			CreatedAt:   user.CreatedAt.In(location).Format("2006-01-02 15:04"),
 		})
 	}
@@ -1822,10 +1830,10 @@ func humanizeError(err error) string {
 		return "用户名或密码错误"
 	case errors.Is(err, service.ErrInvalidSession):
 		return "登录状态已失效，请重新登录"
-	case errors.Is(err, service.ErrRegistrationDisabled):
-		return "当前已关闭注册"
-	case errors.Is(err, service.ErrUsernameTaken):
-		return "用户名已存在"
+	case errors.Is(err, service.ErrSSONotConfigured):
+		return "SSO 尚未配置"
+	case errors.Is(err, service.ErrInvalidSSOLogin):
+		return "SSO 登录验证失败"
 	case errors.Is(err, service.ErrUserPendingApproval):
 		return "账号还在等待管理员审批"
 	case errors.Is(err, service.ErrPermissionDenied):

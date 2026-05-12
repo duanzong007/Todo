@@ -22,9 +22,7 @@ const (
 
 type User struct {
 	ID             uuid.UUID
-	Username       string
 	DisplayName    string
-	PasswordHash   string
 	Role           UserRole
 	ApprovalStatus UserApprovalStatus
 	IsActive       bool

@@ -75,11 +75,24 @@ func main() {
 	parser := service.NewTextParser(location)
 	icsImporter := service.NewICSImporter(location, cfg.ICSImportHorizonDays)
 	taskService := service.NewTaskService(repo, parser, icsImporter, location)
+	ssoClient, err := service.NewSSOClient(ctx, service.SSOConfig{
+		ProviderName: cfg.SSOProviderName,
+		IssuerURL:    cfg.SSOIssuerURL,
+		ClientID:     cfg.SSOClientID,
+		ClientSecret: cfg.SSOClientSecret,
+		RedirectURL:  cfg.SSORedirectURL,
+		Scopes:       cfg.SSOScopes,
+		AutoRegister: cfg.SSOAutoRegister,
+		AutoApprove:  cfg.SSOAutoApprove,
+	})
+	if err != nil {
+		log.Fatalf("configure sso: %v", err)
+	}
 	authService := service.NewAuthService(
 		authRepo,
 		cfg.SessionCookieName,
 		time.Duration(cfg.SessionTTLHours)*time.Hour,
-		cfg.AllowRegistration,
+		ssoClient,
 	)
 
 	handler, err := web.NewHandler(taskService, authService, quoteService, web.HandlerOptions{
@@ -89,7 +102,6 @@ func main() {
 		Location:          location,
 		SessionCookieName: cfg.SessionCookieName,
 		SessionSecure:     cfg.SessionSecureCookie,
-		AllowRegistration: cfg.AllowRegistration,
 	})
 	if err != nil {
 		log.Fatalf("build handler: %v", err)

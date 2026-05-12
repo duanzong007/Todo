@@ -96,7 +96,7 @@ const filteredShareUsers = computed(() => {
     return users;
   }
   return users.filter((user) => {
-    return `${user.display_name} ${user.username}`.toLowerCase().includes(query);
+    return user.display_name.toLowerCase().includes(query);
   });
 });
 
@@ -708,7 +708,6 @@ onBeforeUnmount(() => {
               @change="toggleShareUser(user, ($event.target as HTMLInputElement).checked)" />
             <span>
               <strong>{{ user.display_name }}</strong>
-              <small>{{ user.username }}</small>
             </span>
           </label>
           <p v-if="filteredShareUsers.length === 0" class="share-empty">没有匹配的用户</p>

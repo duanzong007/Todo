@@ -52,6 +52,10 @@ export default defineConfig(({ mode }) => {
           target: backendURL,
           changeOrigin: true,
         },
+        "/auth": {
+          target: backendURL,
+          changeOrigin: true,
+        },
         "/logout": {
           target: backendURL,
           changeOrigin: true,

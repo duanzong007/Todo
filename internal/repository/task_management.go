@@ -33,7 +33,6 @@ type ManagedTask struct {
 	Task             domain.Task
 	OwnerID          uuid.UUID
 	OwnerDisplayName string
-	OwnerUsername    string
 	SharedWithMe     bool
 	ShareCount       int
 	ShareNames       string
@@ -133,8 +132,7 @@ func (r *TaskRepository) ListManagedTasks(ctx context.Context, userID uuid.UUID,
 	builder.WriteString(`
 		SELECT
 			t.user_id,
-			owner.display_name,
-			owner.username,
+			owner.sso_display_name,
 			(t.user_id <> $1) AS shared_with_me,
 			COALESCE((
 				SELECT COUNT(*)
@@ -142,7 +140,7 @@ func (r *TaskRepository) ListManagedTasks(ctx context.Context, userID uuid.UUID,
 				WHERE share_count.task_id = t.id
 			), 0)::int AS share_count,
 			COALESCE((
-				SELECT string_agg(shared_user.display_name, '、' ORDER BY shared_user.display_name)
+				SELECT string_agg(shared_user.sso_display_name, '、' ORDER BY shared_user.sso_display_name)
 				FROM task_shares shared_users
 				JOIN app_users shared_user ON shared_user.id = shared_users.user_id
 				WHERE shared_users.task_id = t.id
@@ -216,8 +214,7 @@ func (r *TaskRepository) GetManagedTasksByIDs(ctx context.Context, userID uuid.U
 	rows, err := r.db.Query(ctx, `
 		SELECT
 			t.user_id,
-			owner.display_name,
-			owner.username,
+			owner.sso_display_name,
 			(t.user_id <> $1) AS shared_with_me,
 			COALESCE((
 				SELECT COUNT(*)
@@ -225,7 +222,7 @@ func (r *TaskRepository) GetManagedTasksByIDs(ctx context.Context, userID uuid.U
 				WHERE share_count.task_id = t.id
 			), 0)::int AS share_count,
 			COALESCE((
-				SELECT string_agg(shared_user.display_name, '、' ORDER BY shared_user.display_name)
+				SELECT string_agg(shared_user.sso_display_name, '、' ORDER BY shared_user.sso_display_name)
 				FROM task_shares shared_users
 				JOIN app_users shared_user ON shared_user.id = shared_users.user_id
 				WHERE shared_users.task_id = t.id
@@ -550,7 +547,6 @@ func scanManagedTask(row interface{ Scan(dest ...any) error }) (ManagedTask, err
 	err := row.Scan(
 		&managed.OwnerID,
 		&managed.OwnerDisplayName,
-		&managed.OwnerUsername,
 		&sharedWithMe,
 		&managed.ShareCount,
 		&managed.ShareNames,

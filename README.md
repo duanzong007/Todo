@@ -8,7 +8,7 @@
 - PostgreSQL 完整约束和迁移
 - 单日视图
 - `todo / schedule / ddl` 三类任务
-- 管理员审批注册
+- SOID / OIDC 统一登录与用户审批
 - PWA 安装
 - 前台 SSE 实时同步
 
@@ -52,9 +52,10 @@
 
 ### 账户与权限
 
-- 多用户注册 / 登录 / 登出
-- 首个注册账号自动成为 admin
-- 后续注册账号必须由 admin 审批后才能登录
+- 全站统一走 SOID / OIDC SSO 登录
+- SSO 首次登录自动创建本地用户
+- 首个自动创建账号成为 admin
+- 可配置新 SSO 用户是否需要 admin 审批
 - admin 可批准或直接拒绝并删除待审批账号
 - 基于 HttpOnly Cookie 的会话
 
@@ -124,10 +125,11 @@ web/static            CSS / JS / PWA 资源
 核心表：
 
 - `app_users`
-  - 用户账号
-  - 显示名
+  - 用户 ID 与 SSO 身份
+  - SSO 同步显示名
   - 角色
   - 审批状态
+  - 通过 `auth_provider + external_subject` 定位本地用户
 - `user_sessions`
   - 登录会话
   - 过期时间
@@ -187,10 +189,7 @@ go run ./cmd/server
 
 - `http://localhost:8080`
 
-首次使用时：
-
-- 访问 `http://localhost:8080/register`
-- 首个账号会自动成为 admin
+首次使用前需要配置 SOID / OIDC 参数。访问 `http://localhost:8080/login` 后会跳转到统一登录。
 
 ### 方式二：Docker Compose
 
@@ -219,7 +218,14 @@ docker compose up --build
 | `SESSION_COOKIE_NAME` | Cookie 名称 | `todo_session` |
 | `SESSION_TTL_HOURS` | 会话有效时长 | `720` |
 | `SESSION_SECURE_COOKIE` | HTTPS 下建议设为 `true` | `false` |
-| `ALLOW_REGISTRATION` | 是否允许注册 | `true` |
+| `SSO_PROVIDER_NAME` | SSO 提供方标识，临时映射表使用 | `soid` |
+| `SSO_ISSUER_URL` | OIDC issuer 地址 | 空 |
+| `SSO_CLIENT_ID` | OIDC client id | 空 |
+| `SSO_CLIENT_SECRET` | OIDC client secret | 空 |
+| `SSO_REDIRECT_URL` | OIDC 回调地址 | 空 |
+| `SSO_SCOPES` | OIDC scope 列表 | `openid profile email` |
+| `SSO_AUTO_REGISTER` | SSO 新用户是否自动创建本地账号 | `true` |
+| `SSO_AUTO_APPROVE` | SSO 新用户是否自动批准启用 | `true` |
 
 ## 输入与解析说明
 
