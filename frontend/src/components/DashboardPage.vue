@@ -169,19 +169,26 @@ function connectEvents() {
   }
 }
 
-async function mutate(path: string, formData?: FormData, options: { reload?: boolean; suppressRealtime?: boolean } = {}) {
+async function mutate(
+  path: string,
+  formData?: FormData,
+  options: { reload?: boolean; suppressRealtime?: boolean; afterSuccess?: () => void } = {},
+) {
   pendingCount.value += 1;
   if (options.suppressRealtime) {
     suppressRealtimeUntil = Date.now() + 1200;
   }
   try {
     await submitFormAction(path, formData);
+    options.afterSuccess?.();
     if (options.reload !== false) {
       await load(window.location.search);
     }
+    return true;
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "操作失败";
     await load(window.location.search);
+    return false;
   } finally {
     pendingCount.value = Math.max(0, pendingCount.value - 1);
   }
@@ -509,8 +516,12 @@ function baseManualForm(type: string, title: string, importance: string) {
 async function submitTodo() {
   if (!forms.todoTitle.trim()) return;
   const formData = baseManualForm("todo", forms.todoTitle, forms.todoImportance);
-  await mutate("/tasks/manual", formData);
-  forms.todoTitle = "";
+  await mutate("/tasks/manual", formData, {
+    afterSuccess: () => {
+      forms.todoTitle = "";
+      closeComposerModal();
+    },
+  });
 }
 
 async function submitSchedule() {
@@ -524,16 +535,24 @@ async function submitSchedule() {
   } else {
     formData.set("scheduled_value", forms.scheduleDate);
   }
-  await mutate("/tasks/manual", formData);
-  forms.scheduleTitle = "";
+  await mutate("/tasks/manual", formData, {
+    afterSuccess: () => {
+      forms.scheduleTitle = "";
+      closeComposerModal();
+    },
+  });
 }
 
 async function submitDDL() {
   if (!forms.ddlTitle.trim()) return;
   const formData = baseManualForm("ddl", forms.ddlTitle, forms.ddlImportance);
   formData.set("deadline_value", forms.ddlValue);
-  await mutate("/tasks/manual", formData);
-  forms.ddlTitle = "";
+  await mutate("/tasks/manual", formData, {
+    afterSuccess: () => {
+      forms.ddlTitle = "";
+      closeComposerModal();
+    },
+  });
 }
 
 async function submitSMS() {
@@ -541,8 +560,12 @@ async function submitSMS() {
   const formData = new FormData();
   formData.set("return_date", focusDate.value);
   formData.set("sms_input", forms.smsInput.trim());
-  await mutate("/tasks/parse-sms", formData);
-  forms.smsInput = "";
+  await mutate("/tasks/parse-sms", formData, {
+    afterSuccess: () => {
+      forms.smsInput = "";
+      closeComposerModal();
+    },
+  });
 }
 
 function openSMS() {
@@ -780,7 +803,7 @@ onBeforeUnmount(() => {
                   type="radio" :checked="forms.todoImportance === value" /><label :for="`todo-${value}`"
                   @click.prevent="forms.todoImportance = value">★</label></template>
             </div>
-            <button type="submit">添加 Todo</button>
+            <button type="submit" :disabled="pendingCount > 0">{{ pendingCount > 0 ? "添加中" : "添加 Todo" }}</button>
           </form>
 
           <form v-if="composerModal === 'schedule'" class="composer-form-vue" @submit.prevent="submitSchedule">
@@ -813,7 +836,7 @@ onBeforeUnmount(() => {
                     v-model="forms.batchWeekdays" type="checkbox" :value="value" />{{ label }}</label>
               </div>
             </div>
-            <button type="submit">添加日程</button>
+            <button type="submit" :disabled="pendingCount > 0">{{ pendingCount > 0 ? "添加中" : "添加日程" }}</button>
           </form>
 
           <form v-if="composerModal === 'ddl'" class="composer-form-vue" @submit.prevent="submitDDL">
@@ -829,12 +852,12 @@ onBeforeUnmount(() => {
                 @click="quickSetDate('ddl', tomorrowDate)">明天</button><button type="button"
                 @click="quickSetDate('ddl', dayAfterDate)">后天</button></div>
             <WheelDatePicker v-model="forms.ddlValue" mode="datetime" />
-            <button type="submit">添加 DDL</button>
+            <button type="submit" :disabled="pendingCount > 0">{{ pendingCount > 0 ? "添加中" : "添加 DDL" }}</button>
           </form>
 
           <form v-if="composerModal === 'sms'" class="composer-form-vue" @submit.prevent="submitSMS">
             <label>短信内容<textarea v-model="forms.smsInput" placeholder="直接粘贴取件短信；一次贴很多条也可以。" required></textarea></label>
-            <button type="submit">解析短信</button>
+            <button type="submit" :disabled="pendingCount > 0">{{ pendingCount > 0 ? "解析中" : "解析短信" }}</button>
           </form>
         </section>
       </div>

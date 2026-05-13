@@ -1476,6 +1476,9 @@ function bindAsyncTaskForm(form) {
     const preservedState = window.captureFocusPageState
       ? window.captureFocusPageState(document)
       : null;
+    if (preservedState?.openDetails && form.hasAttribute("data-composer-section")) {
+      preservedState.openDetails["composer-fab"] = false;
+    }
     beginPendingTaskRequest();
 
     try {

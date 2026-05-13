@@ -476,23 +476,16 @@ func parsePostponeTarget(task domain.Task, rawTarget string, now time.Time, loca
 }
 
 func earliestSchedulePostponeDate(task domain.Task, now time.Time, location *time.Location) time.Time {
-	base := normalizeDateInLocation(now, location)
 	if task.ScheduledFor != nil {
-		scheduled := normalizeDateInLocation(*task.ScheduledFor, location)
-		if scheduled.After(base) {
-			base = scheduled
-		}
+		return normalizeDateInLocation(*task.ScheduledFor, location).AddDate(0, 0, 1)
 	}
-	return base.AddDate(0, 0, 1)
+	return normalizeDateInLocation(now, location)
 }
 
 func earliestDDLPostponeTime(task domain.Task, now time.Time, location *time.Location) time.Time {
 	base := now.In(location)
 	if task.Deadline != nil {
-		deadline := task.Deadline.In(location)
-		if deadline.After(base) {
-			base = deadline
-		}
+		base = task.Deadline.In(location)
 	}
 
 	local := base.In(location)

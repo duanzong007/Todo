@@ -1522,23 +1522,16 @@ func ddlPostponePickerValues(task domain.Task, now time.Time, location *time.Loc
 }
 
 func serviceEarliestSchedulePostponeDate(task domain.Task, now time.Time, location *time.Location) time.Time {
-	base := normalizeCurrentViewDate(now, location)
 	if task.ScheduledFor != nil {
-		scheduled := normalizeCalendarDate(*task.ScheduledFor, location)
-		if scheduled.After(base) {
-			base = scheduled
-		}
+		return normalizeCalendarDate(*task.ScheduledFor, location).AddDate(0, 0, 1)
 	}
-	return base.AddDate(0, 0, 1)
+	return normalizeCurrentViewDate(now, location)
 }
 
 func serviceEarliestDDLPostponeTime(task domain.Task, now time.Time, location *time.Location) time.Time {
 	base := now.In(location)
 	if task.Deadline != nil {
-		deadline := task.Deadline.In(location)
-		if deadline.After(base) {
-			base = deadline
-		}
+		base = task.Deadline.In(location)
 	}
 
 	rounded := time.Date(
