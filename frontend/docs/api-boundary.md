@@ -51,7 +51,7 @@ GET /dashboard/data?date=YYYY-MM-DD
 
 - 后端设置 `Cache-Control: no-store`
 
-当前 `/` 已切换到 Vue 版首页，旧模板首页保留在 `/classic`。
+当前 `/` 已切换到 Vue 版首页，旧模板首页和 `/classic` 回退入口已经删除。
 
 ### Realtime Events
 
@@ -95,7 +95,7 @@ POST /imports/ics
 
 ```http
 GET /sms/native
-GET /sms/native/classic
+GET /sms/native/vue
 GET /sms/native/data
 POST /tasks/parse-sms/native
 POST /tasks/parse-sms/native-paste
@@ -103,8 +103,8 @@ POST /tasks/parse-sms/native-paste
 
 用途：
 
-- `/sms/native` 当前是 Vue 短信导入页入口
-- `/sms/native/classic` 是旧 Go 模板回退页
+- `/sms/native` 当前是 Go 模板短信导入页入口
+- `/sms/native/vue` 是 Vue 短信导入页入口
 - `/sms/native/data` 给 Vue 读取当前用户、返回路径和时区
 - `/tasks/parse-sms/native` 复用后端短信识别逻辑导入壳层读取的短信
 - `/tasks/parse-sms/native-paste` 复用后端短信识别逻辑导入手动粘贴短信
@@ -119,14 +119,15 @@ POST /tasks/parse-sms/native-paste
 
 ```http
 GET /me
+GET /me/vue
 GET /me/data
 POST /me/tasks/apply
 ```
 
 用途：
 
-- `/me` 当前是 Vue 管理页入口
-- `/me/classic` 是 Go 模板回退页
+- `/me` 当前是 Go 模板管理页入口
+- `/me/vue` 是 Vue 管理页入口
 - `/me/data` 给 Vue 管理页读取任务、筛选器、分页和共享用户
 - `/me/tasks/apply` 给 Vue 管理页异步提交编辑、共享和删除
 

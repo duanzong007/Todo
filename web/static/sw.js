@@ -1,15 +1,10 @@
-const CACHE_NAME = "todo-pwa-v26";
+const CACHE_NAME = "todo-pwa-v27";
 const OFFLINE_URL = "/static/pwa/offline.html";
 const NAVIGATION_NETWORK_TIMEOUT_MS = 4500;
 const STATIC_NETWORK_TIMEOUT_MS = 2200;
 const STATIC_ASSETS = [
   "/static/styles.css",
-  "/static/date-picker.js",
-  "/static/focus-page.js",
-  "/static/task-cards.js",
-  "/static/realtime-sync.js",
   "/static/postpone-picker.js",
-  "/static/composer-panel.js",
   "/static/pwa-register.js",
   "/static/vue/assets/index.js",
   "/static/vue/assets/style.css",

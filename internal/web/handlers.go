@@ -268,7 +268,6 @@ func (h *Handler) Router() http.Handler {
 		r.Use(h.requireAuth)
 
 		r.Get("/", h.handleIndexVuePage)
-		r.Get("/classic", h.handleIndex)
 		r.Get("/dashboard/data", h.handleDashboardData)
 		r.Get("/dashboard/snapshot", h.handleDashboardSnapshot)
 		r.Get("/events", h.handleEventStream)
@@ -370,25 +369,6 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	_ = h.authService.Logout(r.Context(), h.sessionToken(r))
 	h.clearSessionCookie(w)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
-}
-
-func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
-	user, ok := h.currentUser(r)
-	if !ok {
-		h.redirectToLogin(w, r, "", "请先登录")
-		return
-	}
-
-	focusDate, err := h.resolveFocusDate(r)
-	if err != nil {
-		h.redirectWithQuery(w, r, "/", "", "日期格式不正确", nil)
-		return
-	}
-
-	w.Header().Set("Cache-Control", "no-store")
-	if err := h.renderIndex(w, r, user, focusDate, r.URL.Query().Get("msg"), r.URL.Query().Get("err")); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
 }
 
 func (h *Handler) handleIndexVuePage(w http.ResponseWriter, r *http.Request) {
@@ -743,16 +723,6 @@ func (h *Handler) handleImportICS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.redirectHome(w, r, "", "")
-}
-
-func (h *Handler) renderIndex(w http.ResponseWriter, r *http.Request, user domain.User, focusDate time.Time, message, errorMessage string) error {
-	pageData, err := h.buildDashboardPageData(r.Context(), user, focusDate, errorMessage)
-	if err != nil {
-		return err
-	}
-	_ = message
-
-	return h.templates.ExecuteTemplate(w, "index.html", pageData)
 }
 
 func (h *Handler) buildDashboardPageData(ctx context.Context, user domain.User, focusDate time.Time, errorMessage string) (DashboardPageData, error) {

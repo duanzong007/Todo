@@ -47,17 +47,14 @@ TODO_BACKEND_URL=http://localhost:8080
 
 ## 当前入口
 
-- Go 服务里的 `/me` 已切换为 Vue 版管理页
 - Go 服务里的 `/` 已切换为 Vue 版首页
-- 旧 Go 模板首页保留在 `/classic`
-- Go 服务里的 `/me` 已切换为 Vue 版管理页
-- 旧 Go 模板管理页保留在 `/me/classic`
-- Go 服务里的 `/sms/native` 已切换为 Vue 版短信导入页
-- 旧 Go 模板短信导入页保留在 `/sms/native/classic`
-- 不注册 PWA
+- 旧 Go 模板首页已经删除，不再保留 `/classic`
+- Go 服务里的 `/me` 仍是传统管理页，Vue 版保留在 `/me/vue`
+- Go 服务里的 `/sms/native` 仍是传统短信导入页，Vue 版保留在 `/sms/native/vue`
+- 继续沿用现有 PWA 注册和后端接口
 - 不改安卓壳
 - 不新增后端业务语义
-- Vue 只接管管理页前端状态和交互，不重新实现任务业务规则
+- Vue 不重新实现任务业务规则
 
 ## 验证命令
 

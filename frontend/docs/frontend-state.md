@@ -4,12 +4,8 @@
 
 来源文件：
 
-- `web/static/focus-page.js`
-- `web/static/task-cards.js`
-- `web/static/date-picker.js`
 - `web/static/postpone-picker.js`
-- `web/static/composer-panel.js`
-- `web/static/realtime-sync.js`
+- `frontend/src/components/DashboardPage.vue`
 
 主要状态：
 
@@ -27,7 +23,7 @@
 当前状态：
 
 - Vue 版首页已经接管 `/`
-- 旧模板首页保留在 `/classic`
+- 旧模板首页和 `/classic` 回退入口已经删除
 - `frontend/src/components/DashboardPage.vue` 管理首页页面级状态
 - `/dashboard/data` 负责完整页面数据
 - `/events` 仍然负责跨端静默同步
@@ -64,7 +60,7 @@
 来源文件：
 
 - `web/static/native-sms.js`
-- `web/static/native-sms-entry.js`
+- `frontend/src/components/NativeSMSPage.vue`
 
 主要状态：
 

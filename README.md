@@ -381,10 +381,7 @@ go test ./...
 前端脚本也建议在改动后检查：
 
 ```bash
-node --check web/static/task-cards.js
-node --check web/static/focus-page.js
-node --check web/static/composer-panel.js
-node --check web/static/realtime-sync.js
+npm --prefix frontend run build
 node --check web/static/sw.js
 ```
 
