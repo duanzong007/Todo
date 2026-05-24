@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { APIError, fetchDashboardPage, openDashboardEvents, submitFormAction } from "../api/client";
-import type { CompletedTaskCard, DashboardPageData, ShareableUserCard, TaskCard } from "../types";
+import type { CompletedTaskCard, DashboardPageData, DashboardSnapshot, ShareableUserCard, TaskCard } from "../types";
 import WheelDatePicker from "./WheelDatePicker.vue";
 
 type ComposerTab = "todo" | "schedule" | "ddl" | "sms";
@@ -185,10 +185,12 @@ async function mutate(
     suppressRealtimeUntil = Date.now() + 1200;
   }
   try {
-    await submitFormAction(path, formData);
+    const response = await submitFormAction(path, formData);
     options.afterSuccess?.();
     if (options.reload !== false) {
       await load(window.location.search);
+    } else {
+      await applyDashboardSnapshotResponse(response);
     }
     return true;
   } catch (error) {
@@ -198,6 +200,24 @@ async function mutate(
   } finally {
     pendingCount.value = Math.max(0, pendingCount.value - 1);
   }
+}
+
+async function applyDashboardSnapshotResponse(response: Response) {
+  if (!page.value || response.status === 204) {
+    return;
+  }
+  const contentType = response.headers.get("Content-Type") || "";
+  if (!contentType.includes("application/json")) {
+    return;
+  }
+
+  const snapshot = (await response.json().catch(() => null)) as DashboardSnapshot | null;
+  if (!snapshot || !Array.isArray(snapshot.focus_tasks) || !Array.isArray(snapshot.completed_tasks)) {
+    return;
+  }
+  page.value.focus_tasks = snapshot.focus_tasks;
+  page.value.completed_tasks = snapshot.completed_tasks;
+  page.value.empty_quote = snapshot.empty_quote;
 }
 
 function taskFormData(task: TaskCard | CompletedTaskCard) {
