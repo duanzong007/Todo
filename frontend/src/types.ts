@@ -23,6 +23,7 @@ export interface TaskCard {
   note: string;
   can_complete: boolean;
   can_postpone: boolean;
+  completion_users: ShareableUserCard[];
   postpone_mode: "date" | "datetime";
   postpone_value: string;
   postpone_min_value: string;
@@ -127,6 +128,7 @@ export interface ManagedTaskCard {
   note: string;
   is_owner: boolean;
   shared_with_me: boolean;
+  shared_users: ShareableUserCard[];
   schedule_mode: "none" | "date" | "datetime" | string;
   schedule_value: string;
   deadline_date: string;

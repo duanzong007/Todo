@@ -12,6 +12,8 @@ import (
 	"todo/internal/domain"
 	"todo/internal/repository"
 	"todo/internal/service"
+
+	"github.com/google/uuid"
 )
 
 type accountActionResponse struct {
@@ -51,6 +53,14 @@ func (h *Handler) buildAccountPageData(r *http.Request, user domain.User) (Accou
 		}
 		totalPages = buildAccountTotalPages(total, filterInput.Limit)
 	}
+	taskIDs := make([]uuid.UUID, 0, len(tasks))
+	for _, task := range tasks {
+		taskIDs = append(taskIDs, task.Task.ID)
+	}
+	shareMap, err := h.taskService.TaskShareUsers(r.Context(), taskIDs)
+	if err != nil {
+		return AccountPageData{}, err
+	}
 
 	shareUsers, err := h.authService.ListShareableUsers(r.Context(), user)
 	if err != nil {
@@ -69,7 +79,7 @@ func (h *Handler) buildAccountPageData(r *http.Request, user domain.User) (Accou
 		TodayDateISO:   time.Now().In(h.location).Format("2006-01-02"),
 		Filter:         buildAccountTaskFilterView(filterInput),
 		Pagination:     buildAccountPaginationView(filterInput.Page, filterInput.Limit, total),
-		Tasks:          buildManagedTaskCards(tasks, user, h.location),
+		Tasks:          buildManagedTaskCards(tasks, user, h.location, shareMap),
 		ShareUsers:     buildShareableUserCards(shareUsers),
 		FriendRequests: buildShareableUserCards(friendRequests),
 	}, nil
@@ -106,6 +116,7 @@ func (h *Handler) handleAccountTaskApply(w http.ResponseWriter, r *http.Request)
 		DeadlineTime:    strings.TrimSpace(r.FormValue("deadline_time")),
 		DeadlineValue:   strings.TrimSpace(r.FormValue("deadline_value")),
 		ShareUserIDs:    append([]string(nil), r.Form["share_user_id"]...),
+		UnshareUserIDs:  append([]string(nil), r.Form["unshare_user_id"]...),
 	}
 
 	result, err := h.taskService.ApplyManagementAction(r.Context(), user, input)
@@ -437,7 +448,7 @@ func buildAccountTotalPages(total, limit int) int {
 	return (total + limit - 1) / limit
 }
 
-func buildManagedTaskCards(tasks []repository.ManagedTask, currentUser domain.User, location *time.Location) []ManagedTaskCard {
+func buildManagedTaskCards(tasks []repository.ManagedTask, currentUser domain.User, location *time.Location, shareMap map[uuid.UUID][]domain.User) []ManagedTaskCard {
 	cards := make([]ManagedTaskCard, 0, len(tasks))
 	for _, managed := range tasks {
 		task := managed.Task
@@ -450,6 +461,7 @@ func buildManagedTaskCards(tasks []repository.ManagedTask, currentUser domain.Us
 			Note:         task.Note,
 			IsOwner:      managed.OwnerID == currentUser.ID,
 			SharedWithMe: managed.SharedWithMe,
+			SharedUsers:  buildShareableUserCards(shareMap[task.ID]),
 		}
 
 		if task.Status == domain.TaskStatusDone {
@@ -495,14 +507,18 @@ func buildManagedTaskCards(tasks []repository.ManagedTask, currentUser domain.Us
 func buildShareableUserCards(users []domain.User) []ShareableUserCard {
 	items := make([]ShareableUserCard, 0, len(users))
 	for _, user := range users {
-		items = append(items, ShareableUserCard{
-			ID:          user.ID.String(),
-			DisplayName: user.DisplayName,
-			Username:    user.DisplayName,
-			Email:       user.Email,
-		})
+		items = append(items, buildShareableUserCard(user))
 	}
 	return items
+}
+
+func buildShareableUserCard(user domain.User) ShareableUserCard {
+	return ShareableUserCard{
+		ID:          user.ID.String(),
+		DisplayName: user.DisplayName,
+		Username:    user.DisplayName,
+		Email:       user.Email,
+	}
 }
 
 func encodeAccountReturnQuery(values url.Values) string {

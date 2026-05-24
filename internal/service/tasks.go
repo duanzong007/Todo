@@ -319,6 +319,18 @@ func (s *TaskService) Complete(ctx context.Context, userID uuid.UUID, rawID stri
 	return s.repo.CompleteTask(ctx, userID, taskID)
 }
 
+func (s *TaskService) CompleteForUsers(ctx context.Context, userID uuid.UUID, rawID string, rawUserIDs []string, selectionProvided bool) (repository.TaskCompletionResult, error) {
+	taskID, err := uuid.Parse(rawID)
+	if err != nil {
+		return repository.TaskCompletionResult{}, fmt.Errorf("invalid task id: %w", err)
+	}
+	userIDs, err := parseUUIDList(rawUserIDs)
+	if err != nil {
+		return repository.TaskCompletionResult{}, fmt.Errorf("确认对象无效: %w", err)
+	}
+	return s.repo.CompleteTaskForUsers(ctx, userID, taskID, userIDs, selectionProvided)
+}
+
 func (s *TaskService) Restore(ctx context.Context, userID uuid.UUID, rawID string) (domain.Task, error) {
 	taskID, err := uuid.Parse(rawID)
 	if err != nil {

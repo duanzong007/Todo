@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { APIError, fetchDashboardPage, openDashboardEvents, submitFormAction } from "../api/client";
-import type { CompletedTaskCard, DashboardPageData, TaskCard } from "../types";
+import type { CompletedTaskCard, DashboardPageData, ShareableUserCard, TaskCard } from "../types";
 import WheelDatePicker from "./WheelDatePicker.vue";
 
 type ComposerTab = "todo" | "schedule" | "ddl" | "sms";
@@ -34,6 +34,8 @@ const editOriginalTitle = ref("");
 const editOriginalImportance = ref("2");
 const dateJumpValue = ref("");
 const icsInput = ref<HTMLInputElement | null>(null);
+const completionTask = ref<TaskCard | null>(null);
+const completionSelection = ref<Set<string>>(new Set());
 
 const forms = reactive({
   todoTitle: "",
@@ -68,6 +70,10 @@ const activePostponeInvalid = computed(() => {
   if (!task) return false;
   return !isPostponeValueValid(task, postponeDraftValue(task));
 });
+const completionUsers = computed(() => completionTask.value?.completion_users ?? []);
+const allCompletionUsersSelected = computed(
+  () => completionUsers.value.length > 0 && completionUsers.value.every((user) => completionSelection.value.has(user.id)),
+);
 const calendarWeekdays = ["一", "二", "三", "四", "五", "六", "日"];
 const postponeCalendarLabel = computed(() => {
   const activeTask = activePostponeTask.value;
@@ -201,8 +207,45 @@ function taskFormData(task: TaskCard | CompletedTaskCard) {
 }
 
 function completeTask(task: TaskCard) {
+  if ((task.completion_users ?? []).length > 0) {
+    completionTask.value = task;
+    completionSelection.value = new Set(task.completion_users.map((user) => user.id));
+    return;
+  }
   optimisticallyComplete(task);
   void mutate(`/tasks/${task.id}/complete`, taskFormData(task), { reload: false, suppressRealtime: true });
+}
+
+function toggleCompletionUser(user: ShareableUserCard, checked: boolean) {
+  const next = new Set(completionSelection.value);
+  if (checked) {
+    next.add(user.id);
+  } else {
+    next.delete(user.id);
+  }
+  completionSelection.value = next;
+}
+
+function toggleAllCompletionUsers(checked: boolean) {
+  completionSelection.value = checked ? new Set(completionUsers.value.map((user) => user.id)) : new Set();
+}
+
+function closeCompletionDialog() {
+  completionTask.value = null;
+  completionSelection.value = new Set();
+}
+
+function submitCompletionDialog() {
+  const task = completionTask.value;
+  if (!task) {
+    return;
+  }
+  const formData = taskFormData(task);
+  formData.set("confirm_selection", "custom");
+  completionSelection.value.forEach((id) => formData.append("confirm_user_id", id));
+  closeCompletionDialog();
+  optimisticallyComplete(task);
+  void mutate(`/tasks/${task.id}/complete`, formData, { reload: false, suppressRealtime: true });
 }
 
 function restoreTask(task: CompletedTaskCard) {
@@ -252,6 +295,7 @@ function optimisticallyRestore(task: CompletedTaskCard) {
         note: task.note,
         can_complete: true,
         can_postpone: task.can_postpone,
+        completion_users: [],
         postpone_mode: task.postpone_mode,
         postpone_value: task.postpone_value,
         postpone_min_value: task.postpone_min_value,
@@ -906,6 +950,47 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
+        </section>
+      </div>
+    </Transition>
+
+    <Transition name="composer-modal">
+      <div v-if="completionTask" class="completion-modal-shell" role="dialog" aria-modal="true">
+        <div class="composer-modal-backdrop" @click="closeCompletionDialog"></div>
+        <section class="completion-modal-card">
+          <header class="completion-modal-head">
+            <h2>{{ completionTask.title }}</h2>
+            <p>
+              <span>勾选表示这次会帮对方一起确认；</span>
+              <span>取消勾选，对方那边仍保留待确认。</span>
+            </p>
+          </header>
+
+          <div class="completion-share-list">
+            <label v-if="completionUsers.length > 1" class="completion-user is-all">
+              <input type="checkbox" :checked="allCompletionUsersSelected"
+                @change="toggleAllCompletionUsers(($event.target as HTMLInputElement).checked)" />
+              <span>
+                <strong>全选</strong>
+                <small>帮所有共享对象一起确认</small>
+              </span>
+            </label>
+            <label v-for="user in completionUsers" :key="user.id" class="completion-user"
+              :class="{ selected: completionSelection.has(user.id) }">
+              <input type="checkbox" :checked="completionSelection.has(user.id)"
+                @change="toggleCompletionUser(user, ($event.target as HTMLInputElement).checked)" />
+              <span>
+                <strong>{{ user.display_name }}</strong>
+                <small v-if="user.email">{{ user.email }}</small>
+              </span>
+              <em>{{ completionSelection.has(user.id) ? "一起确认" : "不帮确认" }}</em>
+            </label>
+          </div>
+
+          <footer class="completion-actions">
+            <button type="button" class="soft-button" @click="closeCompletionDialog">取消</button>
+            <button type="button" class="primary-button" @click="submitCompletionDialog">确认</button>
+          </footer>
         </section>
       </div>
     </Transition>

@@ -24,6 +24,7 @@ import (
 	"todo/internal/service"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 type contextKey string
@@ -159,40 +160,42 @@ type ShareableUserCard struct {
 }
 
 type ManagedTaskCard struct {
-	ID            string `json:"id"`
-	Title         string `json:"title"`
-	KindLabel     string `json:"kind_label"`
-	KindClass     string `json:"kind_class"`
-	Importance    int    `json:"importance"`
-	StatusLabel   string `json:"status_label"`
-	StatusClass   string `json:"status_class"`
-	DateLine      string `json:"date_line"`
-	SharedLine    string `json:"shared_line"`
-	Note          string `json:"note"`
-	IsOwner       bool   `json:"is_owner"`
-	SharedWithMe  bool   `json:"shared_with_me"`
-	ScheduleMode  string `json:"schedule_mode"`
-	ScheduleValue string `json:"schedule_value"`
-	DeadlineDate  string `json:"deadline_date"`
-	DeadlineTime  string `json:"deadline_time"`
+	ID            string              `json:"id"`
+	Title         string              `json:"title"`
+	KindLabel     string              `json:"kind_label"`
+	KindClass     string              `json:"kind_class"`
+	Importance    int                 `json:"importance"`
+	StatusLabel   string              `json:"status_label"`
+	StatusClass   string              `json:"status_class"`
+	DateLine      string              `json:"date_line"`
+	SharedLine    string              `json:"shared_line"`
+	Note          string              `json:"note"`
+	IsOwner       bool                `json:"is_owner"`
+	SharedWithMe  bool                `json:"shared_with_me"`
+	SharedUsers   []ShareableUserCard `json:"shared_users"`
+	ScheduleMode  string              `json:"schedule_mode"`
+	ScheduleValue string              `json:"schedule_value"`
+	DeadlineDate  string              `json:"deadline_date"`
+	DeadlineTime  string              `json:"deadline_time"`
 }
 
 type TaskCard struct {
-	ID            string `json:"id"`
-	Title         string `json:"title"`
-	KindLabel     string `json:"kind_label"`
-	KindClass     string `json:"kind_class"`
-	Importance    int    `json:"importance"`
-	StatusLine    string `json:"status_line"`
-	CompactStatus string `json:"compact_status_line"`
-	MobileCompact bool   `json:"mobile_compact"`
-	Note          string `json:"note"`
-	CanComplete   bool   `json:"can_complete"`
-	CanPostpone   bool   `json:"can_postpone"`
-	PostponeMode  string `json:"postpone_mode"`
-	PostponeValue string `json:"postpone_value"`
-	PostponeMin   string `json:"postpone_min_value"`
-	ReturnDate    string `json:"return_date"`
+	ID              string              `json:"id"`
+	Title           string              `json:"title"`
+	KindLabel       string              `json:"kind_label"`
+	KindClass       string              `json:"kind_class"`
+	Importance      int                 `json:"importance"`
+	StatusLine      string              `json:"status_line"`
+	CompactStatus   string              `json:"compact_status_line"`
+	MobileCompact   bool                `json:"mobile_compact"`
+	Note            string              `json:"note"`
+	CanComplete     bool                `json:"can_complete"`
+	CanPostpone     bool                `json:"can_postpone"`
+	CompletionUsers []ShareableUserCard `json:"completion_users"`
+	PostponeMode    string              `json:"postpone_mode"`
+	PostponeValue   string              `json:"postpone_value"`
+	PostponeMin     string              `json:"postpone_min_value"`
+	ReturnDate      string              `json:"return_date"`
 }
 
 type CompletedTaskCard struct {
@@ -572,8 +575,14 @@ func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.parseRequestForm(r); err != nil {
+		h.redirectHome(w, r, "", "请求解析失败")
+		return
+	}
+
 	taskID := chi.URLParam(r, "taskID")
-	task, err := h.taskService.Complete(r.Context(), user.ID, taskID)
+	selectionProvided := strings.TrimSpace(r.FormValue("confirm_selection")) == "custom"
+	result, err := h.taskService.CompleteForUsers(r.Context(), user.ID, taskID, append([]string(nil), r.Form["confirm_user_id"]...), selectionProvided)
 	if err != nil {
 		if wantsAsyncResponse(r) {
 			http.Error(w, humanizeError(err), http.StatusBadRequest)
@@ -583,7 +592,7 @@ func (h *Handler) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.publishTaskAudience(r.Context(), task.ID.String(), user.ID, requestClientID(r))
+	h.publishDashboardUpdatesForUUIDs(result.AudienceUserIDs, requestClientID(r))
 
 	if wantsAsyncResponse(r) {
 		h.writeDashboardSnapshot(w, r, user)
@@ -718,10 +727,14 @@ func (h *Handler) buildDashboardPageData(ctx context.Context, user domain.User, 
 	if err != nil {
 		return DashboardPageData{}, err
 	}
+	participantMap, err := h.taskService.TaskParticipants(ctx, dashboardTaskIDs(dashboard))
+	if err != nil {
+		return DashboardPageData{}, err
+	}
 
 	today := normalizeCurrentViewDate(now, h.location)
 	calendarMeta := service.CalendarMetaForDate(focusDate, h.location)
-	focusTasks := buildFocusTaskCards(dashboard, now, focusDate, h.location)
+	focusTasks := buildFocusTaskCards(dashboard, now, focusDate, h.location, user.ID, participantMap)
 	pageData := DashboardPageData{
 		CurrentUser:          buildUserView(user),
 		Error:                errorMessage,
@@ -1085,7 +1098,7 @@ func buildQuoteView(quote service.Quote) *QuoteView {
 	return view
 }
 
-func buildFocusTaskCards(dashboard repository.Dashboard, now, focusDate time.Time, location *time.Location) []TaskCard {
+func buildFocusTaskCards(dashboard repository.Dashboard, now, focusDate time.Time, location *time.Location, currentUserID uuid.UUID, participantMap map[uuid.UUID][]domain.User) []TaskCard {
 	var tasks []domain.Task
 
 	for _, task := range dashboard.Today {
@@ -1105,9 +1118,36 @@ func buildFocusTaskCards(dashboard repository.Dashboard, now, focusDate time.Tim
 
 	cards := make([]TaskCard, 0, len(tasks))
 	for _, task := range tasks {
-		cards = append(cards, buildTaskCard(task, now, focusDate, location))
+		card := buildTaskCard(task, now, focusDate, location)
+		card.CompletionUsers = buildCompletionUserCards(participantMap[task.ID], currentUserID)
+		cards = append(cards, card)
 	}
 
+	return cards
+}
+
+func dashboardTaskIDs(dashboard repository.Dashboard) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(dashboard.Today)+len(dashboard.DDL)+len(dashboard.Todo))
+	for _, task := range dashboard.Today {
+		ids = append(ids, task.ID)
+	}
+	for _, task := range dashboard.DDL {
+		ids = append(ids, task.ID)
+	}
+	for _, task := range dashboard.Todo {
+		ids = append(ids, task.ID)
+	}
+	return ids
+}
+
+func buildCompletionUserCards(users []domain.User, currentUserID uuid.UUID) []ShareableUserCard {
+	cards := make([]ShareableUserCard, 0, len(users))
+	for _, user := range users {
+		if user.ID == currentUserID {
+			continue
+		}
+		cards = append(cards, buildShareableUserCard(user))
+	}
 	return cards
 }
 

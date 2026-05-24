@@ -27,6 +27,11 @@ type Dashboard struct {
 	Todo  []domain.Task
 }
 
+type TaskCompletionResult struct {
+	Task            domain.Task
+	AudienceUserIDs []uuid.UUID
+}
+
 type SourceInput struct {
 	Type       domain.SourceType
 	RawContent string
@@ -291,23 +296,152 @@ func (r *TaskRepository) GetTask(ctx context.Context, userID, id uuid.UUID) (dom
 }
 
 func (r *TaskRepository) CompleteTask(ctx context.Context, userID, id uuid.UUID) (domain.Task, error) {
+	result, err := r.CompleteTaskForUsers(ctx, userID, id, nil, false)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	return result.Task, nil
+}
+
+func (r *TaskRepository) CompleteTaskForUsers(ctx context.Context, userID, id uuid.UUID, selectedUserIDs []uuid.UUID, selectionProvided bool) (TaskCompletionResult, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return domain.Task{}, fmt.Errorf("begin tx: %w", err)
+		return TaskCompletionResult{}, fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
 	task, err := getTaskTx(ctx, tx, userID, id, true)
 	if err != nil {
-		return domain.Task{}, err
+		return TaskCompletionResult{}, err
 	}
 	if !task.SupportsCompletion() {
-		return domain.Task{}, ErrUnsupportedOperation
+		return TaskCompletionResult{}, ErrUnsupportedOperation
 	}
 	if task.Status != domain.TaskStatusActive {
-		return domain.Task{}, ErrInvalidTaskTransition
+		return TaskCompletionResult{}, ErrInvalidTaskTransition
 	}
 
+	ownerID, err := getTaskOwnerIDTx(ctx, tx, id)
+	if err != nil {
+		return TaskCompletionResult{}, err
+	}
+	participantIDs, err := listTaskParticipantIDsTx(ctx, tx, id)
+	if err != nil {
+		return TaskCompletionResult{}, err
+	}
+	audienceUserIDs := append([]uuid.UUID(nil), participantIDs...)
+
+	participantSet := make(map[uuid.UUID]struct{}, len(participantIDs))
+	for _, participantID := range participantIDs {
+		participantSet[participantID] = struct{}{}
+	}
+	if _, ok := participantSet[userID]; !ok {
+		return TaskCompletionResult{}, ErrTaskNotFound
+	}
+
+	selectedSet := make(map[uuid.UUID]struct{}, len(participantIDs))
+	if selectionProvided {
+		for _, selectedID := range uniqueUUIDs(selectedUserIDs) {
+			if _, ok := participantSet[selectedID]; !ok {
+				return TaskCompletionResult{}, fmt.Errorf("选择的确认对象无效")
+			}
+			selectedSet[selectedID] = struct{}{}
+		}
+		selectedSet[userID] = struct{}{}
+	} else {
+		for _, participantID := range participantIDs {
+			selectedSet[participantID] = struct{}{}
+		}
+	}
+
+	selectedIDs := make([]uuid.UUID, 0, len(selectedSet))
+	unselectedIDs := make([]uuid.UUID, 0, len(participantIDs))
+	for _, participantID := range participantIDs {
+		if _, ok := selectedSet[participantID]; ok {
+			selectedIDs = append(selectedIDs, participantID)
+		} else {
+			unselectedIDs = append(unselectedIDs, participantID)
+		}
+	}
+	if len(selectedIDs) == 0 {
+		return TaskCompletionResult{}, fmt.Errorf("请至少保留一个确认对象")
+	}
+
+	var updatedTask domain.Task
+	if len(unselectedIDs) == 0 {
+		updatedTask, err = completeTaskTx(ctx, tx, id, task.Status)
+		if err != nil {
+			return TaskCompletionResult{}, err
+		}
+	} else if _, ownerSelected := selectedSet[ownerID]; ownerSelected {
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM task_shares
+			WHERE task_id = $1
+				AND user_id = ANY($2::uuid[])
+		`, id, unselectedIDs); err != nil {
+			return TaskCompletionResult{}, fmt.Errorf("remove unselected task shares: %w", err)
+		}
+
+		updatedTask, err = completeTaskTx(ctx, tx, id, task.Status)
+		if err != nil {
+			return TaskCompletionResult{}, err
+		}
+		for _, unselectedID := range unselectedIDs {
+			clone, err := cloneActiveTaskTx(ctx, tx, unselectedID, task, "shared_completion_remaining")
+			if err != nil {
+				return TaskCompletionResult{}, err
+			}
+			if err := createTaskEventTx(ctx, tx, clone.ID, "created", map[string]any{
+				"split_from_task_id": task.ID.String(),
+				"split_reason":       "partial_shared_completion",
+			}); err != nil {
+				return TaskCompletionResult{}, err
+			}
+		}
+	} else {
+		selectedShareIDs := make([]uuid.UUID, 0, len(selectedIDs))
+		for _, selectedID := range selectedIDs {
+			if selectedID != ownerID {
+				selectedShareIDs = append(selectedShareIDs, selectedID)
+			}
+		}
+		if len(selectedShareIDs) > 0 {
+			if _, err := tx.Exec(ctx, `
+				DELETE FROM task_shares
+				WHERE task_id = $1
+					AND user_id = ANY($2::uuid[])
+			`, id, selectedShareIDs); err != nil {
+				return TaskCompletionResult{}, fmt.Errorf("remove completed task shares: %w", err)
+			}
+		}
+
+		updatedTask, err = cloneCompletedTaskTx(ctx, tx, userID, task)
+		if err != nil {
+			return TaskCompletionResult{}, err
+		}
+
+		shareToIDs := make([]uuid.UUID, 0, len(selectedIDs))
+		for _, selectedID := range selectedIDs {
+			if selectedID != userID {
+				shareToIDs = append(shareToIDs, selectedID)
+			}
+		}
+		if err := insertTaskSharesTx(ctx, tx, updatedTask.ID, userID, shareToIDs); err != nil {
+			return TaskCompletionResult{}, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return TaskCompletionResult{}, fmt.Errorf("commit complete task: %w", err)
+	}
+
+	return TaskCompletionResult{
+		Task:            updatedTask,
+		AudienceUserIDs: audienceUserIDs,
+	}, nil
+}
+
+func completeTaskTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, previousStatus domain.TaskStatus) (domain.Task, error) {
 	row := tx.QueryRow(ctx, `
 		UPDATE tasks
 		SET status = 'done', completed_at = NOW()
@@ -321,13 +455,9 @@ func (r *TaskRepository) CompleteTask(ctx context.Context, userID, id uuid.UUID)
 	}
 
 	if err := createTaskEventTx(ctx, tx, id, "completed", map[string]any{
-		"previous_status": task.Status,
+		"previous_status": previousStatus,
 	}); err != nil {
 		return domain.Task{}, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return domain.Task{}, fmt.Errorf("commit complete task: %w", err)
 	}
 
 	return updatedTask, nil
@@ -588,6 +718,94 @@ func insertTaskTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, sourceID *uu
 	return task, true, nil
 }
 
+func cloneActiveTaskTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, sourceTask domain.Task, reason string) (domain.Task, error) {
+	input := taskInputFromTask(sourceTask, reason)
+	task, inserted, err := insertTaskTx(ctx, tx, userID, nil, input, false)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	if !inserted {
+		return domain.Task{}, fmt.Errorf("task clone was not inserted")
+	}
+	return task, nil
+}
+
+func cloneCompletedTaskTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, sourceTask domain.Task) (domain.Task, error) {
+	input := taskInputFromTask(sourceTask, "shared_completion_completed")
+	metadata, err := marshalMetadata(input.Metadata)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("marshal completed task clone metadata: %w", err)
+	}
+	importance, err := domain.NormalizeTaskImportance(input.Importance)
+	if err != nil {
+		return domain.Task{}, err
+	}
+
+	row := tx.QueryRow(ctx, `
+		INSERT INTO tasks (user_id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata)
+		VALUES ($1, NULL, $2, $3, $4, 'done', $5, $6, $7, NOW(), $8, $9)
+		RETURNING id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
+	`,
+		userID,
+		input.Title,
+		input.Note,
+		input.Type,
+		importance,
+		normalizeSchedulePtr(input.ScheduledFor),
+		normalizeDeadlinePtr(input.Deadline),
+		sourceTask.PostponedCount,
+		metadata,
+	)
+	task, err := scanTask(row)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	if err := createTaskEventTx(ctx, tx, task.ID, "completed", map[string]any{
+		"previous_status":    domain.TaskStatusActive,
+		"split_from_task_id": sourceTask.ID.String(),
+		"split_reason":       "partial_shared_completion",
+	}); err != nil {
+		return domain.Task{}, err
+	}
+	return task, nil
+}
+
+func taskInputFromTask(task domain.Task, reason string) TaskInput {
+	metadata := make(map[string]any, len(task.Metadata)+2)
+	for key, value := range task.Metadata {
+		metadata[key] = value
+	}
+	metadata["split_from_task_id"] = task.ID.String()
+	metadata["split_reason"] = reason
+
+	return TaskInput{
+		Title:        task.Title,
+		Note:         task.Note,
+		Type:         task.Type,
+		Importance:   task.Importance,
+		ScheduledFor: task.ScheduledFor,
+		Deadline:     task.Deadline,
+		Metadata:     metadata,
+	}
+}
+
+func insertTaskSharesTx(ctx context.Context, tx pgx.Tx, taskID, ownerID uuid.UUID, userIDs []uuid.UUID) error {
+	userIDs = uniqueUUIDs(userIDs)
+	if len(userIDs) == 0 {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO task_shares (task_id, user_id, shared_by)
+		SELECT $1::uuid, target_user_id, $2::uuid
+		FROM unnest($3::uuid[]) AS target_user_id
+		WHERE target_user_id <> $2::uuid
+		ON CONFLICT DO NOTHING
+	`, taskID, ownerID, userIDs); err != nil {
+		return fmt.Errorf("insert task shares: %w", err)
+	}
+	return nil
+}
+
 func getTaskTx(ctx context.Context, tx pgx.Tx, userID, id uuid.UUID, lock bool) (domain.Task, error) {
 	query := `
 		SELECT id, source_id, title, note, task_type, status, importance, scheduled_for, deadline, completed_at, postponed_count, metadata, created_at, updated_at
@@ -616,6 +834,54 @@ func getTaskTx(ctx context.Context, tx pgx.Tx, userID, id uuid.UUID, lock bool) 
 		return domain.Task{}, err
 	}
 	return task, nil
+}
+
+func getTaskOwnerIDTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) (uuid.UUID, error) {
+	var ownerID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		SELECT user_id
+		FROM tasks
+		WHERE id = $1
+	`, id).Scan(&ownerID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, ErrTaskNotFound
+		}
+		return uuid.Nil, fmt.Errorf("get task owner: %w", err)
+	}
+	return ownerID, nil
+}
+
+func listTaskParticipantIDsTx(ctx context.Context, tx pgx.Tx, taskID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT participant.user_id
+		FROM (
+			SELECT user_id, 0 AS rank
+			FROM tasks
+			WHERE id = $1
+			UNION ALL
+			SELECT user_id, 1 AS rank
+			FROM task_shares
+			WHERE task_id = $1
+		) AS participant
+		ORDER BY participant.rank, participant.user_id
+	`, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("list task participants: %w", err)
+	}
+	defer rows.Close()
+
+	var userIDs []uuid.UUID
+	for rows.Next() {
+		var userID uuid.UUID
+		if err := rows.Scan(&userID); err != nil {
+			return nil, err
+		}
+		userIDs = append(userIDs, userID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate task participants: %w", err)
+	}
+	return uniqueUUIDs(userIDs), nil
 }
 
 func createTaskEventTx(ctx context.Context, tx pgx.Tx, taskID uuid.UUID, eventType string, payload map[string]any) error {

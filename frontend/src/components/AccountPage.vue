@@ -47,6 +47,7 @@ const errorMessage = ref("");
 const noticeMessage = ref("");
 const shareSelection = ref<Set<string>>(new Set());
 const shareQuery = ref("");
+const unshareSelection = ref<Set<string>>(new Set());
 
 const filterDraft = reactive<FilterDraft>({
   query: "",
@@ -83,6 +84,23 @@ const allSelectedOnPage = computed(
   () => tasks.value.length > 0 && tasks.value.every((task) => selectedIds.value.has(task.id)),
 );
 const selectedOwnedOnly = computed(() => selectedTasks.value.length > 0 && selectedTasks.value.every((task) => task.is_owner));
+const selectedHasSharing = computed(() =>
+  selectedTasks.value.some((task) => task.shared_with_me || (task.is_owner && task.shared_users.length > 0)),
+);
+const unshareUsers = computed(() => {
+  const byID = new Map<string, ShareableUserCard>();
+  selectedTasks.value.forEach((task) => {
+    if (!task.is_owner) {
+      return;
+    }
+    task.shared_users.forEach((user) => byID.set(user.id, user));
+  });
+  return Array.from(byID.values());
+});
+const hasSharedWithMeSelection = computed(() => selectedTasks.value.some((task) => task.shared_with_me));
+const canSubmitUnshare = computed(
+  () => selectedHasSharing.value && (hasSharedWithMeSelection.value || unshareSelection.value.size > 0),
+);
 const selectedBlockedCopy = computed(() => {
   if (!hasSelection.value || selectedOwnedOnly.value) {
     return "";
@@ -364,6 +382,7 @@ function openEdit() {
   editDraft.scheduleDate = single?.schedule_value ?? "";
   editDraft.deadlineValue =
     single?.deadline_date && single.deadline_time ? `${single.deadline_date}T${single.deadline_time}` : "";
+  unshareSelection.value = new Set(unshareUsers.value.map((user) => user.id));
   activeModal.value = "edit";
 }
 
@@ -416,6 +435,15 @@ async function submitShare() {
   await submitAction(formData);
 }
 
+async function submitUnshare() {
+  if (!hasSelection.value || !selectedHasSharing.value) {
+    return;
+  }
+  const formData = baseActionForm("unshare");
+  unshareSelection.value.forEach((id) => formData.append("unshare_user_id", id));
+  await submitAction(formData);
+}
+
 async function submitDelete() {
   if (!hasSelection.value || !selectedOwnedOnly.value) {
     return;
@@ -452,6 +480,16 @@ function toggleShareUser(user: ShareableUserCard, checked: boolean) {
     next.delete(user.id);
   }
   shareSelection.value = next;
+}
+
+function toggleUnshareUser(user: ShareableUserCard, checked: boolean) {
+  const next = new Set(unshareSelection.value);
+  if (checked) {
+    next.add(user.id);
+  } else {
+    next.delete(user.id);
+  }
+  unshareSelection.value = next;
 }
 
 function showNotice(message: string) {
@@ -557,8 +595,8 @@ function onPopState() {
             <div class="manage-task-line">
               <span class="kind-pill" :class="taskKindClass(task)">{{ task.kind_label }}</span>
               <span class="manage-importance">{{ task.importance }} 级</span>
-              <span class="status-pill" :class="task.status_class">{{ task.status_label }}</span>
               <span v-if="task.shared_with_me" class="manage-origin">共享给我</span>
+              <span class="status-pill" :class="task.status_class">{{ task.status_label }}</span>
             </div>
             <h2>{{ task.title }}</h2>
             <div class="manage-task-sub">
@@ -718,6 +756,29 @@ function onPopState() {
             <WheelDatePicker v-model="editDraft.deadlineValue" mode="datetime" empty-label="截止时间" />
           </label>
         </div>
+
+        <section v-if="selectedHasSharing" class="unshare-panel">
+          <div>
+            <p class="eyebrow">共享</p>
+            <h3>取消共享</h3>
+          </div>
+          <p v-if="hasSharedWithMeSelection" class="manage-drawer-copy">
+            共享给你的任务会从你的列表移除。
+          </p>
+          <div v-if="unshareUsers.length" class="share-list unshare-list">
+            <label v-for="user in unshareUsers" :key="user.id" class="share-user">
+              <input type="checkbox" :checked="unshareSelection.has(user.id)"
+                @change="toggleUnshareUser(user, ($event.target as HTMLInputElement).checked)" />
+              <span>
+                <strong>{{ user.display_name }}</strong>
+                <small>{{ user.email }}</small>
+              </span>
+            </label>
+          </div>
+          <button class="danger-button unshare-button" type="button" :disabled="!canSubmitUnshare || Boolean(loadingMessage)" @click="submitUnshare">
+            取消共享
+          </button>
+        </section>
 
         <footer class="manage-modal-actions">
           <button class="soft-button" type="button" @click="closeModal">取消</button>

@@ -25,6 +25,7 @@ type TaskManagementActionInput struct {
 	DeadlineTime    string
 	DeadlineValue   string
 	ShareUserIDs    []string
+	UnshareUserIDs  []string
 }
 
 type TaskManagementActionResult struct {
@@ -52,6 +53,14 @@ func (s *TaskService) VisibleUserIDsForTasks(ctx context.Context, rawIDs []strin
 	return s.repo.ListVisibleUserIDsForTasks(ctx, taskIDs)
 }
 
+func (s *TaskService) TaskParticipants(ctx context.Context, taskIDs []uuid.UUID) (map[uuid.UUID][]domain.User, error) {
+	return s.repo.ListTaskParticipants(ctx, taskIDs)
+}
+
+func (s *TaskService) TaskShareUsers(ctx context.Context, taskIDs []uuid.UUID) (map[uuid.UUID][]domain.User, error) {
+	return s.repo.ListTaskShareUsers(ctx, taskIDs)
+}
+
 func (s *TaskService) ApplyManagementAction(ctx context.Context, actor domain.User, input TaskManagementActionInput) (TaskManagementActionResult, error) {
 	taskIDs, err := parseUUIDList(input.SelectedTaskIDs)
 	if err != nil {
@@ -77,6 +86,8 @@ func (s *TaskService) ApplyManagementAction(ctx context.Context, actor domain.Us
 		return s.applyDeleteAction(ctx, actor, taskIDs, selectedTasks)
 	case "share":
 		return s.applyShareAction(ctx, actor, taskIDs, selectedTasks, input.ShareUserIDs)
+	case "unshare":
+		return s.applyUnshareAction(ctx, actor, taskIDs, input.UnshareUserIDs)
 	default:
 		return s.applyPatchAction(ctx, actor, selectedTasks, input)
 	}
@@ -134,6 +145,26 @@ func (s *TaskService) applyShareAction(ctx context.Context, actor domain.User, t
 
 	return TaskManagementActionResult{
 		Message:         fmt.Sprintf("已把 %d 条任务共享出去", len(selectedTasks)),
+		AudienceUserIDs: audience,
+	}, nil
+}
+
+func (s *TaskService) applyUnshareAction(ctx context.Context, actor domain.User, taskIDs []uuid.UUID, rawUserIDs []string) (TaskManagementActionResult, error) {
+	userIDs, err := parseUUIDList(rawUserIDs)
+	if err != nil {
+		return TaskManagementActionResult{}, fmt.Errorf("取消共享对象无效: %w", err)
+	}
+
+	affected, audience, err := s.repo.UnshareTasks(ctx, actor.ID, taskIDs, userIDs)
+	if err != nil {
+		return TaskManagementActionResult{}, err
+	}
+	if len(affected) == 0 {
+		return TaskManagementActionResult{}, fmt.Errorf("没有可取消的共享关系")
+	}
+
+	return TaskManagementActionResult{
+		Message:         fmt.Sprintf("已取消 %d 条任务的共享", len(affected)),
 		AudienceUserIDs: audience,
 	}, nil
 }

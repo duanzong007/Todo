@@ -311,6 +311,97 @@ func (r *TaskRepository) ListVisibleUserIDsForTasks(ctx context.Context, taskIDs
 	return userIDs, nil
 }
 
+func (r *TaskRepository) ListTaskParticipants(ctx context.Context, taskIDs []uuid.UUID) (map[uuid.UUID][]domain.User, error) {
+	result := map[uuid.UUID][]domain.User{}
+	taskIDs = uniqueUUIDs(taskIDs)
+	if len(taskIDs) == 0 {
+		return result, nil
+	}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			participants.task_id,
+			u.id,
+			u.sso_display_name,
+			u.email,
+			u.role,
+			u.is_active,
+			u.last_login_at,
+			u.created_at,
+			u.updated_at
+		FROM (
+			SELECT id AS task_id, user_id, 0 AS rank
+			FROM tasks
+			WHERE id = ANY($1::uuid[])
+			UNION ALL
+			SELECT task_id, user_id, 1 AS rank
+			FROM task_shares
+			WHERE task_id = ANY($1::uuid[])
+		) AS participants
+		JOIN app_users u ON u.id = participants.user_id
+		ORDER BY participants.task_id, participants.rank, u.sso_display_name, u.email
+	`, taskIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list task participants: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var taskID uuid.UUID
+		user, err := scanTaskParticipantUser(rows, &taskID)
+		if err != nil {
+			return nil, err
+		}
+		result[taskID] = append(result[taskID], user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate task participants: %w", err)
+	}
+	return result, nil
+}
+
+func (r *TaskRepository) ListTaskShareUsers(ctx context.Context, taskIDs []uuid.UUID) (map[uuid.UUID][]domain.User, error) {
+	result := map[uuid.UUID][]domain.User{}
+	taskIDs = uniqueUUIDs(taskIDs)
+	if len(taskIDs) == 0 {
+		return result, nil
+	}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			ts.task_id,
+			u.id,
+			u.sso_display_name,
+			u.email,
+			u.role,
+			u.is_active,
+			u.last_login_at,
+			u.created_at,
+			u.updated_at
+		FROM task_shares ts
+		JOIN app_users u ON u.id = ts.user_id
+		WHERE ts.task_id = ANY($1::uuid[])
+		ORDER BY ts.task_id, u.sso_display_name, u.email
+	`, taskIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list task share users: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var taskID uuid.UUID
+		user, err := scanTaskParticipantUser(rows, &taskID)
+		if err != nil {
+			return nil, err
+		}
+		result[taskID] = append(result[taskID], user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate task share users: %w", err)
+	}
+	return result, nil
+}
+
 func (r *TaskRepository) DeleteOwnedTasks(ctx context.Context, ownerID uuid.UUID, taskIDs []uuid.UUID) ([]uuid.UUID, error) {
 	if len(taskIDs) == 0 {
 		return nil, nil
@@ -469,6 +560,67 @@ func (r *TaskRepository) ShareOwnedTasks(ctx context.Context, ownerID uuid.UUID,
 	return nil
 }
 
+func (r *TaskRepository) UnshareTasks(ctx context.Context, actorID uuid.UUID, taskIDs, targetUserIDs []uuid.UUID) ([]uuid.UUID, []uuid.UUID, error) {
+	taskIDs = uniqueUUIDs(taskIDs)
+	targetUserIDs = uniqueUUIDs(targetUserIDs)
+	if len(taskIDs) == 0 {
+		return nil, nil, nil
+	}
+
+	audience, err := r.ListVisibleUserIDsForTasks(ctx, taskIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `
+		DELETE FROM task_shares share
+		USING tasks task
+		WHERE share.task_id = task.id
+			AND task.id = ANY($2::uuid[])
+			AND (
+				(task.user_id = $1::uuid AND share.user_id = ANY($3::uuid[]))
+				OR share.user_id = $1::uuid
+			)
+		RETURNING share.task_id
+	`, actorID, taskIDs, targetUserIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unshare tasks: %w", err)
+	}
+	defer rows.Close()
+
+	var affected []uuid.UUID
+	for rows.Next() {
+		var taskID uuid.UUID
+		if err := rows.Scan(&taskID); err != nil {
+			return nil, nil, err
+		}
+		affected = append(affected, taskID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("iterate unshared tasks: %w", err)
+	}
+	affected = uniqueUUIDs(affected)
+
+	for _, taskID := range affected {
+		if err := createTaskEventTx(ctx, tx, taskID, "shared", map[string]any{
+			"action": "unshared",
+		}); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, nil, fmt.Errorf("commit unshare tasks: %w", err)
+	}
+	return affected, audience, nil
+}
+
 func (r *TaskRepository) RescheduleTask(ctx context.Context, userID, id uuid.UUID, targetValue time.Time) (domain.Task, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -621,6 +773,29 @@ func scanManagedTask(row interface{ Scan(dest ...any) error }) (ManagedTask, err
 	}
 
 	return managed, nil
+}
+
+func scanTaskParticipantUser(row interface{ Scan(dest ...any) error }, taskID *uuid.UUID) (domain.User, error) {
+	var user domain.User
+	var lastLoginAt pgtype.Timestamptz
+	if err := row.Scan(
+		taskID,
+		&user.ID,
+		&user.DisplayName,
+		&user.Email,
+		&user.Role,
+		&user.IsActive,
+		&lastLoginAt,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	); err != nil {
+		return domain.User{}, err
+	}
+	if lastLoginAt.Valid {
+		value := lastLoginAt.Time
+		user.LastLoginAt = &value
+	}
+	return user, nil
 }
 
 func uniqueUUIDs(values []uuid.UUID) []uuid.UUID {

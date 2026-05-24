@@ -74,7 +74,7 @@ func TestBuildFocusTaskCardsSortsByImportanceThenUrgency(t *testing.T) {
 		},
 	}
 
-	cards := buildFocusTaskCards(dashboard, now, focusDate, location)
+	cards := buildFocusTaskCards(dashboard, now, focusDate, location, uuid.Nil, nil)
 	if len(cards) != 5 {
 		t.Fatalf("len(cards) = %d, want 5", len(cards))
 	}
@@ -107,22 +107,22 @@ func TestBuildFocusTaskCardsShowsDDLOnlyBetweenCreatedDayAndDeadlineDay(t *testi
 		},
 	}
 
-	beforeCreate := buildFocusTaskCards(dashboard, now, time.Date(2026, 3, 15, 0, 0, 0, 0, location), location)
+	beforeCreate := buildFocusTaskCards(dashboard, now, time.Date(2026, 3, 15, 0, 0, 0, 0, location), location, uuid.Nil, nil)
 	if len(beforeCreate) != 0 {
 		t.Fatalf("before create len = %d, want 0", len(beforeCreate))
 	}
 
-	onCreate := buildFocusTaskCards(dashboard, now, time.Date(2026, 3, 16, 0, 0, 0, 0, location), location)
+	onCreate := buildFocusTaskCards(dashboard, now, time.Date(2026, 3, 16, 0, 0, 0, 0, location), location, uuid.Nil, nil)
 	if len(onCreate) != 1 {
 		t.Fatalf("on create len = %d, want 1", len(onCreate))
 	}
 
-	onDeadline := buildFocusTaskCards(dashboard, now, time.Date(2026, 3, 18, 0, 0, 0, 0, location), location)
+	onDeadline := buildFocusTaskCards(dashboard, now, time.Date(2026, 3, 18, 0, 0, 0, 0, location), location, uuid.Nil, nil)
 	if len(onDeadline) != 1 {
 		t.Fatalf("on deadline len = %d, want 1", len(onDeadline))
 	}
 
-	afterDeadline := buildFocusTaskCards(dashboard, now, time.Date(2026, 3, 19, 0, 0, 0, 0, location), location)
+	afterDeadline := buildFocusTaskCards(dashboard, now, time.Date(2026, 3, 19, 0, 0, 0, 0, location), location, uuid.Nil, nil)
 	if len(afterDeadline) != 0 {
 		t.Fatalf("after deadline len = %d, want 0", len(afterDeadline))
 	}
@@ -160,7 +160,7 @@ func TestBuildFocusTaskCardsFallsBackToTitleOrder(t *testing.T) {
 		},
 	}
 
-	cards := buildFocusTaskCards(dashboard, now, focusDate, location)
+	cards := buildFocusTaskCards(dashboard, now, focusDate, location, uuid.Nil, nil)
 	if len(cards) != 3 {
 		t.Fatalf("len(cards) = %d, want 3", len(cards))
 	}
