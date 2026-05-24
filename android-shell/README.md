@@ -29,7 +29,7 @@ cp capacitor.config.example.json capacitor.config.json
 
 然后把 `capacitor.config.json` 里的 `server.url` 和 `allowNavigation` 改成你自己的服务地址。这个文件已经加入 `.gitignore`，不会提交到仓库。
 
-SSO 登录会通过系统浏览器完成。SOID 应用里需要登记安卓壳回调：
+SSO 登录会留在 App 内置 WebView 中完成，不再主动拉起系统浏览器。SOID 应用里仍需要登记安卓壳回调，壳会在 WebView 内拦截这个地址并转回后端完成登录：
 
 ```text
 todo-shell://auth/sso/callback

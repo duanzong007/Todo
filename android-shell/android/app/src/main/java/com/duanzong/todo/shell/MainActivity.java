@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewDatabase;
@@ -17,7 +18,9 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebViewClient;
 
 import org.json.JSONObject;
 
@@ -37,6 +40,7 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         configureWindowAppearance();
         configureWebViewPersistence();
+        configureInAppNavigation();
         configureBridgeInsetsHandling();
         handleSSOCallbackIntent(getIntent());
     }
@@ -86,6 +90,14 @@ public class MainActivity extends BridgeActivity {
         WebViewDatabase.getInstance(this);
     }
 
+    private void configureInAppNavigation() {
+        if (getBridge() == null || getBridge().getWebView() == null) {
+            return;
+        }
+
+        getBridge().setWebViewClient(new InAppSSOWebViewClient(getBridge()));
+    }
+
     private void flushWebState() {
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.flush();
@@ -121,14 +133,30 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
-        Uri callbackUri = intent.getData();
-        if (!SSO_CALLBACK_SCHEME.equals(callbackUri.getScheme())
-            || !SSO_CALLBACK_HOST.equals(callbackUri.getHost())
-            || !SSO_CALLBACK_PATH.equals(callbackUri.getPath())) {
+        handleSSOCallbackUri(getBridge().getWebView(), intent.getData());
+    }
+
+    private boolean handleSSOCallbackUri(WebView webView, Uri callbackUri) {
+        if (!isSSOCallbackUri(callbackUri)) {
+            return false;
+        }
+
+        loadSSOCallbackIntoWebView(webView, callbackUri);
+        return true;
+    }
+
+    private boolean isSSOCallbackUri(Uri uri) {
+        return uri != null
+            && SSO_CALLBACK_SCHEME.equals(uri.getScheme())
+            && SSO_CALLBACK_HOST.equals(uri.getHost())
+            && SSO_CALLBACK_PATH.equals(uri.getPath());
+    }
+
+    private void loadSSOCallbackIntoWebView(WebView webView, Uri callbackUri) {
+        if (webView == null) {
             return;
         }
 
-        WebView webView = getBridge().getWebView();
         String currentUrl = webView.getUrl();
         String serverOrigin = resolveServerOrigin(currentUrl);
 
@@ -148,11 +176,20 @@ public class MainActivity extends BridgeActivity {
     }
 
     private String resolveServerOrigin(String currentUrl) {
+        String configuredOrigin = resolveConfiguredServerOrigin();
+        if (configuredOrigin != null && !configuredOrigin.trim().isEmpty()) {
+            return configuredOrigin;
+        }
+
         Uri currentUri = currentUrl == null ? null : Uri.parse(currentUrl);
         if (isHttpURL(currentUri)) {
             return currentUri.getScheme() + "://" + currentUri.getAuthority();
         }
 
+        return null;
+    }
+
+    private String resolveConfiguredServerOrigin() {
         try (InputStream input = getAssets().open("capacitor.config.json")) {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             byte[] buffer = new byte[1024];
@@ -180,6 +217,41 @@ public class MainActivity extends BridgeActivity {
             return false;
         }
         return "http".equals(uri.getScheme()) || "https".equals(uri.getScheme());
+    }
+
+    private class InAppSSOWebViewClient extends BridgeWebViewClient {
+        private final Bridge bridge;
+
+        InAppSSOWebViewClient(Bridge bridge) {
+            super(bridge);
+            this.bridge = bridge;
+        }
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            return shouldOverrideURL(view, request == null ? null : request.getUrl());
+        }
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            return shouldOverrideURL(view, url == null ? null : Uri.parse(url));
+        }
+
+        private boolean shouldOverrideURL(WebView view, Uri url) {
+            if (url == null) {
+                return false;
+            }
+
+            if (handleSSOCallbackUri(view, url)) {
+                return true;
+            }
+
+            if (isHttpURL(url)) {
+                return false;
+            }
+
+            return bridge.launchIntent(url);
+        }
     }
 
 }
