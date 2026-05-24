@@ -3,7 +3,7 @@
     return;
   }
 
-  const SW_URL = "/sw.js?v=20260513-vue-home-cleanup-1";
+  const SW_URL = "/sw.js?v=20260524-friends-page-1";
   let refreshing = false;
 
   function isNativeShell() {

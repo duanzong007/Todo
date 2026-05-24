@@ -136,6 +136,7 @@ export interface ManagedTaskCard {
 export interface ShareableUserCard {
   id: string;
   display_name: string;
+  email: string;
 }
 
 export interface AccountPageData {
@@ -148,6 +149,7 @@ export interface AccountPageData {
   pagination: AccountPaginationView;
   tasks: ManagedTaskCard[];
   share_users: ShareableUserCard[];
+  friend_requests: ShareableUserCard[];
 }
 
 export interface AccountActionResponse {

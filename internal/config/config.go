@@ -27,7 +27,6 @@ type Config struct {
 	SSOAndroidRedirectURL string
 	SSOScopes             []string
 	SSOAutoRegister       bool
-	SSOAutoApprove        bool
 }
 
 func Load() (Config, error) {
@@ -51,7 +50,6 @@ func Load() (Config, error) {
 		SSOAndroidRedirectURL: env("SSO_ANDROID_REDIRECT_URL", ""),
 		SSOScopes:             envList("SSO_SCOPES", []string{"openid", "profile", "email"}),
 		SSOAutoRegister:       envBool("SSO_AUTO_REGISTER", true),
-		SSOAutoApprove:        envBool("SSO_AUTO_APPROVE", true),
 	}
 
 	if cfg.ICSImportHorizonDays < 1 {

@@ -386,6 +386,26 @@ func (r *TaskRepository) ShareOwnedTasks(ctx context.Context, ownerID uuid.UUID,
 	taskIDs = uniqueUUIDs(taskIDs)
 	userIDs = uniqueUUIDs(userIDs)
 
+	var friendCount int
+	if err := tx.QueryRow(ctx, `
+		SELECT COUNT(DISTINCT target_users.id)::int
+		FROM app_users AS target_users
+		JOIN user_friends friendship
+			ON friendship.status = 'accepted'
+			AND (
+				(friendship.requester_id = $1::uuid AND friendship.addressee_id = target_users.id)
+				OR (friendship.addressee_id = $1::uuid AND friendship.requester_id = target_users.id)
+			)
+		WHERE target_users.id = ANY($2::uuid[])
+			AND target_users.is_active = TRUE
+			AND target_users.id <> $1::uuid
+	`, ownerID, userIDs).Scan(&friendCount); err != nil {
+		return fmt.Errorf("count shareable friends: %w", err)
+	}
+	if friendCount != len(userIDs) {
+		return fmt.Errorf("任务只能共享给已添加的好友")
+	}
+
 	commandTag, err := tx.Exec(ctx, `
 		INSERT INTO task_shares (task_id, user_id, shared_by)
 		SELECT DISTINCT owned.id, target_users.id, $1::uuid
@@ -393,7 +413,12 @@ func (r *TaskRepository) ShareOwnedTasks(ctx context.Context, ownerID uuid.UUID,
 		JOIN app_users AS target_users
 			ON target_users.id = ANY($3::uuid[])
 			AND target_users.is_active = TRUE
-			AND target_users.approval_status = 'approved'
+		JOIN user_friends friendship
+			ON friendship.status = 'accepted'
+			AND (
+				(friendship.requester_id = $1::uuid AND friendship.addressee_id = target_users.id)
+				OR (friendship.addressee_id = $1::uuid AND friendship.requester_id = target_users.id)
+			)
 		WHERE owned.user_id = $1::uuid
 			AND owned.id = ANY($2::uuid[])
 			AND target_users.id <> $1::uuid

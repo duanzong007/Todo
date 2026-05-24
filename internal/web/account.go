@@ -56,17 +56,22 @@ func (h *Handler) buildAccountPageData(r *http.Request, user domain.User) (Accou
 	if err != nil {
 		return AccountPageData{}, err
 	}
+	friendRequests, err := h.authService.ListIncomingFriendRequests(r.Context(), user)
+	if err != nil {
+		return AccountPageData{}, err
+	}
 
 	return AccountPageData{
-		CurrentUser:  buildUserView(user),
-		Message:      strings.TrimSpace(r.URL.Query().Get("msg")),
-		Error:        strings.TrimSpace(r.URL.Query().Get("err")),
-		ReturnQuery:  encodeAccountReturnQuery(r.URL.Query()),
-		TodayDateISO: time.Now().In(h.location).Format("2006-01-02"),
-		Filter:       buildAccountTaskFilterView(filterInput),
-		Pagination:   buildAccountPaginationView(filterInput.Page, filterInput.Limit, total),
-		Tasks:        buildManagedTaskCards(tasks, user, h.location),
-		ShareUsers:   buildShareableUserCards(shareUsers),
+		CurrentUser:    buildUserView(user),
+		Message:        strings.TrimSpace(r.URL.Query().Get("msg")),
+		Error:          strings.TrimSpace(r.URL.Query().Get("err")),
+		ReturnQuery:    encodeAccountReturnQuery(r.URL.Query()),
+		TodayDateISO:   time.Now().In(h.location).Format("2006-01-02"),
+		Filter:         buildAccountTaskFilterView(filterInput),
+		Pagination:     buildAccountPaginationView(filterInput.Page, filterInput.Limit, total),
+		Tasks:          buildManagedTaskCards(tasks, user, h.location),
+		ShareUsers:     buildShareableUserCards(shareUsers),
+		FriendRequests: buildShareableUserCards(friendRequests),
 	}, nil
 }
 
@@ -494,6 +499,7 @@ func buildShareableUserCards(users []domain.User) []ShareableUserCard {
 			ID:          user.ID.String(),
 			DisplayName: user.DisplayName,
 			Username:    user.DisplayName,
+			Email:       user.Email,
 		})
 	}
 	return items

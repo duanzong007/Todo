@@ -30,13 +30,11 @@ type SSOConfig struct {
 	RedirectURL  string
 	Scopes       []string
 	AutoRegister bool
-	AutoApprove  bool
 }
 
 type SSOClient struct {
 	providerName string
 	autoRegister bool
-	autoApprove  bool
 	oauth2Config oauth2.Config
 	verifier     *oidc.IDTokenVerifier
 }
@@ -90,7 +88,6 @@ func NewSSOClient(ctx context.Context, cfg SSOConfig) (*SSOClient, error) {
 	return &SSOClient{
 		providerName: providerName,
 		autoRegister: cfg.AutoRegister,
-		autoApprove:  cfg.AutoApprove,
 		oauth2Config: oauth2Config,
 		verifier:     provider.Verifier(&oidc.Config{ClientID: strings.TrimSpace(cfg.ClientID)}),
 	}, nil
@@ -151,7 +148,6 @@ func (c *SSOClient) ExchangeCode(ctx context.Context, code, nonce, redirectURL s
 		Username:        username,
 		DisplayName:     displayName,
 		Email:           normalizeEmail(claims.Email),
-		AutoApprove:     c.autoApprove,
 	}, nil
 }
 

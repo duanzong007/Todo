@@ -143,6 +143,44 @@ export async function applyAccountAction(formData: FormData): Promise<AccountAct
   return response.json() as Promise<AccountActionResponse>;
 }
 
+export async function requestFriend(email: string): Promise<AccountActionResponse> {
+  const formData = new FormData();
+  formData.set("email", email);
+  const response = await fetch(requestURL("/me/friends/request"), {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "X-Requested-With": "fetch",
+    },
+  });
+
+  if (!response.ok) {
+    await parseError(response, "好友申请失败");
+  }
+
+  return response.json() as Promise<AccountActionResponse>;
+}
+
+export async function respondFriendRequest(userID: string, accept: boolean): Promise<AccountActionResponse> {
+  const action = accept ? "accept" : "reject";
+  const response = await fetch(requestURL(`/me/friends/${encodeURIComponent(userID)}/${action}`), {
+    method: "POST",
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "X-Requested-With": "fetch",
+    },
+  });
+
+  if (!response.ok) {
+    await parseError(response, "好友申请处理失败");
+  }
+
+  return response.json() as Promise<AccountActionResponse>;
+}
+
 export async function fetchNativeSMSData(search = window.location.search): Promise<NativeSMSPageData> {
   const response = await fetch(requestURL("/sms/native/data", search), {
     credentials: "include",

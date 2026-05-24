@@ -13,34 +13,21 @@ const (
 	UserRoleAdmin  UserRole = "admin"
 )
 
-type UserApprovalStatus string
-
-const (
-	UserApprovalPending  UserApprovalStatus = "pending"
-	UserApprovalApproved UserApprovalStatus = "approved"
-)
-
 type User struct {
-	ID             uuid.UUID
-	DisplayName    string
-	Role           UserRole
-	ApprovalStatus UserApprovalStatus
-	IsActive       bool
-	LastLoginAt    *time.Time
-	ApprovedAt     *time.Time
-	ApprovedBy     *uuid.UUID
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID          uuid.UUID
+	DisplayName string
+	Email       string
+	Role        UserRole
+	IsActive    bool
+	LastLoginAt *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 func (u User) IsAdmin() bool {
 	return u.Role == UserRoleAdmin
 }
 
-func (u User) IsApproved() bool {
-	return u.ApprovalStatus == UserApprovalApproved
-}
-
 func (u User) CanUseSystem() bool {
-	return u.IsApproved() && u.IsActive
+	return u.IsActive
 }

@@ -99,15 +99,16 @@ type QuoteView struct {
 }
 
 type AccountPageData struct {
-	CurrentUser  *UserView             `json:"current_user"`
-	Message      string                `json:"message"`
-	Error        string                `json:"error"`
-	ReturnQuery  string                `json:"return_query"`
-	TodayDateISO string                `json:"today_date_iso"`
-	Filter       AccountTaskFilterView `json:"filter"`
-	Pagination   AccountPaginationView `json:"pagination"`
-	Tasks        []ManagedTaskCard     `json:"tasks"`
-	ShareUsers   []ShareableUserCard   `json:"share_users"`
+	CurrentUser    *UserView             `json:"current_user"`
+	Message        string                `json:"message"`
+	Error          string                `json:"error"`
+	ReturnQuery    string                `json:"return_query"`
+	TodayDateISO   string                `json:"today_date_iso"`
+	Filter         AccountTaskFilterView `json:"filter"`
+	Pagination     AccountPaginationView `json:"pagination"`
+	Tasks          []ManagedTaskCard     `json:"tasks"`
+	ShareUsers     []ShareableUserCard   `json:"share_users"`
+	FriendRequests []ShareableUserCard   `json:"friend_requests"`
 }
 
 type AccountTaskFilterView struct {
@@ -154,6 +155,7 @@ type ShareableUserCard struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"display_name"`
 	Username    string `json:"username"`
+	Email       string `json:"email"`
 }
 
 type ManagedTaskCard struct {
@@ -173,13 +175,6 @@ type ManagedTaskCard struct {
 	ScheduleValue string `json:"schedule_value"`
 	DeadlineDate  string `json:"deadline_date"`
 	DeadlineTime  string `json:"deadline_time"`
-}
-
-type AdminPageData struct {
-	CurrentUser  *UserView
-	Message      string
-	Error        string
-	PendingUsers []PendingUserCard
 }
 
 type TaskCard struct {
@@ -220,13 +215,6 @@ type DashboardSnapshot struct {
 	FocusTasks     []TaskCard          `json:"focus_tasks"`
 	CompletedTasks []CompletedTaskCard `json:"completed_tasks"`
 	EmptyQuote     *QuoteView          `json:"empty_quote,omitempty"`
-}
-
-type PendingUserCard struct {
-	ID          string
-	DisplayName string
-	Username    string
-	CreatedAt   string
 }
 
 func NewHandler(taskService *service.TaskService, authService *service.AuthService, quoteService *service.QuoteService, options HandlerOptions) (*Handler, error) {
@@ -273,6 +261,7 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/events", h.handleEventStream)
 		r.Get("/me", h.handleAccountPage)
 		r.Get("/me/vue", h.handleAccountVuePage)
+		r.Get("/me/friends", h.handleAccountVuePage)
 		r.Get("/me/data", h.handleAccountData)
 		r.Get("/sms/native", h.handleNativeSMSPage)
 		r.Get("/sms/native/vue", h.handleNativeSMSVuePage)
@@ -288,13 +277,9 @@ func (h *Handler) Router() http.Handler {
 		r.Post("/tasks/{taskID}/restore", h.handleRestoreTask)
 		r.Post("/tasks/{taskID}/postpone", h.handlePostponeTask)
 		r.Post("/imports/ics", h.handleImportICS)
-
-		r.Group(func(r chi.Router) {
-			r.Use(h.requireAdmin)
-			r.Get("/admin/users", h.handleAdminUsers)
-			r.Post("/admin/users/{userID}/approve", h.handleApproveUser)
-			r.Post("/admin/users/{userID}/reject", h.handleRejectUser)
-		})
+		r.Post("/me/friends/request", h.handleRequestFriend)
+		r.Post("/me/friends/{userID}/accept", h.handleAcceptFriend)
+		r.Post("/me/friends/{userID}/reject", h.handleRejectFriend)
 	})
 
 	return router
@@ -797,25 +782,14 @@ func (h *Handler) handleDashboardSnapshot(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleAccountPage(w http.ResponseWriter, r *http.Request) {
-	user, ok := h.currentUser(r)
-	if !ok {
-		h.redirectToLogin(w, r, "", "请先登录")
-		return
-	}
-
-	pageData, err := h.buildAccountPageData(r, user)
-	if err != nil {
-		http.Error(w, humanizeError(err), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Cache-Control", "no-store")
-	if err := h.templates.ExecuteTemplate(w, "account.html", pageData); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	h.renderAccountVuePage(w, r)
 }
 
 func (h *Handler) handleAccountVuePage(w http.ResponseWriter, r *http.Request) {
+	h.renderAccountVuePage(w, r)
+}
+
+func (h *Handler) renderAccountVuePage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.currentUser(r); !ok {
 		h.redirectToLogin(w, r, "", "请先登录")
 		return
@@ -827,63 +801,58 @@ func (h *Handler) handleAccountVuePage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleRequestFriend(w http.ResponseWriter, r *http.Request) {
 	user, ok := h.currentUser(r)
 	if !ok {
-		h.redirectToLogin(w, r, "", "请先登录")
+		h.writeAccountActionJSON(w, http.StatusUnauthorized, "", "请先登录")
+		return
+	}
+	if err := h.parseRequestForm(r); err != nil {
+		h.writeAccountActionJSON(w, http.StatusBadRequest, "", "请求解析失败")
 		return
 	}
 
-	pendingUsers, err := h.authService.ListPendingUsers(r.Context(), user)
+	friend, err := h.authService.RequestFriendByEmail(r.Context(), user, r.FormValue("email"))
 	if err != nil {
-		h.redirectHome(w, r, "", humanizeError(err))
+		h.writeAccountActionJSON(w, http.StatusBadRequest, "", humanizeError(err))
 		return
 	}
-
-	data := AdminPageData{
-		CurrentUser:  buildUserView(user),
-		Message:      r.URL.Query().Get("msg"),
-		Error:        r.URL.Query().Get("err"),
-		PendingUsers: buildPendingUserCards(pendingUsers, h.location),
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "admin_users.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	h.writeAccountActionJSON(w, http.StatusOK, fmt.Sprintf("已向 %s 发送好友申请", friend.DisplayName), "")
 }
 
-func (h *Handler) handleApproveUser(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleAcceptFriend(w http.ResponseWriter, r *http.Request) {
+	h.handleFriendDecision(w, r, true)
+}
+
+func (h *Handler) handleRejectFriend(w http.ResponseWriter, r *http.Request) {
+	h.handleFriendDecision(w, r, false)
+}
+
+func (h *Handler) handleFriendDecision(w http.ResponseWriter, r *http.Request, accept bool) {
 	user, ok := h.currentUser(r)
 	if !ok {
-		h.redirectToLogin(w, r, "", "请先登录")
+		h.writeAccountActionJSON(w, http.StatusUnauthorized, "", "请先登录")
 		return
 	}
 
 	userID := chi.URLParam(r, "userID")
-	approvedUser, err := h.authService.ApproveUser(r.Context(), user, userID)
+	var friend domain.User
+	var err error
+	if accept {
+		friend, err = h.authService.AcceptFriendRequest(r.Context(), user, userID)
+	} else {
+		friend, err = h.authService.RejectFriendRequest(r.Context(), user, userID)
+	}
 	if err != nil {
-		h.redirectToAdminUsers(w, r, "", humanizeError(err))
+		h.writeAccountActionJSON(w, http.StatusBadRequest, "", humanizeError(err))
 		return
 	}
 
-	h.redirectToAdminUsers(w, r, fmt.Sprintf("已批准 %s", approvedUser.DisplayName), "")
-}
-
-func (h *Handler) handleRejectUser(w http.ResponseWriter, r *http.Request) {
-	user, ok := h.currentUser(r)
-	if !ok {
-		h.redirectToLogin(w, r, "", "请先登录")
+	if accept {
+		h.writeAccountActionJSON(w, http.StatusOK, fmt.Sprintf("已添加 %s 为好友", friend.DisplayName), "")
 		return
 	}
-
-	userID := chi.URLParam(r, "userID")
-	rejectedUser, err := h.authService.RejectUser(r.Context(), user, userID)
-	if err != nil {
-		h.redirectToAdminUsers(w, r, "", humanizeError(err))
-		return
-	}
-
-	h.redirectToAdminUsers(w, r, fmt.Sprintf("已拒绝并删除 %s", rejectedUser.DisplayName), "")
+	h.writeAccountActionJSON(w, http.StatusOK, fmt.Sprintf("已忽略 %s 的好友申请", friend.DisplayName), "")
 }
 
 func (h *Handler) requireAuth(next http.Handler) http.Handler {
@@ -903,21 +872,6 @@ func (h *Handler) requireAuth(next http.Handler) http.Handler {
 		h.setSessionCookie(w, token, authResult.ExpiresAt)
 		ctx := context.WithValue(r.Context(), currentUserContextKey, authResult.User)
 		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-func (h *Handler) requireAdmin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, ok := h.currentUser(r)
-		if !ok {
-			h.redirectToLogin(w, r, "", "请先登录")
-			return
-		}
-		if !user.IsAdmin() {
-			h.redirectHome(w, r, "", "只有管理员可以执行该操作")
-			return
-		}
-		next.ServeHTTP(w, r)
 	})
 }
 
@@ -1054,10 +1008,6 @@ func (h *Handler) redirectHome(w http.ResponseWriter, r *http.Request, message, 
 	h.redirectWithQuery(w, r, "/", message, errorMessage, extra)
 }
 
-func (h *Handler) redirectToAdminUsers(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
-	h.redirectWithQuery(w, r, "/admin/users", message, errorMessage, nil)
-}
-
 func (h *Handler) redirectToLogin(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
 	extra := map[string]string{}
 	if r.Method == http.MethodGet && r.URL.Path != "/login" && r.URL.Path != "/auth/sso/callback" {
@@ -1121,19 +1071,6 @@ func buildUserView(user domain.User) *UserView {
 		Username:    user.DisplayName,
 		IsAdmin:     user.IsAdmin(),
 	}
-}
-
-func buildPendingUserCards(users []domain.User, location *time.Location) []PendingUserCard {
-	var cards []PendingUserCard
-	for _, user := range users {
-		cards = append(cards, PendingUserCard{
-			ID:          user.ID.String(),
-			DisplayName: user.DisplayName,
-			Username:    user.DisplayName,
-			CreatedAt:   user.CreatedAt.In(location).Format("2006-01-02 15:04"),
-		})
-	}
-	return cards
 }
 
 func buildQuoteView(quote service.Quote) *QuoteView {
@@ -1815,14 +1752,12 @@ func humanizeError(err error) string {
 		return "SSO 尚未配置"
 	case errors.Is(err, service.ErrInvalidSSOLogin):
 		return "SSO 登录验证失败"
-	case errors.Is(err, service.ErrUserPendingApproval):
-		return "账号还在等待管理员审批"
 	case errors.Is(err, service.ErrPermissionDenied):
-		return "你没有管理员权限"
-	case errors.Is(err, service.ErrUserAlreadyApproved):
-		return "这个账号已经审批过了"
-	case errors.Is(err, service.ErrUserNotPendingReview):
-		return "这个账号已不在待审批列表"
+		return "你没有权限执行这个操作"
+	case errors.Is(err, repository.ErrCannotFriendSelf):
+		return "不能添加自己为好友"
+	case errors.Is(err, service.ErrFriendNotFound):
+		return "好友申请不存在或已经处理"
 	case strings.Contains(err.Error(), "invalid user id"):
 		return "用户 ID 无效"
 	case strings.Contains(err.Error(), "invalid task id"):

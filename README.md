@@ -8,7 +8,7 @@
 - PostgreSQL 完整约束和迁移
 - 单日视图
 - `todo / schedule / ddl` 三类任务
-- SOID / OIDC 统一登录与用户审批
+- SOID / OIDC 统一登录
 - PWA 安装
 - 前台 SSE 实时同步
 
@@ -55,9 +55,8 @@
 - 全站统一走 SOID / OIDC SSO 登录
 - SSO 首次登录自动创建本地用户
 - 首个自动创建账号成为 admin
-- 可配置新 SSO 用户是否需要 admin 审批
-- admin 可批准或直接拒绝并删除待审批账号
 - 基于 HttpOnly Cookie 的会话
+- 好友关系控制任务共享范围
 
 ### 任务与交互
 
@@ -128,12 +127,14 @@ web/static            CSS / JS / PWA 资源
   - 用户 ID 与 SSO 身份
   - SSO 同步显示名
   - 角色
-  - 审批状态
   - 通过 `auth_provider + external_subject` 定位本地用户
 - `user_sessions`
   - 登录会话
   - 过期时间
   - 最近活跃时间
+- `user_friends`
+  - 好友申请与已接受好友关系
+  - 任务共享只能选择已接受好友
 - `ingestion_sources`
   - 输入来源
   - 原始文本 / ICS
@@ -226,7 +227,6 @@ docker compose up --build
 | `SSO_ANDROID_REDIRECT_URL` | 安卓壳使用的 deep link 回调地址 | `todo-shell://auth/sso/callback` |
 | `SSO_SCOPES` | OIDC scope 列表 | `openid profile email` |
 | `SSO_AUTO_REGISTER` | SSO 新用户是否自动创建本地账号 | `true` |
-| `SSO_AUTO_APPROVE` | SSO 新用户是否自动批准启用 | `true` |
 
 SOID 应用里需要同时登记两个 redirect URI：
 

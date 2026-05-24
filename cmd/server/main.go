@@ -83,7 +83,6 @@ func main() {
 		RedirectURL:  cfg.SSORedirectURL,
 		Scopes:       cfg.SSOScopes,
 		AutoRegister: cfg.SSOAutoRegister,
-		AutoApprove:  cfg.SSOAutoApprove,
 	})
 	if err != nil {
 		log.Fatalf("configure sso: %v", err)

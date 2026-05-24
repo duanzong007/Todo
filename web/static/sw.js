@@ -1,10 +1,9 @@
-const CACHE_NAME = "todo-pwa-v27";
+const CACHE_NAME = "todo-pwa-v31";
 const OFFLINE_URL = "/static/pwa/offline.html";
 const NAVIGATION_NETWORK_TIMEOUT_MS = 4500;
 const STATIC_NETWORK_TIMEOUT_MS = 2200;
 const STATIC_ASSETS = [
   "/static/styles.css",
-  "/static/postpone-picker.js",
   "/static/pwa-register.js",
   "/static/vue/assets/index.js",
   "/static/vue/assets/style.css",

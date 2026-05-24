@@ -19,12 +19,10 @@ import (
 )
 
 var (
-	ErrInvalidCredentials   = errors.New("invalid credentials")
-	ErrInvalidSession       = errors.New("invalid session")
-	ErrUserPendingApproval  = errors.New("user pending approval")
-	ErrPermissionDenied     = errors.New("permission denied")
-	ErrUserAlreadyApproved  = errors.New("user already approved")
-	ErrUserNotPendingReview = errors.New("user not pending review")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrInvalidSession     = errors.New("invalid session")
+	ErrPermissionDenied   = errors.New("permission denied")
+	ErrFriendNotFound     = errors.New("friend request not found")
 )
 
 var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$`)
@@ -128,54 +126,52 @@ func (s *AuthService) SessionCookieName() string {
 	return s.sessionCookieName
 }
 
-func (s *AuthService) ListPendingUsers(ctx context.Context, actor domain.User) ([]domain.User, error) {
-	if !actor.CanUseSystem() || !actor.IsAdmin() {
-		return nil, ErrPermissionDenied
-	}
-	return s.repo.ListPendingUsers(ctx)
-}
-
 func (s *AuthService) ListShareableUsers(ctx context.Context, actor domain.User) ([]domain.User, error) {
 	if !actor.CanUseSystem() {
 		return nil, ErrPermissionDenied
 	}
-	return s.repo.ListApprovedUsersExcept(ctx, actor.ID)
+	return s.repo.ListFriends(ctx, actor.ID)
 }
 
-func (s *AuthService) ApproveUser(ctx context.Context, actor domain.User, userID string) (domain.User, error) {
-	if !actor.CanUseSystem() || !actor.IsAdmin() {
+func (s *AuthService) ListIncomingFriendRequests(ctx context.Context, actor domain.User) ([]domain.User, error) {
+	if !actor.CanUseSystem() {
+		return nil, ErrPermissionDenied
+	}
+	return s.repo.ListIncomingFriendRequests(ctx, actor.ID)
+}
+
+func (s *AuthService) RequestFriendByEmail(ctx context.Context, actor domain.User, email string) (domain.User, error) {
+	if !actor.CanUseSystem() {
 		return domain.User{}, ErrPermissionDenied
 	}
+	return s.repo.RequestFriendByEmail(ctx, actor.ID, email)
+}
 
+func (s *AuthService) AcceptFriendRequest(ctx context.Context, actor domain.User, userID string) (domain.User, error) {
+	return s.updateFriendRequest(ctx, actor, userID, true)
+}
+
+func (s *AuthService) RejectFriendRequest(ctx context.Context, actor domain.User, userID string) (domain.User, error) {
+	return s.updateFriendRequest(ctx, actor, userID, false)
+}
+
+func (s *AuthService) updateFriendRequest(ctx context.Context, actor domain.User, userID string, accept bool) (domain.User, error) {
+	if !actor.CanUseSystem() {
+		return domain.User{}, ErrPermissionDenied
+	}
 	parsedUserID, err := parseUUID(userID)
 	if err != nil {
 		return domain.User{}, fmt.Errorf("invalid user id: %w", err)
 	}
-
-	user, err := s.repo.ApproveUser(ctx, actor.ID, parsedUserID)
-	if err != nil {
-		if errors.Is(err, repository.ErrUserNotPending) {
-			return domain.User{}, ErrUserAlreadyApproved
-		}
-		return domain.User{}, err
+	var user domain.User
+	if accept {
+		user, err = s.repo.AcceptFriendRequest(ctx, actor.ID, parsedUserID)
+	} else {
+		user, err = s.repo.RejectFriendRequest(ctx, actor.ID, parsedUserID)
 	}
-	return user, nil
-}
-
-func (s *AuthService) RejectUser(ctx context.Context, actor domain.User, userID string) (domain.User, error) {
-	if !actor.CanUseSystem() || !actor.IsAdmin() {
-		return domain.User{}, ErrPermissionDenied
-	}
-
-	parsedUserID, err := parseUUID(userID)
 	if err != nil {
-		return domain.User{}, fmt.Errorf("invalid user id: %w", err)
-	}
-
-	user, err := s.repo.DeletePendingUser(ctx, parsedUserID)
-	if err != nil {
-		if errors.Is(err, repository.ErrUserNotPending) {
-			return domain.User{}, ErrUserNotPendingReview
+		if errors.Is(err, repository.ErrFriendNotFound) {
+			return domain.User{}, ErrFriendNotFound
 		}
 		return domain.User{}, err
 	}
@@ -183,9 +179,6 @@ func (s *AuthService) RejectUser(ctx context.Context, actor domain.User, userID 
 }
 
 func (s *AuthService) issueSession(ctx context.Context, user domain.User, userAgent, ipAddress string) (AuthResult, error) {
-	if !user.IsApproved() {
-		return AuthResult{}, ErrUserPendingApproval
-	}
 	if !user.IsActive {
 		return AuthResult{}, ErrInvalidCredentials
 	}

@@ -126,8 +126,8 @@ POST /me/tasks/apply
 
 用途：
 
-- `/me` 当前是 Go 模板管理页入口
-- `/me/vue` 是 Vue 管理页入口
+- `/me` 当前是 Vue 管理页生产入口
+- `/me/vue` 是 Vue 管理页兼容入口
 - `/me/data` 给 Vue 管理页读取任务、筛选器、分页和共享用户
 - `/me/tasks/apply` 给 Vue 管理页异步提交编辑、共享和删除
 

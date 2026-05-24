@@ -4,7 +4,6 @@
 
 来源文件：
 
-- `web/static/postpone-picker.js`
 - `frontend/src/components/DashboardPage.vue`
 
 主要状态：
@@ -37,7 +36,7 @@
 
 来源文件：
 
-- `web/static/account-manager.js`
+- `frontend/src/components/AccountPage.vue`
 
 主要状态：
 
@@ -51,8 +50,8 @@
 
 迁移建议：
 
-- Vue 版管理页已经由页面级状态统一管理
-- 选中集合、筛选条件、分页状态集中在 `frontend/src/App.vue`
+- Vue 版管理页已经接管 `/me`
+- 选中集合、筛选条件、分页状态集中在 `frontend/src/components/AccountPage.vue`
 - 后续如果继续扩复杂编辑器，再拆成独立组件和 store
 
 ## 短信导入页状态
