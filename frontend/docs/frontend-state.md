@@ -58,7 +58,6 @@
 
 来源文件：
 
-- `web/static/native-sms.js`
 - `frontend/src/components/NativeSMSPage.vue`
 
 主要状态：
@@ -77,7 +76,7 @@
 - 抽象 `nativeBridge`
 - Web 和 Android 壳共用同一套页面状态
 - 短信识别继续只走后端接口
-- Vue 版短信导入页已接管新短信、历史短信、粘贴导入、本地缓存和提交状态
+- Vue 版短信导入页已接管 `/sms/native` 的新短信、历史短信、粘贴导入、本地缓存和提交状态
 - 本地历史和缓存 key 沿用旧版，避免升级后记录丢失
 
 ## 当前阶段结论
@@ -87,5 +86,5 @@
 迁移优先级：
 
 1. `/me` 管理页，已进入 Vue 版实现
-2. `/sms/native` 短信导入页，已进入 Vue 版实现
+2. `/sms/native` 短信导入页，已切换到 Vue 版实现
 3. 首页任务区，已进入 Vue 版实现

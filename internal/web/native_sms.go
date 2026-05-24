@@ -37,27 +37,14 @@ type nativeSMSImportResponse struct {
 }
 
 func (h *Handler) handleNativeSMSPage(w http.ResponseWriter, r *http.Request) {
-	user, ok := h.currentUser(r)
-	if !ok {
-		h.redirectToLogin(w, r, "", "请先登录")
-		return
-	}
-
-	w.Header().Set("Cache-Control", "no-store")
-
-	data := NativeSMSPageData{
-		CurrentUser: buildUserView(user),
-		ReturnPath:  sanitizeReturnPath(r.URL.Query().Get("return")),
-		AppTimeZone: h.location.String(),
-		UserID:      user.ID.String(),
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "native_sms.html", data); err != nil {
-		http.Error(w, "render native sms page: "+err.Error(), http.StatusInternalServerError)
-	}
+	h.renderNativeSMSVuePage(w, r)
 }
 
 func (h *Handler) handleNativeSMSVuePage(w http.ResponseWriter, r *http.Request) {
+	h.renderNativeSMSVuePage(w, r)
+}
+
+func (h *Handler) renderNativeSMSVuePage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.currentUser(r); !ok {
 		h.redirectToLogin(w, r, "", "请先登录")
 		return

@@ -103,8 +103,8 @@ POST /tasks/parse-sms/native-paste
 
 用途：
 
-- `/sms/native` 当前是 Go 模板短信导入页入口
-- `/sms/native/vue` 是 Vue 短信导入页入口
+- `/sms/native` 当前是 Vue 短信导入页生产入口
+- `/sms/native/vue` 是 Vue 短信导入页兼容入口
 - `/sms/native/data` 给 Vue 读取当前用户、返回路径和时区
 - `/tasks/parse-sms/native` 复用后端短信识别逻辑导入壳层读取的短信
 - `/tasks/parse-sms/native-paste` 复用后端短信识别逻辑导入手动粘贴短信
