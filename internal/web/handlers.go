@@ -255,16 +255,14 @@ func (h *Handler) Router() http.Handler {
 	router.Group(func(r chi.Router) {
 		r.Use(h.requireAuth)
 
-		r.Get("/", h.handleIndexVuePage)
+		r.Get("/", h.handleIndexPage)
 		r.Get("/dashboard/data", h.handleDashboardData)
 		r.Get("/dashboard/snapshot", h.handleDashboardSnapshot)
 		r.Get("/events", h.handleEventStream)
 		r.Get("/me", h.handleAccountPage)
-		r.Get("/me/vue", h.handleAccountVuePage)
-		r.Get("/me/friends", h.handleAccountVuePage)
+		r.Get("/me/friends", h.handleAccountPage)
 		r.Get("/me/data", h.handleAccountData)
 		r.Get("/sms/native", h.handleNativeSMSPage)
-		r.Get("/sms/native/vue", h.handleNativeSMSVuePage)
 		r.Get("/sms/native/data", h.handleNativeSMSData)
 		r.Post("/me/tasks/apply", h.handleAccountTaskApply)
 		r.Post("/tasks", h.handleCreateTask)
@@ -356,14 +354,14 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
-func (h *Handler) handleIndexVuePage(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleIndexPage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.currentUser(r); !ok {
 		h.redirectToLogin(w, r, "", "请先登录")
 		return
 	}
 
 	w.Header().Set("Cache-Control", "no-store")
-	if err := h.templates.ExecuteTemplate(w, "index_vue.html", nil); err != nil {
+	if err := h.templates.ExecuteTemplate(w, "index.html", nil); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -782,21 +780,13 @@ func (h *Handler) handleDashboardSnapshot(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleAccountPage(w http.ResponseWriter, r *http.Request) {
-	h.renderAccountVuePage(w, r)
-}
-
-func (h *Handler) handleAccountVuePage(w http.ResponseWriter, r *http.Request) {
-	h.renderAccountVuePage(w, r)
-}
-
-func (h *Handler) renderAccountVuePage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.currentUser(r); !ok {
 		h.redirectToLogin(w, r, "", "请先登录")
 		return
 	}
 
 	w.Header().Set("Cache-Control", "no-store")
-	if err := h.templates.ExecuteTemplate(w, "account_vue.html", nil); err != nil {
+	if err := h.templates.ExecuteTemplate(w, "account.html", nil); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

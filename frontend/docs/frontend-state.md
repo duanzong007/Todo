@@ -51,6 +51,7 @@
 迁移建议：
 
 - Vue 版管理页已经接管 `/me`
+- Vue 版好友页已经接管 `/me/friends`
 - 选中集合、筛选条件、分页状态集中在 `frontend/src/components/AccountPage.vue`
 - 后续如果继续扩复杂编辑器，再拆成独立组件和 store
 
@@ -85,6 +86,6 @@
 
 迁移优先级：
 
-1. `/me` 管理页，已进入 Vue 版实现
+1. `/me` 管理页，已切换到 Vue 版实现
 2. `/sms/native` 短信导入页，已切换到 Vue 版实现
-3. 首页任务区，已进入 Vue 版实现
+3. 首页任务区，已切换到 Vue 版实现

@@ -12,6 +12,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewDatabase;
 import android.webkit.WebStorage;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -41,6 +42,7 @@ public class MainActivity extends BridgeActivity {
         configureWindowAppearance();
         configureWebViewPersistence();
         configureInAppNavigation();
+        configureSystemBackNavigation();
         configureBridgeInsetsHandling();
         handleSSOCallbackIntent(getIntent());
     }
@@ -96,6 +98,22 @@ public class MainActivity extends BridgeActivity {
         }
 
         getBridge().setWebViewClient(new InAppSSOWebViewClient(getBridge()));
+    }
+
+    private void configureSystemBackNavigation() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                WebView webView = getBridge() == null ? null : getBridge().getWebView();
+                if (webView != null && webView.canGoBack()) {
+                    webView.goBack();
+                    return;
+                }
+
+                setEnabled(false);
+                getOnBackPressedDispatcher().onBackPressed();
+            }
+        });
     }
 
     private void flushWebState() {

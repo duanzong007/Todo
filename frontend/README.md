@@ -49,8 +49,8 @@ TODO_BACKEND_URL=http://localhost:8080
 
 - Go 服务里的 `/` 已切换为 Vue 版首页
 - 旧 Go 模板首页已经删除，不再保留 `/classic`
-- Go 服务里的 `/me` 已切换为 Vue 版管理页，`/me/vue` 作为兼容入口保留
-- Go 服务里的 `/sms/native` 已切换为 Vue 版短信导入页，`/sms/native/vue` 作为兼容入口保留
+- Go 服务里的 `/me` 已切换为 Vue 版管理页
+- Go 服务里的 `/sms/native` 已切换为 Vue 版短信导入页
 - 继续沿用现有 PWA 注册和后端接口
 - 不改安卓壳
 - 不新增后端业务语义

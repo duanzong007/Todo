@@ -37,22 +37,14 @@ type nativeSMSImportResponse struct {
 }
 
 func (h *Handler) handleNativeSMSPage(w http.ResponseWriter, r *http.Request) {
-	h.renderNativeSMSVuePage(w, r)
-}
-
-func (h *Handler) handleNativeSMSVuePage(w http.ResponseWriter, r *http.Request) {
-	h.renderNativeSMSVuePage(w, r)
-}
-
-func (h *Handler) renderNativeSMSVuePage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.currentUser(r); !ok {
 		h.redirectToLogin(w, r, "", "请先登录")
 		return
 	}
 
 	w.Header().Set("Cache-Control", "no-store")
-	if err := h.templates.ExecuteTemplate(w, "native_sms_vue.html", nil); err != nil {
-		http.Error(w, "render native sms vue page: "+err.Error(), http.StatusInternalServerError)
+	if err := h.templates.ExecuteTemplate(w, "native_sms.html", nil); err != nil {
+		http.Error(w, "render native sms page: "+err.Error(), http.StatusInternalServerError)
 	}
 }
 
