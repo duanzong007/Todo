@@ -34,6 +34,10 @@ public class MainActivity extends BridgeActivity {
     private static final String SSO_CALLBACK_SCHEME = "todo-shell";
     private static final String SSO_CALLBACK_HOST = "auth";
     private static final String SSO_CALLBACK_PATH = "/sso/callback";
+    private static final String HOME_PATH = "/";
+    private static final String ACCOUNT_PATH = "/me";
+    private static final String FRIENDS_PATH = "/me/friends";
+    private static final String NATIVE_SMS_PATH = "/sms/native";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -105,15 +109,97 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void handleOnBackPressed() {
                 WebView webView = getBridge() == null ? null : getBridge().getWebView();
-                if (webView != null && webView.canGoBack()) {
-                    webView.goBack();
+                if (handleBusinessBackNavigation(webView)) {
                     return;
                 }
 
-                setEnabled(false);
-                getOnBackPressedDispatcher().onBackPressed();
+                finish();
             }
         });
+    }
+
+    private boolean handleBusinessBackNavigation(WebView webView) {
+        if (webView == null) {
+            return false;
+        }
+
+        Uri currentUri = webView.getUrl() == null ? null : Uri.parse(webView.getUrl());
+        if (currentUri == null || !isHttpURL(currentUri)) {
+            if (webView.canGoBack()) {
+                webView.goBack();
+                return true;
+            }
+            return false;
+        }
+
+        if (isAppHome(currentUri)) {
+            return false;
+        }
+        if (isAppPath(currentUri, FRIENDS_PATH)) {
+            loadAppPath(webView, ACCOUNT_PATH);
+            return true;
+        }
+        if (isAppPath(currentUri, ACCOUNT_PATH) || isAppPath(currentUri, NATIVE_SMS_PATH)) {
+            loadAppPath(webView, HOME_PATH);
+            return true;
+        }
+        if (isConfiguredAppURL(currentUri)) {
+            loadAppPath(webView, HOME_PATH);
+            return true;
+        }
+
+        if (webView.canGoBack()) {
+            webView.goBack();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isAppHome(Uri uri) {
+        return isConfiguredAppURL(uri) && HOME_PATH.equals(normalizedPath(uri));
+    }
+
+    private boolean isAppPath(Uri uri, String path) {
+        return isConfiguredAppURL(uri) && path.equals(normalizedPath(uri));
+    }
+
+    private boolean isConfiguredAppURL(Uri uri) {
+        if (!isHttpURL(uri)) {
+            return false;
+        }
+
+        String configuredOrigin = resolveConfiguredServerOrigin();
+        if (configuredOrigin == null || configuredOrigin.trim().isEmpty()) {
+            return true;
+        }
+
+        Uri configuredUri = Uri.parse(configuredOrigin);
+        return configuredUri != null
+            && stringEquals(configuredUri.getScheme(), uri.getScheme())
+            && stringEquals(configuredUri.getAuthority(), uri.getAuthority());
+    }
+
+    private String normalizedPath(Uri uri) {
+        String path = uri == null ? null : uri.getPath();
+        if (path == null || path.trim().isEmpty()) {
+            return HOME_PATH;
+        }
+        if (path.length() > 1 && path.endsWith("/")) {
+            return path.substring(0, path.length() - 1);
+        }
+        return path;
+    }
+
+    private boolean stringEquals(String left, String right) {
+        return left == null ? right == null : left.equals(right);
+    }
+
+    private void loadAppPath(WebView webView, String path) {
+        String serverOrigin = resolveServerOrigin(webView.getUrl());
+        if (serverOrigin == null || serverOrigin.trim().isEmpty()) {
+            return;
+        }
+        webView.loadUrl(serverOrigin + path);
     }
 
     private void flushWebState() {
