@@ -215,7 +215,8 @@ docker compose up --build
 | `ICS_IMPORT_HORIZON_DAYS` | ICS 向未来展开的天数 | `180` |
 | `MAX_UPLOAD_SIZE_BYTES` | 上传大小限制 | `4194304` |
 | `DATABASE_URL` | 主数据库连接串 | `postgres://todo:todo@localhost:5432/todo?sslmode=disable` |
-| `QUOTES_DATABASE_URL` | 金句数据库连接串，可留空 | 空 |
+| `EXTERNAL_QUOTE_URL` | 外部金句接口地址，可填服务根地址或完整 `/external/quote` 地址 | 空 |
+| `EXTERNAL_QUOTE_SECRET` | 外部金句接口 Bearer token | 空 |
 | `SESSION_COOKIE_NAME` | Cookie 名称 | `todo_session` |
 | `SESSION_TTL_HOURS` | 会话有效时长 | `720` |
 | `SESSION_SECURE_COOKIE` | HTTPS 下建议设为 `true` | `false` |

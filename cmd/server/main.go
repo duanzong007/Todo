@@ -43,23 +43,6 @@ func main() {
 		log.Fatalf("ping database: %v", err)
 	}
 
-	var quotesPool *pgxpool.Pool
-	if cfg.QuotesDatabaseURL != "" {
-		quotesPool, err = pgxpool.New(ctx, cfg.QuotesDatabaseURL)
-		if err != nil {
-			log.Printf("connect quotes database: %v; quotes disabled", err)
-			quotesPool = nil
-		} else {
-			if err := quotesPool.Ping(ctx); err != nil {
-				log.Printf("ping quotes database: %v; quotes disabled", err)
-				quotesPool.Close()
-				quotesPool = nil
-			} else {
-				defer quotesPool.Close()
-			}
-		}
-	}
-
 	if cfg.AutoMigrate {
 		if err := database.ApplyMigrations(ctx, dbpool, cfg.MigrationsDir); err != nil {
 			log.Fatalf("apply migrations: %v", err)
@@ -69,8 +52,25 @@ func main() {
 	repo := repository.NewTaskRepository(dbpool)
 	authRepo := repository.NewAuthRepository(dbpool)
 	var quoteService *service.QuoteService
-	if quotesPool != nil {
-		quoteService = service.NewQuoteService(repository.NewQuoteRepository(quotesPool))
+	if cfg.ExternalQuoteURL != "" && cfg.ExternalQuoteSecret != "" {
+		quoteService, err = service.NewQuoteService(cfg.ExternalQuoteURL, cfg.ExternalQuoteSecret)
+		if err != nil {
+			log.Printf("configure external quote service: %v; quotes disabled", err)
+			quoteService = nil
+		} else {
+			quoteCheckCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+			hasQuote, err := quoteService.Check(quoteCheckCtx)
+			cancel()
+			if err != nil {
+				log.Printf("external quote service check failed url=%s: %v", quoteService.Endpoint(), err)
+			} else if hasQuote {
+				log.Printf("external quote service connected url=%s", quoteService.Endpoint())
+			} else {
+				log.Printf("external quote service connected url=%s; no quote returned", quoteService.Endpoint())
+			}
+		}
+	} else {
+		log.Printf("external quote service disabled: EXTERNAL_QUOTE_URL or EXTERNAL_QUOTE_SECRET is empty")
 	}
 	parser := service.NewTextParser(location)
 	icsImporter := service.NewICSImporter(location, cfg.ICSImportHorizonDays)

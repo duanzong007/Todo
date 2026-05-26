@@ -92,8 +92,10 @@ cp .env.example .env
   - 要和上面的密码保持一致
 - `SESSION_SECURE_COOKIE`
   - 如果你后面会挂 HTTPS 反代，改成 `true`
-- `QUOTES_DATABASE_URL`
-  - 如果没有 quotes 库就留空
+- `EXTERNAL_QUOTE_URL`
+  - 外部金句服务地址，可以填服务根地址或完整 `/external/quote` 地址
+- `EXTERNAL_QUOTE_SECRET`
+  - 外部金句接口的 Bearer token
 
 启动:
 
@@ -128,8 +130,10 @@ cp .env.example .env
 - `DATABASE_URL`
   - 例如:
     `postgres://username:password@192.168.1.10:5432/todo?sslmode=disable`
-- `QUOTES_DATABASE_URL`
-  - 有就填，没有就留空
+- `EXTERNAL_QUOTE_URL`
+  - 外部金句服务地址，可以填服务根地址或完整 `/external/quote` 地址
+- `EXTERNAL_QUOTE_SECRET`
+  - 外部金句接口的 Bearer token
 - `SESSION_SECURE_COOKIE`
   - 如果走 HTTPS 反代，改成 `true`
 
