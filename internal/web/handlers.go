@@ -244,8 +244,7 @@ func NewHandler(taskService *service.TaskService, authService *service.AuthServi
 func (h *Handler) Router() http.Handler {
 	router := chi.NewRouter()
 
-	fileServer := http.FileServer(http.Dir(h.staticDir))
-	router.Handle("/static/*", http.StripPrefix("/static/", fileServer))
+	router.HandleFunc("/static/*", h.handleStaticAsset)
 	router.Get("/favicon.ico", h.handleFavicon)
 	router.Get("/manifest.webmanifest", h.handleManifest)
 	router.Get("/sw.js", h.handleServiceWorker)
@@ -284,6 +283,15 @@ func (h *Handler) Router() http.Handler {
 	})
 
 	return router
+}
+
+func (h *Handler) handleStaticAsset(w http.ResponseWriter, r *http.Request) {
+	staticPath := strings.TrimPrefix(r.URL.Path, "/static/")
+	if strings.HasPrefix(staticPath, "vue/") || staticPath == "pwa-register.js" {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
+
+	http.StripPrefix("/static/", http.FileServer(http.Dir(h.staticDir))).ServeHTTP(w, r)
 }
 
 func (h *Handler) handleManifest(w http.ResponseWriter, r *http.Request) {

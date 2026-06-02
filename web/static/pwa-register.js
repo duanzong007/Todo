@@ -3,7 +3,7 @@
     return;
   }
 
-  const SW_URL = "/sw.js?v=20260524-empty-quote-1";
+  const SW_URL = "/sw.js?v=20260601-account-pagination-1";
   let refreshing = false;
 
   function isNativeShell() {

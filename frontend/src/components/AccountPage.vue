@@ -288,18 +288,21 @@ function toggleCheckFilter(kind: "types" | "importances", value: string) {
 }
 
 function resetFilters() {
+  const nextLimit = limitValue.value;
   filterDraft.query = "";
   filterDraft.status = "all";
   filterDraft.scope = "all";
   filterDraft.dateField = "";
   filterDraft.sort = "updated_desc";
-  filterDraft.limit = "10";
+  filterDraft.limit = nextLimit;
   filterDraft.dateFrom = "";
   filterDraft.dateTo = "";
   filterDraft.types = [];
   filterDraft.importances = [];
   activeModal.value = "";
-  updateQuery(new URLSearchParams());
+  const params = new URLSearchParams();
+  setParam(params, "limit", nextLimit === "10" ? "" : nextLimit);
+  updateQuery(params);
 }
 
 function changePage(page: number) {
@@ -611,20 +614,27 @@ function onPopState() {
       <div v-else class="empty-state">没有符合条件的任务</div>
 
       <footer v-if="account" class="manage-pagination">
-        <button class="soft-button compact" type="button" :disabled="!account.pagination.has_prev"
-          @click="changePage(account.pagination.prev_page)">
-          上一页
-        </button>
-        <label class="manage-page-input">
-          <span>第</span>
-          <input type="number" min="1" :max="account.pagination.total_pages" :value="account.pagination.page"
-            @change="changePage(Number(($event.target as HTMLInputElement).value || 1))" />
-          <span>/ {{ account.pagination.total_pages }} 页</span>
+        <div class="manage-page-controls">
+          <button class="soft-button compact" type="button" :disabled="!account.pagination.has_prev"
+            @click="changePage(account.pagination.prev_page)">
+            上一页
+          </button>
+          <label class="manage-page-input">
+            <span>第</span>
+            <input type="number" min="1" :max="account.pagination.total_pages" :value="account.pagination.page"
+              @change="changePage(Number(($event.target as HTMLInputElement).value || 1))" />
+            <span>/ {{ account.pagination.total_pages }} 页</span>
+          </label>
+          <button class="soft-button compact" type="button" :disabled="!account.pagination.has_next"
+            @click="changePage(account.pagination.next_page)">
+            下一页
+          </button>
+        </div>
+        <label class="manage-limit-select">
+          <span>每页</span>
+          <AccountSelect :model-value="limitValue" :options="account.filter.limit_options" compact center-menu
+            @update:model-value="changeLimit" />
         </label>
-        <button class="soft-button compact" type="button" :disabled="!account.pagination.has_next"
-          @click="changePage(account.pagination.next_page)">
-          下一页
-        </button>
       </footer>
     </section>
 
@@ -697,11 +707,6 @@ function onPopState() {
             @click="toggleCheckFilter('importances', option.value)">
             {{ option.label }}
           </button>
-        </div>
-
-        <div class="manage-choice-block">
-          <span>每页</span>
-          <AccountSelect v-model="filterDraft.limit" :options="account?.filter.limit_options ?? []" compact />
         </div>
 
         <footer class="manage-modal-actions">
