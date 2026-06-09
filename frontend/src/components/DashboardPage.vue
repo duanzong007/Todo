@@ -4,8 +4,9 @@ import { APIError, fetchDashboardPage, openDashboardEvents, submitFormAction } f
 import type { CompletedTaskCard, DashboardPageData, DashboardSnapshot, ShareableUserCard, TaskCard } from "../types";
 import WheelDatePicker from "./WheelDatePicker.vue";
 
-type ComposerTab = "todo" | "schedule" | "ddl" | "sms";
+type ComposerTab = "todo" | "schedule" | "ddl" | "sms" | "ai";
 type ScheduleMode = "single" | "batch";
+type AITaskType = "todo" | "schedule" | "ddl";
 interface CalendarDay {
   iso: string;
   day: number;
@@ -15,9 +16,22 @@ interface CalendarDay {
   disabled: boolean;
 }
 
+interface AIParsedTask {
+  type: AITaskType;
+  title: string;
+  importance: number;
+  schedule_mode?: ScheduleMode;
+  scheduled_date?: string;
+  batch_start?: string;
+  batch_end?: string;
+  batch_weekdays?: string[];
+  deadline_value?: string;
+}
+
 const page = ref<DashboardPageData | null>(null);
 const loading = ref(true);
 const errorMessage = ref("");
+const aiErrorMessage = ref("");
 const pendingCount = ref(0);
 const moreOpen = ref(false);
 const composerOpen = ref(false);
@@ -50,6 +64,7 @@ const forms = reactive({
   ddlImportance: "2",
   ddlValue: "",
   smsInput: "",
+  aiInput: "",
 });
 
 let eventStream: EventSource | null = null;
@@ -110,6 +125,13 @@ const focusDate = computed(() => page.value?.focus_date_iso ?? "");
 const todayDate = computed(() => page.value?.today_date_iso ?? "");
 const tomorrowDate = computed(() => page.value?.tomorrow_date_iso ?? "");
 const dayAfterDate = computed(() => page.value?.day_after_date_iso ?? "");
+const composerTitle = computed(() => {
+  if (composerModal.value === "todo") return "Todo";
+  if (composerModal.value === "schedule") return "日程";
+  if (composerModal.value === "ddl") return "DDL";
+  if (composerModal.value === "ai") return "AI";
+  return "短信";
+});
 
 async function load(search = window.location.search) {
   loading.value = !page.value;
@@ -632,6 +654,58 @@ async function submitSMS() {
   });
 }
 
+async function submitAIParse() {
+  if (!forms.aiInput.trim()) return;
+  pendingCount.value += 1;
+  aiErrorMessage.value = "";
+  try {
+    const formData = new FormData();
+    formData.set("return_date", focusDate.value);
+    formData.set("ai_input", forms.aiInput.trim());
+    const response = await submitFormAction("/tasks/ai/parse", formData);
+    const parsed = (await response.json()) as AIParsedTask;
+    applyAIParsedTask(parsed);
+    forms.aiInput = "";
+  } catch (error) {
+    aiErrorMessage.value = error instanceof Error ? error.message : "AI 解析失败";
+  } finally {
+    pendingCount.value = Math.max(0, pendingCount.value - 1);
+  }
+}
+
+function applyAIParsedTask(task: AIParsedTask) {
+  const title = (task.title || "").trim();
+  const importance = String(task.importance || 2);
+  if (task.type === "schedule") {
+    forms.scheduleTitle = title;
+    forms.scheduleImportance = importance;
+    if (task.schedule_mode === "batch") {
+      forms.batchStart = task.batch_start || todayDate.value;
+      forms.batchEnd = task.batch_end || task.batch_start || todayDate.value;
+      forms.batchWeekdays = task.batch_weekdays?.length
+        ? [...task.batch_weekdays]
+        : ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+      scheduleMode.value = "batch";
+      openComposerModal("schedule");
+      return;
+    }
+    forms.scheduleDate = task.scheduled_date || todayDate.value;
+    scheduleMode.value = "single";
+    openComposerModal("schedule");
+    return;
+  }
+  if (task.type === "ddl") {
+    forms.ddlTitle = title;
+    forms.ddlImportance = importance;
+    forms.ddlValue = task.deadline_value || `${todayDate.value}T08:00`;
+    openComposerModal("ddl");
+    return;
+  }
+  forms.todoTitle = title;
+  forms.todoImportance = importance;
+  openComposerModal("todo");
+}
+
 function openSMS() {
   const hasNative = Boolean((window as unknown as { Capacitor?: { Plugins?: { SmsBridge?: unknown } } }).Capacitor?.Plugins?.SmsBridge);
   if (hasNative) {
@@ -645,6 +719,9 @@ function openComposerModal(tab: ComposerTab) {
   composerTab.value = tab;
   composerModal.value = tab;
   composerOpen.value = false;
+  if (tab === "ai") {
+    aiErrorMessage.value = "";
+  }
 }
 
 function closeComposerModal() {
@@ -666,9 +743,30 @@ async function importICS(event: Event) {
   input.value = "";
 }
 
+function handleAndroidBack() {
+  if (composerModal.value) {
+    closeComposerModal();
+    return true;
+  }
+  if (completionTask.value) {
+    closeCompletionDialog();
+    return true;
+  }
+  if (activePostponeTask.value) {
+    closePostponeWithoutCommit();
+    return true;
+  }
+  if (composerOpen.value) {
+    composerOpen.value = false;
+    return true;
+  }
+  return false;
+}
+
 onMounted(() => {
   void load();
   connectEvents();
+  (window as unknown as { __todoHandleAndroidBack?: () => boolean }).__todoHandleAndroidBack = handleAndroidBack;
   popStateHandler = () => void load(window.location.search);
   editPointerDownHandler = onEditPointerDown;
   postponePointerDownHandler = onPostponePointerDown;
@@ -689,6 +787,7 @@ onBeforeUnmount(() => {
     window.removeEventListener("popstate", popStateHandler);
   }
   if (eventStream) eventStream.close();
+  delete (window as unknown as { __todoHandleAndroidBack?: () => boolean }).__todoHandleAndroidBack;
 });
 </script>
 
@@ -835,6 +934,7 @@ onBeforeUnmount(() => {
       <Transition name="composer-pop">
         <div v-if="composerOpen" class="composer-panel-vue">
           <div class="composer-choice-grid">
+            <button type="button" class="composer-choice-button composer-choice-ai" @click="openComposerModal('ai')">AI</button>
             <button type="button" class="composer-choice-button" @click="openComposerModal('todo')">Todo</button>
             <button type="button" class="composer-choice-button" @click="openComposerModal('schedule')">日程</button>
             <button type="button" class="composer-choice-button" @click="openComposerModal('ddl')">DDL</button>
@@ -853,8 +953,7 @@ onBeforeUnmount(() => {
           <header class="composer-modal-head">
             <div>
               <p class="eyebrow">新建</p>
-              <h2>{{ composerModal === 'todo' ? 'Todo' : composerModal === 'schedule' ? '日程' : composerModal === 'ddl' ?
-                'DDL' : '短信' }}</h2>
+              <h2>{{ composerTitle }}</h2>
             </div>
             <button type="button" class="composer-modal-close" @click="closeComposerModal">关闭</button>
           </header>
@@ -885,13 +984,13 @@ onBeforeUnmount(() => {
                 @click="quickSetDate('schedule', todayDate)">今天</button><button type="button"
                 @click="quickSetDate('schedule', tomorrowDate)">明天</button><button type="button"
                 @click="quickSetDate('schedule', dayAfterDate)">后天</button></div>
-            <WheelDatePicker v-if="scheduleMode === 'single'" v-model="forms.scheduleDate" />
+            <WheelDatePicker v-if="scheduleMode === 'single'" v-model="forms.scheduleDate" show-weekday />
             <div v-else class="batch-box">
               <label>起始日期
-                <WheelDatePicker v-model="forms.batchStart" />
+                <WheelDatePicker v-model="forms.batchStart" show-weekday />
               </label>
               <label>截止日期
-                <WheelDatePicker v-model="forms.batchEnd" />
+                <WheelDatePicker v-model="forms.batchEnd" show-weekday />
               </label>
               <div class="weekday-picker-vue">
                 <label
@@ -915,13 +1014,21 @@ onBeforeUnmount(() => {
                 @click="quickSetDate('ddl', todayDate)">今天</button><button type="button"
                 @click="quickSetDate('ddl', tomorrowDate)">明天</button><button type="button"
                 @click="quickSetDate('ddl', dayAfterDate)">后天</button></div>
-            <WheelDatePicker v-model="forms.ddlValue" mode="datetime" />
+            <WheelDatePicker v-model="forms.ddlValue" mode="datetime" show-weekday />
             <button type="submit" :disabled="pendingCount > 0">{{ pendingCount > 0 ? "添加中" : "添加 DDL" }}</button>
           </form>
 
           <form v-if="composerModal === 'sms'" class="composer-form-vue" @submit.prevent="submitSMS">
             <label>短信内容<textarea v-model="forms.smsInput" placeholder="直接粘贴取件短信；一次贴很多条也可以。" required></textarea></label>
             <button type="submit" :disabled="pendingCount > 0">{{ pendingCount > 0 ? "解析中" : "解析短信" }}</button>
+          </form>
+
+          <form v-if="composerModal === 'ai'" class="composer-form-vue" @submit.prevent="submitAIParse">
+            <label>想添加什么<textarea v-model="forms.aiInput" placeholder="例如：
+明天下午三点开组会，重要。
+周五前交数据库作业。" required></textarea></label>
+            <p v-if="aiErrorMessage" class="inline-error composer-error">{{ aiErrorMessage }}</p>
+            <button type="submit" :disabled="pendingCount > 0">{{ pendingCount > 0 ? "解析中" : "AI 解析" }}</button>
           </form>
         </section>
       </div>

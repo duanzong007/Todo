@@ -39,11 +39,13 @@ const props = withDefaults(
     mode?: PickerMode;
     emptyLabel?: string;
     minValue?: string;
+    showWeekday?: boolean;
   }>(),
   {
     mode: "date",
     emptyLabel: "选择日期",
     minValue: "",
+    showWeekday: false,
   },
 );
 
@@ -82,6 +84,12 @@ const orderedParts = computed<Part[]>(() => {
 });
 
 const isEmpty = computed(() => !hasValue.value);
+const weekdayLabel = computed(() => {
+  if (!props.showWeekday || props.mode === "time" || isEmpty.value) {
+    return "";
+  }
+  return ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][buildDateFromState(state).getDay()];
+});
 
 watch(
   () => [props.modelValue, props.mode, props.minValue] as const,
@@ -671,7 +679,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="root" class="wheel-date-picker account-wheel-picker"
-    :class="{ 'is-expanded': expanded, 'is-empty': isEmpty, 'is-datetime': mode === 'datetime', 'is-time': mode === 'time' }"
+    :class="{ 'is-expanded': expanded, 'is-empty': isEmpty, 'is-datetime': mode === 'datetime', 'is-time': mode === 'time', 'has-weekday': showWeekday && mode !== 'time' }"
     :data-empty-label="emptyLabel">
     <template v-for="part in orderedParts" :key="part">
       <div class="wheel-column" :class="{ 'is-focused': focusedPart === part, 'is-buffering': inputBuffers[part] }"
@@ -688,8 +696,9 @@ onBeforeUnmount(() => {
           <span class="wheel-item" data-slot="far-next">{{ displayValue(part, 2) }}</span>
         </div>
       </div>
+      <span class="date-unit">{{ partUnit(part) }}</span>
       <span v-if="part === 'day' && mode === 'datetime'" class="date-unit date-divider">·</span>
-      <span v-else class="date-unit">{{ partUnit(part) }}</span>
     </template>
+    <span v-if="weekdayLabel" class="wheel-weekday">{{ weekdayLabel }}</span>
   </div>
 </template>

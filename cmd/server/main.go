@@ -74,7 +74,19 @@ func main() {
 	}
 	parser := service.NewTextParser(location)
 	icsImporter := service.NewICSImporter(location, cfg.ICSImportHorizonDays)
-	taskService := service.NewTaskService(repo, parser, icsImporter, location)
+	var aiTaskParser *service.AITaskParser
+	if cfg.AITaskAPIURL != "" && cfg.AITaskAPIKey != "" {
+		aiTaskParser, err = service.NewAITaskParser(cfg.AITaskAPIURL, cfg.AITaskAPIKey, cfg.AITaskModel, location)
+		if err != nil {
+			log.Printf("configure ai task parser: %v; ai prefill disabled", err)
+			aiTaskParser = nil
+		} else {
+			log.Printf("ai task parser enabled url=%s model=%s", aiTaskParser.Endpoint(), cfg.AITaskModel)
+		}
+	} else {
+		log.Printf("ai task parser disabled: AI_TASK_API_URL or AI_TASK_API_KEY is empty")
+	}
+	taskService := service.NewTaskService(repo, parser, icsImporter, aiTaskParser, location)
 	ssoClient, err := service.NewSSOClient(ctx, service.SSOConfig{
 		ProviderName: cfg.SSOProviderName,
 		IssuerURL:    cfg.SSOIssuerURL,

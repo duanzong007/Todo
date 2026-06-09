@@ -269,6 +269,7 @@ func (h *Handler) Router() http.Handler {
 		r.Post("/me/tasks/apply", h.handleAccountTaskApply)
 		r.Post("/tasks", h.handleCreateTask)
 		r.Post("/tasks/manual", h.handleCreateManualTask)
+		r.Post("/tasks/ai/parse", h.handleAIParseTask)
 		r.Post("/tasks/parse-sms", h.handleParseSMS)
 		r.Post("/tasks/parse-sms/native", h.handleNativeSMSImport)
 		r.Post("/tasks/parse-sms/native-paste", h.handleNativeSMSPaste)
@@ -481,6 +482,67 @@ func (h *Handler) handleCreateManualTask(w http.ResponseWriter, r *http.Request)
 	}
 
 	h.redirectHome(w, r, "", "")
+}
+
+func (h *Handler) handleAIParseTask(w http.ResponseWriter, r *http.Request) {
+	_, ok := h.currentUser(r)
+	if !ok {
+		http.Error(w, "请先登录", http.StatusUnauthorized)
+		return
+	}
+	if err := h.parseRequestForm(r); err != nil {
+		http.Error(w, "请求解析失败", http.StatusBadRequest)
+		return
+	}
+
+	input := strings.TrimSpace(r.FormValue("ai_input"))
+	if input == "" {
+		http.Error(w, "AI 输入不能为空", http.StatusBadRequest)
+		return
+	}
+
+	prefill, err := h.taskService.ParseAIInput(r.Context(), input)
+	if err != nil {
+		http.Error(w, humanizeError(err), http.StatusBadRequest)
+		return
+	}
+	taskInput := prefill.Task
+
+	response := struct {
+		Type          string   `json:"type"`
+		Title         string   `json:"title"`
+		Importance    int      `json:"importance"`
+		ScheduleMode  string   `json:"schedule_mode,omitempty"`
+		ScheduledDate string   `json:"scheduled_date,omitempty"`
+		BatchStart    string   `json:"batch_start,omitempty"`
+		BatchEnd      string   `json:"batch_end,omitempty"`
+		Weekdays      []string `json:"batch_weekdays,omitempty"`
+		DeadlineValue string   `json:"deadline_value,omitempty"`
+		Note          string   `json:"note,omitempty"`
+	}{
+		Type:         string(taskInput.Type),
+		Title:        taskInput.Title,
+		Importance:   taskInput.Importance,
+		ScheduleMode: prefill.ScheduleMode,
+		Weekdays:     prefill.BatchWeekdays,
+		Note:         taskInput.Note,
+	}
+	if taskInput.ScheduledFor != nil {
+		response.ScheduledDate = taskInput.ScheduledFor.In(h.location).Format("2006-01-02")
+	}
+	if prefill.BatchStart != nil {
+		response.BatchStart = prefill.BatchStart.In(h.location).Format("2006-01-02")
+	}
+	if prefill.BatchEnd != nil {
+		response.BatchEnd = prefill.BatchEnd.In(h.location).Format("2006-01-02")
+	}
+	if taskInput.Deadline != nil {
+		response.DeadlineValue = taskInput.Deadline.In(h.location).Format("2006-01-02T15:04")
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func (h *Handler) handleParseSMS(w http.ResponseWriter, r *http.Request) {

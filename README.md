@@ -217,6 +217,9 @@ docker compose up --build
 | `DATABASE_URL` | 主数据库连接串 | `postgres://todo:todo@localhost:5432/todo?sslmode=disable` |
 | `EXTERNAL_QUOTE_URL` | 外部金句接口地址，可填服务根地址或完整 `/external/quote` 地址 | 空 |
 | `EXTERNAL_QUOTE_SECRET` | 外部金句接口 Bearer token | 空 |
+| `AI_TASK_API_URL` | AI 添加任务接口地址，可填 OpenAI 兼容接口根地址或完整 `/chat/completions` 地址 | 空 |
+| `AI_TASK_API_KEY` | AI 添加任务接口 Bearer token | 空 |
+| `AI_TASK_MODEL` | AI 添加任务使用的模型名 | `deepseek-v3` |
 | `SESSION_COOKIE_NAME` | Cookie 名称 | `todo_session` |
 | `SESSION_TTL_HOURS` | 会话有效时长 | `720` |
 | `SESSION_SECURE_COOKIE` | HTTPS 下建议设为 `true` | `false` |

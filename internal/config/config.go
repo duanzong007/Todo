@@ -12,6 +12,9 @@ type Config struct {
 	DatabaseURL           string
 	ExternalQuoteURL      string
 	ExternalQuoteSecret   string
+	AITaskAPIURL          string
+	AITaskAPIKey          string
+	AITaskModel           string
 	Timezone              string
 	AutoMigrate           bool
 	MigrationsDir         string
@@ -36,6 +39,9 @@ func Load() (Config, error) {
 		DatabaseURL:           env("DATABASE_URL", "postgres://todo:todo@localhost:5432/todo?sslmode=disable"),
 		ExternalQuoteURL:      env("EXTERNAL_QUOTE_URL", ""),
 		ExternalQuoteSecret:   env("EXTERNAL_QUOTE_SECRET", ""),
+		AITaskAPIURL:          env("AI_TASK_API_URL", ""),
+		AITaskAPIKey:          env("AI_TASK_API_KEY", ""),
+		AITaskModel:           env("AI_TASK_MODEL", "deepseek-v3"),
 		Timezone:              env("APP_TIMEZONE", "Asia/Shanghai"),
 		AutoMigrate:           envBool("AUTO_MIGRATE", true),
 		MigrationsDir:         env("MIGRATIONS_DIR", "db/migrations"),

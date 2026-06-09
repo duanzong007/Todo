@@ -20,6 +20,7 @@ type TaskService struct {
 	repo        *repository.TaskRepository
 	parser      *TextParser
 	icsImporter *ICSImporter
+	aiParser    *AITaskParser
 	location    *time.Location
 }
 
@@ -35,11 +36,12 @@ type SMSImportResult struct {
 	UnsupportedBodies    []string
 }
 
-func NewTaskService(repo *repository.TaskRepository, parser *TextParser, icsImporter *ICSImporter, location *time.Location) *TaskService {
+func NewTaskService(repo *repository.TaskRepository, parser *TextParser, icsImporter *ICSImporter, aiParser *AITaskParser, location *time.Location) *TaskService {
 	return &TaskService{
 		repo:        repo,
 		parser:      parser,
 		icsImporter: icsImporter,
+		aiParser:    aiParser,
 		location:    location,
 	}
 }
@@ -146,6 +148,13 @@ func (s *TaskService) CreateManualTasks(ctx context.Context, userID uuid.UUID, i
 	}
 
 	return s.repo.CreateTasks(ctx, userID, source, cleanInputs)
+}
+
+func (s *TaskService) ParseAIInput(ctx context.Context, input string) (AITaskPrefill, error) {
+	if s.aiParser == nil {
+		return AITaskPrefill{}, fmt.Errorf("AI 解析没有配置")
+	}
+	return s.aiParser.Parse(ctx, input, time.Now().In(s.location))
 }
 
 func (s *TaskService) normalizeManualTaskInput(input repository.TaskInput) (repository.TaskInput, error) {

@@ -44,6 +44,9 @@ services:
       SSO_AUTO_REGISTER: ${SSO_AUTO_REGISTER:-true}
       SSO_AUTO_APPROVE: ${SSO_AUTO_APPROVE:-true}
       DATABASE_URL: postgres://todo:todo@db:5432/todo?sslmode=disable
+      AI_TASK_API_URL: ${AI_TASK_API_URL:-}
+      AI_TASK_API_KEY: ${AI_TASK_API_KEY:-}
+      AI_TASK_MODEL: ${AI_TASK_MODEL:-deepseek-v3}
     ports:
       - "8080:8080"
 

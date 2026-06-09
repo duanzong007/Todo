@@ -13,6 +13,6 @@ node_modules/
 coverage.out
 *.test
 __debug_bin*
-deploy/synology/code.md
+code.md
 技术栈.md
 开发进度.md

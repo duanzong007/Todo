@@ -96,6 +96,10 @@ cp .env.example .env
   - 外部金句服务地址，可以填服务根地址或完整 `/external/quote` 地址
 - `EXTERNAL_QUOTE_SECRET`
   - 外部金句接口的 Bearer token
+- `AI_TASK_API_URL`
+  - AI 添加任务接口地址，可以填 OpenAI 兼容接口根地址或完整 `/chat/completions` 地址
+- `AI_TASK_API_KEY`
+  - AI 添加任务接口的 Bearer token
 
 启动:
 
@@ -134,6 +138,10 @@ cp .env.example .env
   - 外部金句服务地址，可以填服务根地址或完整 `/external/quote` 地址
 - `EXTERNAL_QUOTE_SECRET`
   - 外部金句接口的 Bearer token
+- `AI_TASK_API_URL`
+  - AI 添加任务接口地址，可以填 OpenAI 兼容接口根地址或完整 `/chat/completions` 地址
+- `AI_TASK_API_KEY`
+  - AI 添加任务接口的 Bearer token
 - `SESSION_SECURE_COOKIE`
   - 如果走 HTTPS 反代，改成 `true`
 

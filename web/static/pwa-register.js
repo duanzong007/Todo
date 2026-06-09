@@ -3,7 +3,7 @@
     return;
   }
 
-  const SW_URL = "/sw.js?v=20260601-account-pagination-1";
+  const SW_URL = "/sw.js?v=20260609-ai-composer-6";
   let refreshing = false;
 
   function isNativeShell() {

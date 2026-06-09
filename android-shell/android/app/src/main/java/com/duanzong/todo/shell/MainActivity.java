@@ -109,13 +109,28 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void handleOnBackPressed() {
                 WebView webView = getBridge() == null ? null : getBridge().getWebView();
+                if (webView == null) {
+                    finish();
+                    return;
+                }
+                handleWebBackNavigation(webView);
+            }
+        });
+    }
+
+    private void handleWebBackNavigation(WebView webView) {
+        webView.evaluateJavascript(
+            "(function(){try{return !!(window.__todoHandleAndroidBack && window.__todoHandleAndroidBack());}catch(e){return false;}})();",
+            handled -> {
+                if ("true".equals(handled)) {
+                    return;
+                }
                 if (handleBusinessBackNavigation(webView)) {
                     return;
                 }
-
                 finish();
             }
-        });
+        );
     }
 
     private boolean handleBusinessBackNavigation(WebView webView) {
