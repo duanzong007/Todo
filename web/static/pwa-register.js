@@ -3,7 +3,7 @@
     return;
   }
 
-  const SW_URL = "/sw.js?v=20260609-ai-composer-7";
+  const SW_URL = "/sw.js?v=20260609-ai-composer-8";
   let refreshing = false;
 
   function isNativeShell() {

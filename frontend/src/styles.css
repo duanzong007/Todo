@@ -904,14 +904,22 @@ button.complete-toggle::before {
     border-color 180ms ease;
 }
 
-.composer-choice-button:hover {
-  border-color: rgba(197, 109, 58, 0.18);
-  background: rgba(240, 219, 199, 0.58);
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  .composer-choice-button:hover {
+    border-color: rgba(197, 109, 58, 0.18);
+    background: rgba(240, 219, 199, 0.58);
+    transform: translateY(-1px);
+  }
 }
 
 .composer-choice-manual {
   position: relative;
+}
+
+.composer-choice-manual.open {
+  border-color: rgba(197, 109, 58, 0.24);
+  color: rgba(124, 67, 31, 0.96);
+  background: rgba(240, 219, 199, 0.7);
 }
 
 .composer-choice-manual::after {
