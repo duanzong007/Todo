@@ -910,6 +910,41 @@ button.complete-toggle::before {
   transform: translateY(-1px);
 }
 
+.composer-choice-manual {
+  position: relative;
+}
+
+.composer-choice-manual::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-left: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  opacity: 0.58;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 180ms ease;
+}
+
+.composer-choice-manual.open::after {
+  transform: rotate(225deg) translate(-1px, -1px);
+}
+
+.composer-subchoice-grid {
+  display: grid;
+  gap: 7px;
+  border-left: 2px solid rgba(197, 109, 58, 0.16);
+  margin-left: 6px;
+  padding-left: 8px;
+}
+
+.composer-subchoice-grid .composer-choice-button {
+  min-height: 38px;
+  border-radius: 14px;
+  background: rgba(255, 252, 247, 0.76);
+  font-size: 0.84rem;
+}
+
 .composer-pop-enter-active,
 .composer-pop-leave-active {
   transform-origin: right bottom;

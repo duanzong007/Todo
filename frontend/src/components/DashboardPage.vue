@@ -35,6 +35,7 @@ const aiErrorMessage = ref("");
 const pendingCount = ref(0);
 const moreOpen = ref(false);
 const composerOpen = ref(false);
+const manualComposerOpen = ref(false);
 const composerTab = ref<ComposerTab>("todo");
 const composerModal = ref<ComposerTab | "">("");
 const scheduleMode = ref<ScheduleMode>("single");
@@ -719,6 +720,7 @@ function openComposerModal(tab: ComposerTab) {
   composerTab.value = tab;
   composerModal.value = tab;
   composerOpen.value = false;
+  manualComposerOpen.value = false;
   if (tab === "ai") {
     aiErrorMessage.value = "";
   }
@@ -728,7 +730,20 @@ function closeComposerModal() {
   composerModal.value = "";
 }
 
+function toggleComposerPanel() {
+  composerOpen.value = !composerOpen.value;
+  if (!composerOpen.value) {
+    manualComposerOpen.value = false;
+  }
+}
+
+function toggleManualComposer() {
+  manualComposerOpen.value = !manualComposerOpen.value;
+}
+
 function openICS() {
+  composerOpen.value = false;
+  manualComposerOpen.value = false;
   icsInput.value?.click();
 }
 
@@ -757,6 +772,10 @@ function handleAndroidBack() {
     return true;
   }
   if (composerOpen.value) {
+    if (manualComposerOpen.value) {
+      manualComposerOpen.value = false;
+      return true;
+    }
     composerOpen.value = false;
     return true;
   }
@@ -894,7 +913,7 @@ onBeforeUnmount(() => {
               <button type="button" class="date-chip" @click="navigatePath(page?.day_after_tomorrow_path)">后天</button>
             </div>
             <div class="mini-date-form">
-              <WheelDatePicker v-model="dateJumpValue" />
+              <WheelDatePicker v-model="dateJumpValue" show-weekday />
               <button type="button" class="secondary" @click="navigateDate(dateJumpValue)">确定</button>
             </div>
 
@@ -928,16 +947,23 @@ onBeforeUnmount(() => {
     </section>
 
     <div class="composer-fab-vue" :class="{ open: composerOpen }">
-      <button type="button" class="composer-fab-button" @click.stop="composerOpen = !composerOpen">{{ composerOpen ? "×"
+      <button type="button" class="composer-fab-button" @click.stop="toggleComposerPanel">{{ composerOpen ? "×"
         :
         "+" }}</button>
       <Transition name="composer-pop">
         <div v-if="composerOpen" class="composer-panel-vue">
           <div class="composer-choice-grid">
-            <button type="button" class="composer-choice-button composer-choice-ai" @click="openComposerModal('ai')">AI</button>
-            <button type="button" class="composer-choice-button" @click="openComposerModal('todo')">Todo</button>
-            <button type="button" class="composer-choice-button" @click="openComposerModal('schedule')">日程</button>
-            <button type="button" class="composer-choice-button" @click="openComposerModal('ddl')">DDL</button>
+            <button type="button" class="composer-choice-button composer-choice-ai"
+              @click="openComposerModal('ai')">AI添加</button>
+            <button type="button" class="composer-choice-button composer-choice-manual"
+              :class="{ open: manualComposerOpen }" @click="toggleManualComposer">手动添加</button>
+            <Transition name="composer-section">
+              <div v-if="manualComposerOpen" class="composer-subchoice-grid">
+                <button type="button" class="composer-choice-button" @click="openComposerModal('todo')">Todo</button>
+                <button type="button" class="composer-choice-button" @click="openComposerModal('schedule')">日程</button>
+                <button type="button" class="composer-choice-button" @click="openComposerModal('ddl')">DDL</button>
+              </div>
+            </Transition>
             <button type="button" class="composer-choice-button" @click="openSMS">短信</button>
             <button type="button" class="composer-choice-button composer-choice-ics" @click="openICS">ICS</button>
             <input ref="icsInput" type="file" accept=".ics,text/calendar" hidden @change="importICS" />
