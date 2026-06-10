@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="splash_background">#F6ECDC</color>
+    <color name="todo_widget_background">#FFFBF5</color>
+    <color name="todo_widget_row_background">#F6ECDC</color>
+    <color name="todo_widget_row_shadow">#15000000</color>
+    <color name="todo_widget_button_shadow">#12000000</color>
+    <color name="todo_widget_chip_background">#F1E3D3</color>
+    <color name="todo_widget_border">#E2D4C3</color>
+    <color name="todo_widget_text">#2F2923</color>
+    <color name="todo_widget_muted">#75685D</color>
+    <color name="todo_widget_accent">#A9572F</color>
+    <color name="todo_widget_kind_todo_background">#175A8462</color>
+    <color name="todo_widget_kind_schedule_background">#144979B5</color>
+    <color name="todo_widget_kind_ddl_background">#17C56D3A</color>
 </resources>

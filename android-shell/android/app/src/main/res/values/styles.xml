@@ -29,4 +29,66 @@
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
         <item name="android:windowBackground">@drawable/splash</item>
     </style>
+
+    <style name="TodoWidgetTaskCell">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:background">@drawable/todo_widget_row_background</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingLeft">9dp</item>
+        <item name="android:paddingRight">9dp</item>
+    </style>
+
+    <style name="TodoWidgetTaskPairSlot">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">@drawable/todo_widget_row_background</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingLeft">9dp</item>
+        <item name="android:paddingRight">9dp</item>
+    </style>
+
+    <style name="TodoWidgetTaskKind">
+        <item name="android:layout_width">42dp</item>
+        <item name="android:layout_height">20dp</item>
+        <item name="android:background">@drawable/todo_widget_chip_background</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/todo_widget_accent</item>
+        <item name="android:textSize">10sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="TodoWidgetTaskTitle">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_marginLeft">8dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:textColor">@color/todo_widget_text</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="TodoWidgetTaskCompleteTarget">
+        <item name="android:layout_width">40dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_marginLeft">1dp</item>
+        <item name="android:gravity">center</item>
+    </style>
+
+    <style name="TodoWidgetTaskComplete">
+        <item name="android:layout_width">30dp</item>
+        <item name="android:layout_height">30dp</item>
+        <item name="android:background">@drawable/todo_widget_button_background</item>
+        <item name="android:padding">8dp</item>
+        <item name="android:scaleType">center</item>
+    </style>
+
 </resources>

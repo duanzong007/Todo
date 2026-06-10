@@ -4,4 +4,7 @@
     <string name="title_activity_main">Todo</string>
     <string name="package_name">com.duanzong.todo.shell</string>
     <string name="custom_url_scheme">com.duanzong.todo.shell</string>
+    <string name="todo_widget_title">Todo</string>
+    <string name="todo_widget_refresh">↻</string>
+    <string name="todo_widget_complete_label">完成</string>
 </resources>

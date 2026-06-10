@@ -74,6 +74,7 @@ let popStateHandler: (() => void) | null = null;
 let suppressRealtimeUntil = 0;
 let editPointerDownHandler: ((event: PointerEvent) => void) | null = null;
 let postponePointerDownHandler: ((event: PointerEvent) => void) | null = null;
+let completionURLHandler: (() => void) | null = null;
 
 const focusTasks = computed(() => page.value?.focus_tasks ?? []);
 const completedTasks = computed(() => page.value?.completed_tasks ?? []);
@@ -144,6 +145,7 @@ async function load(search = window.location.search) {
     if (!forms.batchStart) forms.batchStart = page.value.today_date_iso;
     if (!forms.batchEnd) forms.batchEnd = page.value.today_date_iso;
     if (!forms.ddlValue) forms.ddlValue = `${page.value.today_date_iso}T08:00`;
+    consumeCompletionTaskParam(search);
   } catch (error) {
     if (error instanceof APIError && error.status === 401) {
       errorMessage.value = "当前浏览器没有可用登录态。先在 Go 站点登录，再回到这里刷新。";
@@ -153,6 +155,32 @@ async function load(search = window.location.search) {
   } finally {
     loading.value = false;
   }
+}
+
+function consumeCompletionTaskParam(search: string) {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+  const taskID = params.get("complete_task");
+  if (!taskID || !page.value) {
+    return;
+  }
+
+  params.delete("complete_task");
+  const nextSearch = params.toString();
+  window.history.replaceState(null, "", `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`);
+
+  const task = page.value.focus_tasks.find((item) => item.id === taskID);
+  if (!task || !task.can_complete) {
+    return;
+  }
+  completeTask(task);
+}
+
+function handleCompletionTaskURL() {
+  const params = new URLSearchParams(window.location.search.startsWith("?") ? window.location.search.slice(1) : window.location.search);
+  if (!params.has("complete_task") || loading.value) {
+    return;
+  }
+  void load(window.location.search);
 }
 
 function searchForDate(date: string) {
@@ -787,11 +815,14 @@ onMounted(() => {
   connectEvents();
   (window as unknown as { __todoHandleAndroidBack?: () => boolean }).__todoHandleAndroidBack = handleAndroidBack;
   popStateHandler = () => void load(window.location.search);
+  completionURLHandler = handleCompletionTaskURL;
   editPointerDownHandler = onEditPointerDown;
   postponePointerDownHandler = onPostponePointerDown;
   document.addEventListener("pointerdown", postponePointerDownHandler);
   document.addEventListener("pointerdown", editPointerDownHandler);
   window.addEventListener("popstate", popStateHandler);
+  window.addEventListener("focus", completionURLHandler);
+  window.addEventListener("pageshow", completionURLHandler);
 });
 
 onBeforeUnmount(() => {
@@ -804,6 +835,10 @@ onBeforeUnmount(() => {
   }
   if (popStateHandler) {
     window.removeEventListener("popstate", popStateHandler);
+  }
+  if (completionURLHandler) {
+    window.removeEventListener("focus", completionURLHandler);
+    window.removeEventListener("pageshow", completionURLHandler);
   }
   if (eventStream) eventStream.close();
   delete (window as unknown as { __todoHandleAndroidBack?: () => boolean }).__todoHandleAndroidBack;

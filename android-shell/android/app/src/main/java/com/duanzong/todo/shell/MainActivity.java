@@ -30,6 +30,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends BridgeActivity {
+    public static final String EXTRA_APP_PATH = "com.duanzong.todo.shell.APP_PATH";
     private static final String ANDROID_SHELL_USER_AGENT_SUFFIX = " TodoAndroidShell/1.0";
     private static final String SSO_CALLBACK_SCHEME = "todo-shell";
     private static final String SSO_CALLBACK_HOST = "auth";
@@ -38,6 +39,7 @@ public class MainActivity extends BridgeActivity {
     private static final String ACCOUNT_PATH = "/me";
     private static final String FRIENDS_PATH = "/me/friends";
     private static final String NATIVE_SMS_PATH = "/sms/native";
+    private String pendingAppPath;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -49,6 +51,7 @@ public class MainActivity extends BridgeActivity {
         configureSystemBackNavigation();
         configureBridgeInsetsHandling();
         handleSSOCallbackIntent(getIntent());
+        handleAppPathIntent(getIntent());
     }
 
     @Override
@@ -56,6 +59,7 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleSSOCallbackIntent(intent);
+        handleAppPathIntent(intent);
     }
 
     @Override
@@ -67,6 +71,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onStop() {
         flushWebState();
+        TodoWidgetProvider.updateAllWidgets(this, true);
         super.onStop();
     }
 
@@ -255,6 +260,46 @@ public class MainActivity extends BridgeActivity {
         handleSSOCallbackUri(getBridge().getWebView(), intent.getData());
     }
 
+    private void handleAppPathIntent(Intent intent) {
+        if (intent == null || getBridge() == null || getBridge().getWebView() == null) {
+            return;
+        }
+
+        String path = intent.getStringExtra(EXTRA_APP_PATH);
+        if (path == null || path.trim().isEmpty()) {
+            return;
+        }
+
+        path = normalizeAppIntentPath(path);
+        intent.removeExtra(EXTRA_APP_PATH);
+        pendingAppPath = path;
+        drainPendingAppPath();
+    }
+
+    private void drainPendingAppPath() {
+        if (pendingAppPath == null || getBridge() == null || getBridge().getWebView() == null) {
+            return;
+        }
+
+        WebView webView = getBridge().getWebView();
+        String serverOrigin = resolveServerOrigin(webView.getUrl());
+        if (serverOrigin == null || serverOrigin.trim().isEmpty()) {
+            return;
+        }
+
+        String path = pendingAppPath;
+        pendingAppPath = null;
+        webView.loadUrl(serverOrigin + path);
+    }
+
+    private String normalizeAppIntentPath(String path) {
+        String normalized = path == null ? HOME_PATH : path.trim();
+        if (!normalized.startsWith("/") || normalized.startsWith("//")) {
+            return HOME_PATH;
+        }
+        return normalized;
+    }
+
     private boolean handleSSOCallbackUri(WebView webView, Uri callbackUri) {
         if (!isSSOCallbackUri(callbackUri)) {
             return false;
@@ -354,6 +399,12 @@ public class MainActivity extends BridgeActivity {
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
             return shouldOverrideURL(view, url == null ? null : Uri.parse(url));
+        }
+
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            super.onPageFinished(view, url);
+            drainPendingAppPath();
         }
 
         private boolean shouldOverrideURL(WebView view, Uri url) {

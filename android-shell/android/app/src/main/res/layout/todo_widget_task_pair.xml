@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/todo_widget_task_pair_root"
+    android:layout_width="match_parent"
+    android:layout_height="51dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingTop="7dp">
+
+    <LinearLayout
+        android:id="@+id/todo_widget_task_left"
+        style="@style/TodoWidgetTaskPairSlot">
+
+        <TextView
+            android:id="@+id/todo_widget_task_left_kind"
+            style="@style/TodoWidgetTaskKind" />
+
+        <TextView
+            android:id="@+id/todo_widget_task_left_title"
+            style="@style/TodoWidgetTaskTitle" />
+
+        <FrameLayout
+            android:id="@+id/todo_widget_task_left_complete_target"
+            style="@style/TodoWidgetTaskCompleteTarget"
+            android:contentDescription="@string/todo_widget_complete_label">
+
+            <ImageView
+                android:id="@+id/todo_widget_task_left_complete"
+                style="@style/TodoWidgetTaskComplete"
+                android:layout_gravity="center"
+                android:src="@drawable/todo_widget_complete_check" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="8dp"
+        android:layout_height="1dp" />
+
+    <LinearLayout
+        android:id="@+id/todo_widget_task_right"
+        style="@style/TodoWidgetTaskPairSlot">
+
+        <TextView
+            android:id="@+id/todo_widget_task_right_kind"
+            style="@style/TodoWidgetTaskKind" />
+
+        <TextView
+            android:id="@+id/todo_widget_task_right_title"
+            style="@style/TodoWidgetTaskTitle" />
+
+        <FrameLayout
+            android:id="@+id/todo_widget_task_right_complete_target"
+            style="@style/TodoWidgetTaskCompleteTarget"
+            android:contentDescription="@string/todo_widget_complete_label">
+
+            <ImageView
+                android:id="@+id/todo_widget_task_right_complete"
+                style="@style/TodoWidgetTaskComplete"
+                android:layout_gravity="center"
+                android:src="@drawable/todo_widget_complete_check" />
+        </FrameLayout>
+    </LinearLayout>
+</LinearLayout>
