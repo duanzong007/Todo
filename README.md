@@ -348,6 +348,14 @@ DDL 当前是按“查看日期”计算的，不是死盯真实今天。
 ### PWA 更新说明
 
 如果你更新了前端资源或 service worker，已经安装过的 PWA 可能还在使用旧缓存。  
+提交前需要同步推进下面三个版本标记，避免用户继续拿到旧的 Vue 产物：
+
+- `web/templates/index.html` 中 `style.css`、`pwa-register.js`、`index.js` 后面的 `?v=...`
+- `web/static/pwa-register.js` 中 `SW_URL` 后面的 `?v=...`
+- `web/static/sw.js` 中的 `CACHE_NAME`
+
+推荐使用同一个语义清楚的版本后缀，例如 `20260610-vue-shell-1`；`CACHE_NAME` 则顺序递增，例如 `todo-pwa-v44`。只改 Go 后端且不影响前端静态资源时不需要推进这些值。
+
 最稳的做法是：
 
 1. 彻底关闭已安装的 PWA

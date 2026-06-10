@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watchEffect } from "vue";
 import AccountPage from "./components/AccountPage.vue";
 import DashboardPage from "./components/DashboardPage.vue";
 import FriendsPage from "./components/FriendsPage.vue";
@@ -10,6 +10,17 @@ const currentPath = ref(window.location.pathname);
 const isDashboardRoute = computed(() => currentPath.value === "/" || currentPath.value === "");
 const isNativeSMSRoute = computed(() => currentPath.value.startsWith("/sms/native"));
 const isFriendsRoute = computed(() => currentPath.value === "/me/friends");
+
+const pageTitle = computed(() => {
+  if (isDashboardRoute.value) return "Todo";
+  if (isNativeSMSRoute.value) return "短信导入 - Todo";
+  if (isFriendsRoute.value) return "好友 - Todo";
+  return "账号 - Todo";
+});
+
+watchEffect(() => {
+  document.title = pageTitle.value;
+});
 </script>
 
 <template>

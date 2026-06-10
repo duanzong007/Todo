@@ -372,6 +372,12 @@ func (h *Handler) handleIndexPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.renderAppShell(w)
+}
+
+// renderAppShell 渲染 Vue SPA 的挂载壳。所有前端页面(首页 / 账号 / 短信导入)
+// 共用同一个壳,具体页面由前端按路径分发。
+func (h *Handler) renderAppShell(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err := h.templates.ExecuteTemplate(w, "index.html", nil); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -868,10 +874,7 @@ func (h *Handler) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Cache-Control", "no-store")
-	if err := h.templates.ExecuteTemplate(w, "account.html", nil); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	h.renderAppShell(w)
 }
 
 func (h *Handler) handleRequestFriend(w http.ResponseWriter, r *http.Request) {

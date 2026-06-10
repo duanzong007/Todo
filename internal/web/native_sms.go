@@ -42,10 +42,7 @@ func (h *Handler) handleNativeSMSPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Cache-Control", "no-store")
-	if err := h.templates.ExecuteTemplate(w, "native_sms.html", nil); err != nil {
-		http.Error(w, "render native sms page: "+err.Error(), http.StatusInternalServerError)
-	}
+	h.renderAppShell(w)
 }
 
 func (h *Handler) handleNativeSMSData(w http.ResponseWriter, r *http.Request) {

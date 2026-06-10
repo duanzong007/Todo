@@ -1,4 +1,4 @@
-const CACHE_NAME = "todo-pwa-v43";
+const CACHE_NAME = "todo-pwa-v44";
 const OFFLINE_URL = "/static/pwa/offline.html";
 const NAVIGATION_NETWORK_TIMEOUT_MS = 4500;
 const STATIC_NETWORK_TIMEOUT_MS = 2200;

@@ -3,7 +3,7 @@
     return;
   }
 
-  const SW_URL = "/sw.js?v=20260609-ai-composer-8";
+  const SW_URL = "/sw.js?v=20260610-vue-shell-1";
   let refreshing = false;
 
   function isNativeShell() {
