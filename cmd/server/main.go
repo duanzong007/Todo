@@ -107,8 +107,16 @@ func main() {
 	)
 
 	handler, err := web.NewHandler(taskService, authService, quoteService, web.HandlerOptions{
-		TemplateDir:           "web/templates",
-		StaticDir:             "web/static",
+		TemplateDir: "web/templates",
+		StaticDir:   "web/static",
+		AndroidUpdate: web.AndroidUpdateManifest{
+			VersionName: cfg.AndroidUpdateVersionName,
+			VersionCode: cfg.AndroidUpdateVersionCode,
+			APKURL:      cfg.AndroidUpdateAPKURL,
+			SHA256:      cfg.AndroidUpdateSHA256,
+			Required:    cfg.AndroidUpdateRequired,
+			Changelog:   cfg.AndroidUpdateChangelog,
+		},
 		MaxUploadSize:         cfg.MaxUploadSizeBytes,
 		Location:              location,
 		SessionCookieName:     cfg.SessionCookieName,

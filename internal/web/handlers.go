@@ -41,6 +41,7 @@ const (
 type HandlerOptions struct {
 	TemplateDir           string
 	StaticDir             string
+	AndroidUpdate         AndroidUpdateManifest
 	MaxUploadSize         int64
 	Location              *time.Location
 	SessionCookieName     string
@@ -55,6 +56,7 @@ type Handler struct {
 	eventHub              *dashboardEventHub
 	templates             *template.Template
 	staticDir             string
+	androidUpdate         AndroidUpdateManifest
 	maxUploadSize         int64
 	location              *time.Location
 	sessionCookieName     string
@@ -66,6 +68,20 @@ type UserView struct {
 	DisplayName string `json:"display_name"`
 	Username    string `json:"username"`
 	IsAdmin     bool   `json:"is_admin"`
+}
+
+type AndroidUpdateManifest struct {
+	VersionName string   `json:"version_name,omitempty"`
+	VersionCode int      `json:"version_code,omitempty"`
+	APKURL      string   `json:"apk_url,omitempty"`
+	SHA256      string   `json:"sha256,omitempty"`
+	Required    bool     `json:"required"`
+	Changelog   []string `json:"changelog,omitempty"`
+}
+
+type AndroidUpdateResponse struct {
+	Enabled bool `json:"enabled"`
+	AndroidUpdateManifest
 }
 
 type DashboardPageData struct {
@@ -233,6 +249,7 @@ func NewHandler(taskService *service.TaskService, authService *service.AuthServi
 		eventHub:              newDashboardEventHub(),
 		templates:             templates,
 		staticDir:             options.StaticDir,
+		androidUpdate:         normalizeAndroidUpdateManifest(options.AndroidUpdate),
 		maxUploadSize:         options.MaxUploadSize,
 		location:              options.Location,
 		sessionCookieName:     options.SessionCookieName,
@@ -248,6 +265,7 @@ func (h *Handler) Router() http.Handler {
 	router.Get("/favicon.ico", h.handleFavicon)
 	router.Get("/manifest.webmanifest", h.handleManifest)
 	router.Get("/sw.js", h.handleServiceWorker)
+	router.Get("/app/update/android", h.handleAndroidUpdateManifest)
 
 	router.Get("/login", h.handleLoginPage)
 	router.Get("/auth/sso/start", h.handleSSOStart)
@@ -287,6 +305,36 @@ func (h *Handler) Router() http.Handler {
 	})
 
 	return router
+}
+
+func normalizeAndroidUpdateManifest(manifest AndroidUpdateManifest) AndroidUpdateManifest {
+	manifest.VersionName = strings.TrimPrefix(strings.TrimSpace(manifest.VersionName), "v")
+	manifest.APKURL = strings.TrimSpace(manifest.APKURL)
+	manifest.SHA256 = strings.ToLower(strings.TrimSpace(manifest.SHA256))
+	if manifest.Changelog == nil {
+		manifest.Changelog = []string{}
+	}
+	return manifest
+}
+
+func (m AndroidUpdateManifest) enabled() bool {
+	return m.VersionCode > 0 && m.VersionName != "" && m.APKURL != "" && m.SHA256 != ""
+}
+
+func (h *Handler) handleAndroidUpdateManifest(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	response := AndroidUpdateResponse{
+		Enabled:               h.androidUpdate.enabled(),
+		AndroidUpdateManifest: h.androidUpdate,
+	}
+	if !response.Enabled {
+		response.AndroidUpdateManifest = AndroidUpdateManifest{
+			Required:  false,
+			Changelog: []string{},
+		}
+	}
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func (h *Handler) handleStaticAsset(w http.ResponseWriter, r *http.Request) {

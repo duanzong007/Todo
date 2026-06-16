@@ -220,6 +220,12 @@ docker compose up --build
 | `AI_TASK_API_URL` | AI 添加任务接口地址，可填 OpenAI 兼容接口根地址或完整 `/chat/completions` 地址 | 空 |
 | `AI_TASK_API_KEY` | AI 添加任务接口 Bearer token | 空 |
 | `AI_TASK_MODEL` | AI 添加任务使用的模型名 | `deepseek-v3` |
+| `ANDROID_UPDATE_VERSION_NAME` | 最新安卓壳版本名，例如 `1.1.0` | 空 |
+| `ANDROID_UPDATE_VERSION_CODE` | 最新安卓壳版本号，例如 `10100` | `0` |
+| `ANDROID_UPDATE_APK_URL` | 最新安卓壳 APK 地址，可填绝对 URL 或站内路径 | 空 |
+| `ANDROID_UPDATE_SHA256` | 最新 APK 的 SHA256，用于安装前校验 | 空 |
+| `ANDROID_UPDATE_REQUIRED` | 是否提示为必要更新 | `false` |
+| `ANDROID_UPDATE_CHANGELOG` | 安卓壳更新说明，多条用 `|` 分隔 | 空 |
 | `SESSION_COOKIE_NAME` | Cookie 名称 | `todo_session` |
 | `SESSION_TTL_HOURS` | 会话有效时长 | `720` |
 | `SESSION_SECURE_COOKIE` | HTTPS 下建议设为 `true` | `false` |
@@ -354,7 +360,7 @@ DDL 当前是按“查看日期”计算的，不是死盯真实今天。
 - `web/static/pwa-register.js` 中 `SW_URL` 后面的 `?v=...`
 - `web/static/sw.js` 中的 `CACHE_NAME`
 
-推荐使用语义化版本，例如 `v1.0.0`；`CACHE_NAME` 使用同一个系统版本，例如 `todo-pwa-v1.0.0`。只改 Go 后端且不影响前端静态资源时不需要推进这些值。
+推荐使用语义化版本，例如 `v1.1.0`；`CACHE_NAME` 使用同一个系统版本，例如 `todo-pwa-v1.1.0`。只改 Go 后端且不影响前端静态资源时不需要推进这些值。
 
 系统版本和安卓壳版本彼此独立：系统版本用于 Web/PWA 资源和更新日志；安卓壳版本用于 APK 的 `versionName` / `versionCode`。
 
@@ -365,6 +371,21 @@ DDL 当前是按“查看日期”计算的，不是死盯真实今天。
 - 大结构调整或不兼容变化：升主版本号，例如 `v1.1.0` -> `v2.0.0`
 
 安卓壳 `versionCode` 按 `主版本 * 10000 + 功能版本 * 100 + 修复版本` 计算，例如 `1.2.3` 对应 `10203`。
+
+### 安卓壳更新发布
+
+安卓壳支持自动检查更新和手动检查更新。普通浏览器不会显示安卓更新按钮；只有安卓壳里的设置页会显示。
+
+发布新的安卓壳版本时：
+
+1. 按语义化版本更新 `android-shell/android/app/build.gradle` 的 `versionName` 和 `versionCode`
+2. 打 release APK
+3. 计算 APK 的 SHA256
+4. 把 APK 放到可访问的 HTTPS 地址
+5. 在服务端环境变量中配置 `ANDROID_UPDATE_VERSION_NAME`、`ANDROID_UPDATE_VERSION_CODE`、`ANDROID_UPDATE_APK_URL`、`ANDROID_UPDATE_SHA256`
+6. 如有多条更新说明，用 `ANDROID_UPDATE_CHANGELOG=修复 A|新增 B` 的格式填写
+
+安卓壳会自己下载 APK 并展示进度条，不依赖系统下载管理器；下载后校验 SHA256，校验通过才会打开系统安装界面。受 Android 安全机制限制，最终安装仍需要用户在系统安装器中确认。
 
 最稳的做法是：
 

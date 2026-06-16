@@ -3,6 +3,8 @@ package com.duanzong.todo.shell;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
@@ -23,12 +25,6 @@ import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
 
-import org.json.JSONObject;
-
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-
 public class MainActivity extends BridgeActivity {
     public static final String EXTRA_APP_PATH = "com.duanzong.todo.shell.APP_PATH";
     private static final String ANDROID_SHELL_USER_AGENT_SUFFIX = " TodoAndroidShell/1.0";
@@ -47,12 +43,14 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SmsBridgePlugin.class);
+        registerPlugin(AndroidUpdatePlugin.class);
         super.onCreate(savedInstanceState);
         configureWindowAppearance();
         configureWebViewPersistence();
         configureInAppNavigation();
         configureSystemBackNavigation();
         configureBridgeInsetsHandling();
+        scheduleAutomaticUpdateCheck();
         handleSSOCallbackIntent(getIntent());
         handleAppPathIntent(getIntent());
     }
@@ -255,6 +253,10 @@ public class MainActivity extends BridgeActivity {
         ViewCompat.requestApplyInsets(container);
     }
 
+    private void scheduleAutomaticUpdateCheck() {
+        new Handler(Looper.getMainLooper()).postDelayed(() -> AndroidUpdateManager.check(this, false, null), 3200);
+    }
+
     private void handleSSOCallbackIntent(Intent intent) {
         if (intent == null || intent.getData() == null || getBridge() == null || getBridge().getWebView() == null) {
             return;
@@ -357,26 +359,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     private String resolveConfiguredServerOrigin() {
-        try (InputStream input = getAssets().open("capacitor.config.json")) {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            byte[] buffer = new byte[1024];
-            int read;
-            while ((read = input.read(buffer)) != -1) {
-                output.write(buffer, 0, read);
-            }
-            JSONObject config = new JSONObject(output.toString(StandardCharsets.UTF_8.name()));
-            JSONObject server = config.optJSONObject("server");
-            if (server == null) {
-                return null;
-            }
-            Uri serverUri = Uri.parse(server.optString("url", ""));
-            if (!isHttpURL(serverUri)) {
-                return null;
-            }
-            return serverUri.getScheme() + "://" + serverUri.getAuthority();
-        } catch (Exception ignored) {
-            return null;
-        }
+        return AndroidShellConfig.resolveServerOrigin(this);
     }
 
     private boolean isHttpURL(Uri uri) {

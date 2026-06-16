@@ -7,7 +7,7 @@ const state = ref<"loading" | "ready" | "unauthorized" | "error">("loading");
 const account = ref<AccountPageData | null>(null);
 const errorMessage = ref("");
 
-const systemVersion = "v1.0.0";
+const systemVersion = "v1.1.0";
 
 async function loadChangelog() {
   errorMessage.value = "";
@@ -51,6 +51,20 @@ onMounted(() => {
         <time datetime="2026-06-16">2026-06-16</time>
         <div>
           <h1>{{ systemVersion }}</h1>
+          <p>增加安卓壳更新检查和下载安装能力。</p>
+          <ul>
+            <li>设置页在安卓壳内显示“检查更新”按钮，普通浏览器不显示。</li>
+            <li>安卓壳会自动检查新版本，也可以手动检查。</li>
+            <li>下载 APK 时使用内置下载器和进度弹窗，不依赖系统下载管理器。</li>
+            <li>安装前校验 SHA256，校验通过后自动打开系统安装界面。</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="changelog-entry">
+        <time datetime="2026-06-16">2026-06-16</time>
+        <div>
+          <h1>v1.0.0</h1>
           <p>开启正式版本管理和更新日志。</p>
           <ul>
             <li>统一菜单入口，任务管理、好友管理、更新日志、设置集中管理。</li>

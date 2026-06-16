@@ -8,56 +8,68 @@ import (
 )
 
 type Config struct {
-	Addr                  string
-	DatabaseURL           string
-	ExternalQuoteURL      string
-	ExternalQuoteSecret   string
-	AITaskAPIURL          string
-	AITaskAPIKey          string
-	AITaskModel           string
-	Timezone              string
-	AutoMigrate           bool
-	MigrationsDir         string
-	ICSImportHorizonDays  int
-	MaxUploadSizeBytes    int64
-	SessionCookieName     string
-	SessionTTLHours       int
-	SessionSecureCookie   bool
-	SSOProviderName       string
-	SSOIssuerURL          string
-	SSOClientID           string
-	SSOClientSecret       string
-	SSORedirectURL        string
-	SSOAndroidRedirectURL string
-	SSOScopes             []string
-	SSOAutoRegister       bool
+	Addr                     string
+	DatabaseURL              string
+	ExternalQuoteURL         string
+	ExternalQuoteSecret      string
+	AITaskAPIURL             string
+	AITaskAPIKey             string
+	AITaskModel              string
+	AndroidUpdateVersionName string
+	AndroidUpdateVersionCode int
+	AndroidUpdateAPKURL      string
+	AndroidUpdateSHA256      string
+	AndroidUpdateRequired    bool
+	AndroidUpdateChangelog   []string
+	Timezone                 string
+	AutoMigrate              bool
+	MigrationsDir            string
+	ICSImportHorizonDays     int
+	MaxUploadSizeBytes       int64
+	SessionCookieName        string
+	SessionTTLHours          int
+	SessionSecureCookie      bool
+	SSOProviderName          string
+	SSOIssuerURL             string
+	SSOClientID              string
+	SSOClientSecret          string
+	SSORedirectURL           string
+	SSOAndroidRedirectURL    string
+	SSOScopes                []string
+	SSOAutoRegister          bool
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		Addr:                  env("APP_ADDR", ":8080"),
-		DatabaseURL:           env("DATABASE_URL", "postgres://todo:todo@localhost:5432/todo?sslmode=disable"),
-		ExternalQuoteURL:      env("EXTERNAL_QUOTE_URL", ""),
-		ExternalQuoteSecret:   env("EXTERNAL_QUOTE_SECRET", ""),
-		AITaskAPIURL:          env("AI_TASK_API_URL", ""),
-		AITaskAPIKey:          env("AI_TASK_API_KEY", ""),
-		AITaskModel:           env("AI_TASK_MODEL", "deepseek-v3"),
-		Timezone:              env("APP_TIMEZONE", "Asia/Shanghai"),
-		AutoMigrate:           envBool("AUTO_MIGRATE", true),
-		MigrationsDir:         env("MIGRATIONS_DIR", "db/migrations"),
-		ICSImportHorizonDays:  envInt("ICS_IMPORT_HORIZON_DAYS", 180),
-		MaxUploadSizeBytes:    envInt64("MAX_UPLOAD_SIZE_BYTES", 4<<20),
-		SessionCookieName:     env("SESSION_COOKIE_NAME", "todo_session"),
-		SessionTTLHours:       envInt("SESSION_TTL_HOURS", 720),
-		SessionSecureCookie:   envBool("SESSION_SECURE_COOKIE", false),
-		SSOProviderName:       env("SSO_PROVIDER_NAME", "soid"),
-		SSOIssuerURL:          env("SSO_ISSUER_URL", ""),
-		SSOClientID:           env("SSO_CLIENT_ID", ""),
-		SSOClientSecret:       env("SSO_CLIENT_SECRET", ""),
-		SSORedirectURL:        env("SSO_REDIRECT_URL", ""),
-		SSOAndroidRedirectURL: env("SSO_ANDROID_REDIRECT_URL", ""),
-		SSOScopes:             envList("SSO_SCOPES", []string{"openid", "profile", "email"}),
-		SSOAutoRegister:       envBool("SSO_AUTO_REGISTER", true),
+		Addr:                     env("APP_ADDR", ":8080"),
+		DatabaseURL:              env("DATABASE_URL", "postgres://todo:todo@localhost:5432/todo?sslmode=disable"),
+		ExternalQuoteURL:         env("EXTERNAL_QUOTE_URL", ""),
+		ExternalQuoteSecret:      env("EXTERNAL_QUOTE_SECRET", ""),
+		AITaskAPIURL:             env("AI_TASK_API_URL", ""),
+		AITaskAPIKey:             env("AI_TASK_API_KEY", ""),
+		AITaskModel:              env("AI_TASK_MODEL", "deepseek-v3"),
+		AndroidUpdateVersionName: strings.TrimPrefix(env("ANDROID_UPDATE_VERSION_NAME", ""), "v"),
+		AndroidUpdateVersionCode: envInt("ANDROID_UPDATE_VERSION_CODE", 0),
+		AndroidUpdateAPKURL:      env("ANDROID_UPDATE_APK_URL", ""),
+		AndroidUpdateSHA256:      env("ANDROID_UPDATE_SHA256", ""),
+		AndroidUpdateRequired:    envBool("ANDROID_UPDATE_REQUIRED", false),
+		AndroidUpdateChangelog:   envPipeList("ANDROID_UPDATE_CHANGELOG"),
+		Timezone:                 env("APP_TIMEZONE", "Asia/Shanghai"),
+		AutoMigrate:              envBool("AUTO_MIGRATE", true),
+		MigrationsDir:            env("MIGRATIONS_DIR", "db/migrations"),
+		ICSImportHorizonDays:     envInt("ICS_IMPORT_HORIZON_DAYS", 180),
+		MaxUploadSizeBytes:       envInt64("MAX_UPLOAD_SIZE_BYTES", 4<<20),
+		SessionCookieName:        env("SESSION_COOKIE_NAME", "todo_session"),
+		SessionTTLHours:          envInt("SESSION_TTL_HOURS", 720),
+		SessionSecureCookie:      envBool("SESSION_SECURE_COOKIE", false),
+		SSOProviderName:          env("SSO_PROVIDER_NAME", "soid"),
+		SSOIssuerURL:             env("SSO_ISSUER_URL", ""),
+		SSOClientID:              env("SSO_CLIENT_ID", ""),
+		SSOClientSecret:          env("SSO_CLIENT_SECRET", ""),
+		SSORedirectURL:           env("SSO_REDIRECT_URL", ""),
+		SSOAndroidRedirectURL:    env("SSO_ANDROID_REDIRECT_URL", ""),
+		SSOScopes:                envList("SSO_SCOPES", []string{"openid", "profile", "email"}),
+		SSOAutoRegister:          envBool("SSO_AUTO_REGISTER", true),
 	}
 
 	if cfg.ICSImportHorizonDays < 1 {
@@ -74,6 +86,9 @@ func Load() (Config, error) {
 	}
 	if strings.TrimSpace(cfg.SSOProviderName) == "" {
 		return Config{}, fmt.Errorf("SSO_PROVIDER_NAME must not be empty")
+	}
+	if cfg.AndroidUpdateVersionCode < 0 {
+		return Config{}, fmt.Errorf("ANDROID_UPDATE_VERSION_CODE must not be negative")
 	}
 
 	return cfg, nil
@@ -142,6 +157,21 @@ func envList(key string, fallback []string) []string {
 	}
 	if len(values) == 0 {
 		return fallback
+	}
+	return values
+}
+
+func envPipeList(key string) []string {
+	value, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.Split(value, "|")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if normalized := strings.TrimSpace(part); normalized != "" {
+			values = append(values, normalized)
+		}
 	}
 	return values
 }

@@ -3277,6 +3277,16 @@ input[type="checkbox"] {
   line-height: 1.58;
 }
 
+.settings-action-panel .primary-button {
+  justify-self: start;
+  min-height: 42px;
+  margin-top: 2px;
+}
+
+.settings-action-message {
+  color: rgba(78, 104, 79, 0.9);
+}
+
 .changelog-panel {
   display: grid;
   gap: 12px;
