@@ -166,7 +166,7 @@ func (h *Handler) writeAccountActionJSON(w http.ResponseWriter, status int, mess
 }
 
 func (h *Handler) redirectToAccountPage(w http.ResponseWriter, r *http.Request, message, errorMessage string) {
-	target := "/me"
+	target := "/me/tasks"
 	returnQuery := strings.TrimSpace(r.FormValue("return_query"))
 	if returnQuery == "" {
 		returnQuery = encodeAccountReturnQuery(r.URL.Query())

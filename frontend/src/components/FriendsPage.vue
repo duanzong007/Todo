@@ -97,11 +97,8 @@ onMounted(() => {
         <strong>{{ account.current_user.display_name }}</strong>
       </a>
       <div class="manage-top-actions">
-        <a class="soft-button compact" href="/">今天</a>
-        <a class="soft-button compact" href="/me">管理</a>
-        <form method="post" action="/logout">
-          <button class="danger-button compact" type="submit">退出登录</button>
-        </form>
+        <a class="soft-button compact" href="/">返回首页</a>
+        <a class="soft-button compact" href="/me">返回菜单</a>
       </div>
     </header>
 

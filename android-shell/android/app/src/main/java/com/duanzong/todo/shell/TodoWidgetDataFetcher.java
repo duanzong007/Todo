@@ -12,7 +12,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
@@ -58,7 +58,7 @@ final class TodoWidgetDataFetcher {
         }
 
         String endpoint = origin + "/dashboard/snapshot?date=" + URLEncoder.encode(todayISO(), "UTF-8");
-        HttpURLConnection connection = (HttpURLConnection) new URL(endpoint).openConnection();
+        HttpURLConnection connection = openConnection(endpoint);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setRequestMethod("GET");
@@ -86,10 +86,7 @@ final class TodoWidgetDataFetcher {
         WidgetSnapshot snapshot = parseSnapshot(body);
         snapshot.fetchedAtMillis = System.currentTimeMillis();
         snapshot.fromCache = false;
-        prefs(context).edit()
-            .putString(KEY_SNAPSHOT_JSON, body)
-            .putLong(KEY_FETCHED_AT, snapshot.fetchedAtMillis)
-            .apply();
+        saveSnapshot(context, body, snapshot.fetchedAtMillis);
         return snapshot;
     }
 
@@ -100,7 +97,7 @@ final class TodoWidgetDataFetcher {
         }
 
         String endpoint = origin + "/tasks/" + URLEncoder.encode(taskID, "UTF-8") + "/complete";
-        HttpURLConnection connection = (HttpURLConnection) new URL(endpoint).openConnection();
+        HttpURLConnection connection = openConnection(endpoint);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setRequestMethod("POST");
@@ -133,10 +130,7 @@ final class TodoWidgetDataFetcher {
         WidgetSnapshot snapshot = parseSnapshot(responseBody);
         snapshot.fetchedAtMillis = System.currentTimeMillis();
         snapshot.fromCache = false;
-        prefs(context).edit()
-            .putString(KEY_SNAPSHOT_JSON, responseBody)
-            .putLong(KEY_FETCHED_AT, snapshot.fetchedAtMillis)
-            .apply();
+        saveSnapshot(context, responseBody, snapshot.fetchedAtMillis);
         return snapshot;
     }
 
@@ -149,6 +143,20 @@ final class TodoWidgetDataFetcher {
 
     private static SharedPreferences prefs(Context context) {
         return context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+    }
+
+    private static HttpURLConnection openConnection(String endpoint) throws IOException {
+        return (HttpURLConnection) URI.create(endpoint).toURL().openConnection();
+    }
+
+    private static void saveSnapshot(Context context, String raw, long fetchedAtMillis) throws IOException {
+        boolean saved = prefs(context).edit()
+            .putString(KEY_SNAPSHOT_JSON, raw)
+            .putLong(KEY_FETCHED_AT, fetchedAtMillis)
+            .commit();
+        if (!saved) {
+            throw new IOException("save widget snapshot failed");
+        }
     }
 
     private static WidgetSnapshot parseSnapshot(String raw) throws Exception {

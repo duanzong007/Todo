@@ -548,16 +548,13 @@ function onPopState() {
 <template>
   <main class="manage-shell">
     <header v-if="account" class="manage-top">
-      <a class="manage-user" href="/">
-        <span class="eyebrow">账户</span>
+      <a class="manage-user" href="/me">
+        <span class="eyebrow">任务管理</span>
         <strong>{{ account.current_user.display_name }}</strong>
       </a>
       <div class="manage-top-actions">
-        <a class="soft-button compact" href="/">今天</a>
-        <a class="soft-button compact" href="/me/friends">好友</a>
-        <form method="post" action="/logout">
-          <button class="danger-button compact" type="submit">退出登录</button>
-        </form>
+        <a class="soft-button compact" href="/">返回首页</a>
+        <a class="soft-button compact" href="/me">返回菜单</a>
       </div>
     </header>
 

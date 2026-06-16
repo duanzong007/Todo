@@ -37,7 +37,10 @@ public class MainActivity extends BridgeActivity {
     private static final String SSO_CALLBACK_PATH = "/sso/callback";
     private static final String HOME_PATH = "/";
     private static final String ACCOUNT_PATH = "/me";
+    private static final String TASKS_PATH = "/me/tasks";
     private static final String FRIENDS_PATH = "/me/friends";
+    private static final String CHANGELOG_PATH = "/me/changelog";
+    private static final String SETTINGS_PATH = "/me/settings";
     private static final String NATIVE_SMS_PATH = "/sms/native";
     private String pendingAppPath;
 
@@ -155,7 +158,7 @@ public class MainActivity extends BridgeActivity {
         if (isAppHome(currentUri)) {
             return false;
         }
-        if (isAppPath(currentUri, FRIENDS_PATH)) {
+        if (isAppPath(currentUri, TASKS_PATH) || isAppPath(currentUri, FRIENDS_PATH) || isAppPath(currentUri, CHANGELOG_PATH) || isAppPath(currentUri, SETTINGS_PATH)) {
             loadAppPath(webView, ACCOUNT_PATH);
             return true;
         }

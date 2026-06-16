@@ -3,7 +3,7 @@
     return;
   }
 
-  const SW_URL = "/sw.js?v=20260610-vue-shell-1";
+  const SW_URL = "/sw.js?v=v1.0.0";
   let refreshing = false;
 
   function isNativeShell() {

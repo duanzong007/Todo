@@ -1,4 +1,4 @@
-const CACHE_NAME = "todo-pwa-v44";
+const CACHE_NAME = "todo-pwa-v1.0.0";
 const OFFLINE_URL = "/static/pwa/offline.html";
 const NAVIGATION_NETWORK_TIMEOUT_MS = 4500;
 const STATIC_NETWORK_TIMEOUT_MS = 2200;
@@ -137,7 +137,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname === "/me") {
+  if (
+    request.mode === "navigate" &&
+    (url.pathname === "/me" ||
+      url.pathname === "/me/tasks" ||
+      url.pathname === "/me/friends" ||
+      url.pathname === "/me/changelog" ||
+      url.pathname === "/me/settings")
+  ) {
     event.respondWith(
       fetch(request).catch(async () => {
         return offlineResponse();
