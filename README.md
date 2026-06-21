@@ -360,7 +360,7 @@ DDL 当前是按“查看日期”计算的，不是死盯真实今天。
 - `web/static/pwa-register.js` 中 `SW_URL` 后面的 `?v=...`
 - `web/static/sw.js` 中的 `CACHE_NAME`
 
-推荐使用语义化版本，例如 `v1.2.0`；`CACHE_NAME` 使用同一个系统版本，例如 `todo-pwa-v1.2.0`。只改 Go 后端且不影响前端静态资源时不需要推进这些值。
+推荐使用语义化版本，例如 `v1.2.1`；`CACHE_NAME` 使用同一个系统版本，例如 `todo-pwa-v1.2.1`。只改 Go 后端且不影响前端静态资源时不需要推进这些值。
 
 系统版本和安卓壳版本彼此独立：系统版本用于 Web/PWA 资源和更新日志；安卓壳版本用于 APK 的 `versionName` / `versionCode`。
 

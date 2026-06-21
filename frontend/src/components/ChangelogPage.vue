@@ -21,33 +21,31 @@ const androidShell = ref(false);
 const activeKind = ref<ChangelogKind>("app");
 const appEntries: ChangelogEntry[] = [
   {
+    version: "v1.2.1",
+    date: "2026-06-21",
+    summary: "精简设置页和更新日志界面。",
+    items: [],
+  },
+  {
     version: "v1.2.0",
     date: "2026-06-21",
-    summary: "完善更新日志分类和云端小组件偏好。",
+    summary: "新增小组件单双列设置，并区分应用与安卓壳更新日志。",
     items: [
-      "更新日志区分应用更新和安卓壳功能更新。",
-      "新增小组件双列显示云端设置，默认开启。",
-      "设置页的安卓专属功能只在安卓壳环境显示。",
+      "小组件布局设置可以随账号同步。",
     ],
   },
   {
     version: "v1.1.0",
     date: "2026-06-16",
-    summary: "增加安卓壳在线更新服务支持。",
-    items: [
-      "新增安卓壳版本查询接口和发布配置。",
-      "设置页支持和安卓原生更新能力联动。",
-    ],
+    summary: "新增安卓壳在线更新服务。",
+    items: [],
   },
   {
     version: "v1.0.0",
     date: "2026-06-16",
-    summary: "开启正式版本管理和更新日志。",
+    summary: "新增菜单、任务管理、好友管理和 AI 添加。",
     items: [
-      "统一菜单入口，任务管理、好友管理、更新日志、设置集中管理。",
-      "任务管理支持筛选、批量编辑、共享和取消共享。",
-      "好友管理支持邮箱搜索、申请和处理好友请求。",
-      "首页支持 AI 添加任务、手动添加、短信导入和 ICS 导入。",
+      "支持任务共享、短信导入和 ICS 导入。",
     ],
   },
 ];
@@ -55,30 +53,22 @@ const androidEntries: ChangelogEntry[] = [
   {
     version: "v1.2.0",
     date: "2026-06-21",
-    summary: "增加小组件单列和双列显示偏好。",
-    items: [
-      "设置页可以手动开启或关闭小组件双列显示。",
-      "关闭后，小组件始终按单列向下排列。",
-      "设置保存到云端，并在小组件刷新时自动同步。",
-    ],
+    summary: "新增小组件单双列切换，设置随账号同步。",
+    items: [],
   },
   {
     version: "v1.1.0",
     date: "2026-06-16",
-    summary: "增加安卓壳更新检查和下载安装能力。",
+    summary: "新增自动检查更新、手动检查和应用内下载。",
     items: [
-      "安卓壳会自动检查新版本，也可以在设置页手动检查。",
-      "使用内置下载器显示进度，不依赖系统下载管理器。",
-      "安装前校验 SHA256，校验通过后打开系统安装界面。",
+      "安装前会校验安装包完整性。",
     ],
   },
   {
     version: "v1.0.0",
     date: "2026-06-16",
-    summary: "安卓壳进入正式版本管理。",
-    items: [
-      "支持内置 SSO 登录、系统返回分层、小组件和短信读取。",
-    ],
+    summary: "新增内置 SSO 登录、小组件、短信读取和分层返回。",
+    items: [],
   },
 ];
 const visibleEntries = computed(() => activeKind.value === "android" ? androidEntries : appEntries);
@@ -142,7 +132,7 @@ onMounted(() => {
         <div>
           <h1>{{ entry.version }}</h1>
           <p>{{ entry.summary }}</p>
-          <ul>
+          <ul v-if="entry.items.length">
             <li v-for="item in entry.items" :key="item">{{ item }}</li>
           </ul>
         </div>

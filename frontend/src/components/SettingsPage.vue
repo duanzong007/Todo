@@ -3,16 +3,16 @@ import { onMounted, ref } from "vue";
 import { APIError, fetchAccountData, fetchUserPreferences, updateUserPreferences } from "../api/client";
 import type { AccountPageData } from "../types";
 import { getAndroidShellPlugin, isAndroidShell } from "../utils/androidShell";
+import SettingItem from "./SettingItem.vue";
 
 const state = ref<"loading" | "ready" | "unauthorized" | "error">("loading");
 const account = ref<AccountPageData | null>(null);
 const errorMessage = ref("");
-const updateMessage = ref("");
 const updateLoading = ref(false);
 const androidUpdateAvailable = ref(false);
 const widgetDualColumn = ref(true);
 const widgetPreferenceLoading = ref(false);
-const widgetPreferenceMessage = ref("");
+const widgetPreferenceError = ref("");
 
 async function loadSettings() {
   errorMessage.value = "";
@@ -52,7 +52,7 @@ async function initializeAndroidSettings() {
     const preferences = await fetchUserPreferences();
     widgetDualColumn.value = preferences.widget_dual_column;
   } catch (error) {
-    widgetPreferenceMessage.value = error instanceof Error ? error.message : "小组件设置加载失败";
+    widgetPreferenceError.value = error instanceof Error ? error.message : "小组件设置加载失败";
   }
 }
 
@@ -62,16 +62,14 @@ async function checkAndroidUpdate() {
     return;
   }
   updateLoading.value = true;
-  updateMessage.value = "";
   try {
     const check = plugin.check;
     if (!check) {
       return;
     }
-    const result = await check({ manual: true });
-    updateMessage.value = typeof result?.message === "string" ? result.message : "";
-  } catch (error) {
-    updateMessage.value = error instanceof Error ? error.message : "检查更新失败";
+    await check({ manual: true });
+  } catch (_error) {
+    // Native update dialogs already report errors.
   } finally {
     updateLoading.value = false;
   }
@@ -85,15 +83,14 @@ async function saveWidgetDualColumn() {
   const next = !previous;
   widgetDualColumn.value = next;
   widgetPreferenceLoading.value = true;
-  widgetPreferenceMessage.value = "";
+  widgetPreferenceError.value = "";
   try {
     const preferences = await updateUserPreferences({ widget_dual_column: next });
     widgetDualColumn.value = preferences.widget_dual_column;
     await getAndroidShellPlugin()?.refreshWidgets?.();
-    widgetPreferenceMessage.value = "已同步到云端";
   } catch (error) {
     widgetDualColumn.value = previous;
-    widgetPreferenceMessage.value = error instanceof Error ? error.message : "设置保存失败";
+    widgetPreferenceError.value = error instanceof Error ? error.message : "设置保存失败";
   } finally {
     widgetPreferenceLoading.value = false;
   }
@@ -116,35 +113,22 @@ async function saveWidgetDualColumn() {
     <p v-if="errorMessage" class="inline-error">{{ errorMessage }}</p>
     <p v-if="state === 'unauthorized'" class="inline-error">请先登录</p>
 
-    <section class="settings-empty-panel">
-      <span class="eyebrow">设置</span>
-      <h1>偏好</h1>
-      <p>后续的偏好、开关和接口配置会放在这里。</p>
-    </section>
+    <div v-if="androidUpdateAvailable" class="settings-list">
+      <SettingItem category="安卓壳" title="应用更新" description="检查安卓壳新版本">
+        <button class="soft-button compact" type="button" :disabled="updateLoading" @click="checkAndroidUpdate">
+          {{ updateLoading ? "正在检查" : "检查更新" }}
+        </button>
+      </SettingItem>
 
-    <section v-if="androidUpdateAvailable" class="settings-empty-panel settings-action-panel">
-      <span class="eyebrow">安卓壳</span>
-      <h1>应用更新</h1>
-      <p>检查安卓壳新版本，下载完成后会自动打开系统安装界面。</p>
-      <button class="primary-button" type="button" :disabled="updateLoading" @click="checkAndroidUpdate">
-        {{ updateLoading ? "正在检查" : "检查更新" }}
-      </button>
-      <p v-if="updateMessage" class="settings-action-message">{{ updateMessage }}</p>
-    </section>
-
-    <section v-if="androidUpdateAvailable" class="settings-empty-panel settings-action-panel">
-      <span class="eyebrow">桌面小组件</span>
-      <div class="settings-toggle-row">
-        <span>
-          <strong>双列显示</strong>
-          <small>关闭后，小组件任务会始终按单列向下排列。</small>
-        </span>
+      <SettingItem category="桌面小组件" title="双列显示" description="关闭后始终使用单列">
         <button type="button" class="settings-switch" :class="{ active: widgetDualColumn }"
           :aria-pressed="widgetDualColumn" :disabled="widgetPreferenceLoading" @click="saveWidgetDualColumn">
           <span></span>
         </button>
-      </div>
-      <p v-if="widgetPreferenceMessage" class="settings-action-message">{{ widgetPreferenceMessage }}</p>
-    </section>
+        <template #message>
+          <small v-if="widgetPreferenceError" class="setting-item-error">{{ widgetPreferenceError }}</small>
+        </template>
+      </SettingItem>
+    </div>
   </main>
 </template>
