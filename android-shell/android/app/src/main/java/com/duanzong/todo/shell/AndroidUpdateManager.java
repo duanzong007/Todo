@@ -3,8 +3,6 @@ package com.duanzong.todo.shell;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -64,7 +62,7 @@ final class AndroidUpdateManager {
                     throw new IllegalStateException("未配置服务器地址");
                 }
 
-                AndroidUpdateInfo info = fetchManifest(origin, currentVersionName(activity));
+                AndroidUpdateInfo info = fetchManifest(origin, AndroidShellConfig.currentVersionName(activity));
                 MAIN.post(() -> {
                     checking = false;
                     handleManifest(activity, info, manual, call);
@@ -84,8 +82,8 @@ final class AndroidUpdateManager {
     static JSObject status(Activity activity) {
         JSObject result = new JSObject();
         result.put("available", true);
-        result.put("versionName", currentVersionName(activity));
-        result.put("versionCode", currentVersionCode(activity));
+        result.put("versionName", AndroidShellConfig.currentVersionName(activity));
+        result.put("versionCode", AndroidShellConfig.currentVersionCode(activity));
         result.put("source", "android-native");
         return result;
     }
@@ -98,8 +96,8 @@ final class AndroidUpdateManager {
             resolve(activity, call, true, "更新服务暂未配置", false);
             return;
         }
-        int currentVersionCode = currentVersionCode(activity);
-        String currentVersionName = currentVersionName(activity);
+        int currentVersionCode = AndroidShellConfig.currentVersionCode(activity);
+        String currentVersionName = AndroidShellConfig.currentVersionName(activity);
         if (!info.hasUpdate(currentVersionCode)) {
             if (manual) {
                 showMessage(activity, "已是最新版本", "当前安卓壳版本为 v" + currentVersionName + "。");
@@ -181,7 +179,7 @@ final class AndroidUpdateManager {
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setUseCaches(false);
         connection.setRequestProperty("Accept", "application/vnd.android.package-archive,*/*");
-        connection.setRequestProperty("User-Agent", "TodoAndroidShell/" + currentVersionName(activity));
+        connection.setRequestProperty("User-Agent", AndroidShellConfig.shellUserAgent(activity));
 
         int status = connection.getResponseCode();
         if (status < 200 || status >= 300) {
@@ -300,36 +298,9 @@ final class AndroidUpdateManager {
         result.put("ok", ok);
         result.put("message", message);
         result.put("cancelled", cancelled);
-        result.put("versionName", currentVersionName(activity));
-        result.put("versionCode", currentVersionCode(activity));
+        result.put("versionName", AndroidShellConfig.currentVersionName(activity));
+        result.put("versionCode", AndroidShellConfig.currentVersionCode(activity));
         call.resolve(result);
-    }
-
-    private static String currentVersionName(Activity activity) {
-        if (activity == null) {
-            return "1.1.0";
-        }
-        try {
-            PackageInfo info = activity.getPackageManager().getPackageInfo(activity.getPackageName(), 0);
-            return info.versionName == null || info.versionName.trim().isEmpty() ? "1.1.0" : info.versionName;
-        } catch (PackageManager.NameNotFoundException ignored) {
-            return "1.1.0";
-        }
-    }
-
-    private static int currentVersionCode(Activity activity) {
-        if (activity == null) {
-            return 10100;
-        }
-        try {
-            PackageInfo info = activity.getPackageManager().getPackageInfo(activity.getPackageName(), 0);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                return (int) info.getLongVersionCode();
-            }
-            return info.versionCode;
-        } catch (PackageManager.NameNotFoundException ignored) {
-            return 10100;
-        }
     }
 
     private static final class ProgressUI {

@@ -140,6 +140,20 @@ func (s *AuthService) ListIncomingFriendRequests(ctx context.Context, actor doma
 	return s.repo.ListIncomingFriendRequests(ctx, actor.ID)
 }
 
+func (s *AuthService) WidgetDualColumn(ctx context.Context, actor domain.User) (bool, error) {
+	if !actor.CanUseSystem() {
+		return true, ErrPermissionDenied
+	}
+	return s.repo.GetWidgetDualColumn(ctx, actor.ID)
+}
+
+func (s *AuthService) SetWidgetDualColumn(ctx context.Context, actor domain.User, enabled bool) error {
+	if !actor.CanUseSystem() {
+		return ErrPermissionDenied
+	}
+	return s.repo.SetWidgetDualColumn(ctx, actor.ID, enabled)
+}
+
 func (s *AuthService) RequestFriendByEmail(ctx context.Context, actor domain.User, email string) (domain.User, error) {
 	if !actor.CanUseSystem() {
 		return domain.User{}, ErrPermissionDenied

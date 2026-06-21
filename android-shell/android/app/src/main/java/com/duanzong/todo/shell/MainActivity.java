@@ -27,7 +27,6 @@ import com.getcapacitor.BridgeWebViewClient;
 
 public class MainActivity extends BridgeActivity {
     public static final String EXTRA_APP_PATH = "com.duanzong.todo.shell.APP_PATH";
-    private static final String ANDROID_SHELL_USER_AGENT_SUFFIX = " TodoAndroidShell/1.0";
     private static final String SSO_CALLBACK_SCHEME = "todo-shell";
     private static final String SSO_CALLBACK_HOST = "auth";
     private static final String SSO_CALLBACK_PATH = "/sso/callback";
@@ -86,8 +85,8 @@ public class MainActivity extends BridgeActivity {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         String userAgent = settings.getUserAgentString();
-        if (userAgent == null || !userAgent.contains(ANDROID_SHELL_USER_AGENT_SUFFIX.trim())) {
-            settings.setUserAgentString((userAgent == null ? "" : userAgent) + ANDROID_SHELL_USER_AGENT_SUFFIX);
+        if (userAgent == null || !userAgent.contains("TodoAndroidShell/")) {
+            settings.setUserAgentString((userAgent == null ? "" : userAgent) + " " + AndroidShellConfig.shellUserAgent(this));
         }
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
         webView.setVerticalScrollBarEnabled(false);

@@ -159,6 +159,10 @@ export interface AccountActionResponse {
   error?: string;
 }
 
+export interface UserPreferences {
+  widget_dual_column: boolean;
+}
+
 export interface NativeSMSPageData {
   current_user: UserView;
   return_path: string;

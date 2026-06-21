@@ -212,7 +212,7 @@ public class TodoWidgetProvider extends AppWidgetProvider {
         return views;
     }
 
-    static WidgetLayout resolveLayout(Bundle options, int taskCount) {
+    static WidgetLayout resolveLayout(Bundle options, int taskCount, boolean dualColumnEnabled) {
         int widthDp = Math.max(
             optionValue(options, AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, DEFAULT_WIDGET_WIDTH_DP),
             optionValue(options, AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, DEFAULT_WIDGET_WIDTH_DP)
@@ -224,7 +224,7 @@ public class TodoWidgetProvider extends AppWidgetProvider {
         int availableRowsDp = heightDp - HEADER_HEIGHT_DP - FOOTER_HEIGHT_DP - VERTICAL_PADDING_DP;
         int fullyVisibleRows = Math.max(1, availableRowsDp / ROW_STEP_DP);
         int filledRows = Math.max(1, (availableRowsDp + ROW_STEP_DP - 1) / ROW_STEP_DP);
-        int columns = widthDp >= TWO_COLUMN_MIN_WIDTH_DP && taskCount > fullyVisibleRows ? 2 : 1;
+        int columns = dualColumnEnabled && widthDp >= TWO_COLUMN_MIN_WIDTH_DP && taskCount > fullyVisibleRows ? 2 : 1;
 
         WidgetLayout layout = new WidgetLayout();
         layout.columns = columns;

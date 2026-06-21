@@ -5,6 +5,7 @@ import type {
   DashboardSnapshot,
   NativeSMSImportResponse,
   NativeSMSPageData,
+  UserPreferences,
 } from "../types";
 
 export class APIError extends Error {
@@ -179,6 +180,37 @@ export async function respondFriendRequest(userID: string, accept: boolean): Pro
   }
 
   return response.json() as Promise<AccountActionResponse>;
+}
+
+export async function fetchUserPreferences(): Promise<UserPreferences> {
+  const response = await fetch(requestURL("/me/settings/preferences"), {
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "X-Requested-With": "fetch",
+    },
+  });
+  if (!response.ok) {
+    await parseError(response, "设置加载失败");
+  }
+  return response.json() as Promise<UserPreferences>;
+}
+
+export async function updateUserPreferences(preferences: UserPreferences): Promise<UserPreferences> {
+  const response = await fetch(requestURL("/me/settings/preferences"), {
+    method: "POST",
+    body: JSON.stringify(preferences),
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "fetch",
+    },
+  });
+  if (!response.ok) {
+    await parseError(response, "设置保存失败");
+  }
+  return response.json() as Promise<UserPreferences>;
 }
 
 export async function fetchNativeSMSData(search = window.location.search): Promise<NativeSMSPageData> {

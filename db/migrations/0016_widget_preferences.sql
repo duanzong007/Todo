@@ -1,0 +1,2 @@
+ALTER TABLE app_users
+    ADD COLUMN IF NOT EXISTS widget_dual_column BOOLEAN NOT NULL DEFAULT TRUE;

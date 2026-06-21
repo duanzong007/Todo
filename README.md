@@ -360,9 +360,11 @@ DDL 当前是按“查看日期”计算的，不是死盯真实今天。
 - `web/static/pwa-register.js` 中 `SW_URL` 后面的 `?v=...`
 - `web/static/sw.js` 中的 `CACHE_NAME`
 
-推荐使用语义化版本，例如 `v1.1.0`；`CACHE_NAME` 使用同一个系统版本，例如 `todo-pwa-v1.1.0`。只改 Go 后端且不影响前端静态资源时不需要推进这些值。
+推荐使用语义化版本，例如 `v1.2.0`；`CACHE_NAME` 使用同一个系统版本，例如 `todo-pwa-v1.2.0`。只改 Go 后端且不影响前端静态资源时不需要推进这些值。
 
 系统版本和安卓壳版本彼此独立：系统版本用于 Web/PWA 资源和更新日志；安卓壳版本用于 APK 的 `versionName` / `versionCode`。
+
+更新日志在普通 Web 中只显示“软件更新”；在安卓壳中可以切换“应用更新”和“安卓壳功能更新”。
 
 语义化版本规则：
 
@@ -386,6 +388,16 @@ DDL 当前是按“查看日期”计算的，不是死盯真实今天。
 6. 如有多条更新说明，用 `ANDROID_UPDATE_CHANGELOG=修复 A|新增 B` 的格式填写
 
 安卓壳会自己下载 APK 并展示进度条，不依赖系统下载管理器；下载后校验 SHA256，校验通过才会打开系统安装界面。受 Android 安全机制限制，最终安装仍需要用户在系统安装器中确认。
+
+在仓库根目录一键构建并复制到桌面：
+
+```bash
+./scripts/build_android_release.sh
+```
+
+脚本会自动输出 `ANDROID_UPDATE_VERSION_NAME`、`ANDROID_UPDATE_VERSION_CODE`、`ANDROID_UPDATE_SHA256` 和 `ANDROID_UPDATE_CHANGELOG`。
+
+安卓壳设置页提供“小组件双列显示”开关。该偏好按用户保存到云端，默认开启；关闭后桌面小组件始终使用单列布局。普通 Web 不显示这个开关。
 
 最稳的做法是：
 

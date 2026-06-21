@@ -3287,10 +3287,107 @@ input[type="checkbox"] {
   color: rgba(78, 104, 79, 0.9);
 }
 
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-toggle-row>span {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.settings-toggle-row strong {
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.settings-toggle-row small {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.settings-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 28px;
+  border: 1px solid rgba(128, 91, 63, 0.18);
+  border-radius: 999px;
+  padding: 0;
+  background: rgba(148, 136, 125, 0.34);
+  transition: background 180ms ease;
+}
+
+.settings-switch span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fffaf4;
+  box-shadow: 0 2px 6px rgba(70, 52, 38, 0.18);
+  transition: transform 180ms ease;
+}
+
+.settings-switch.active {
+  background: #c56d3a;
+}
+
+.settings-switch.active span {
+  transform: translateX(20px);
+}
+
+.changelog-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 4px;
+  background: var(--bg-panel);
+  box-shadow: var(--shadow);
+}
+
+.changelog-tabs button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 14px;
+  padding: 0 14px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.changelog-tabs button.active {
+  color: #684125;
+  background: #f2dfcd;
+}
+
 .changelog-panel {
   display: grid;
   gap: 12px;
   padding: 16px;
+}
+
+.changelog-panel-title {
+  display: grid;
+  gap: 6px;
+  padding: 4px 2px 2px;
+}
+
+.changelog-panel-title h1 {
+  color: var(--ink);
+  font-family: "Iowan Old Style", "Songti SC", serif;
+  font-size: 1.55rem;
+  line-height: 1.1;
 }
 
 .changelog-entry {
@@ -3948,6 +4045,12 @@ input[type="checkbox"] {
 
   .changelog-entry {
     grid-template-columns: 1fr;
+  }
+
+  .changelog-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
 
   .friends-panel {

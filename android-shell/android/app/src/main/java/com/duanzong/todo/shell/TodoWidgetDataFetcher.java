@@ -26,7 +26,6 @@ final class TodoWidgetDataFetcher {
     private static final String PREFS_NAME = "todo_widget";
     private static final String KEY_SNAPSHOT_JSON = "snapshot_json";
     private static final String KEY_FETCHED_AT = "fetched_at";
-    private static final String USER_AGENT = "TodoAndroidWidget/1.0 TodoAndroidShell/1.0";
     private static final int CONNECT_TIMEOUT_MS = 8000;
     private static final int READ_TIMEOUT_MS = 10000;
     static final int MAX_CACHED_TASKS = 24;
@@ -65,7 +64,7 @@ final class TodoWidgetDataFetcher {
         connection.setUseCaches(false);
         connection.setRequestProperty("Accept", "application/json");
         connection.setRequestProperty("X-Requested-With", "fetch");
-        connection.setRequestProperty("User-Agent", USER_AGENT);
+        connection.setRequestProperty("User-Agent", widgetUserAgent(context));
 
         String cookies = CookieManager.getInstance().getCookie(origin);
         if (cookies != null && !cookies.trim().isEmpty()) {
@@ -106,7 +105,7 @@ final class TodoWidgetDataFetcher {
         connection.setRequestProperty("Accept", "application/json");
         connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
         connection.setRequestProperty("X-Requested-With", "fetch");
-        connection.setRequestProperty("User-Agent", USER_AGENT);
+        connection.setRequestProperty("User-Agent", widgetUserAgent(context));
 
         String cookies = CookieManager.getInstance().getCookie(origin);
         if (cookies != null && !cookies.trim().isEmpty()) {
@@ -145,6 +144,10 @@ final class TodoWidgetDataFetcher {
         return context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
+    private static String widgetUserAgent(Context context) {
+        return "TodoAndroidWidget/1.0 " + AndroidShellConfig.shellUserAgent(context);
+    }
+
     private static HttpURLConnection openConnection(String endpoint) throws IOException {
         return (HttpURLConnection) URI.create(endpoint).toURL().openConnection();
     }
@@ -162,6 +165,7 @@ final class TodoWidgetDataFetcher {
     private static WidgetSnapshot parseSnapshot(String raw) throws Exception {
         JSONObject root = new JSONObject(raw);
         WidgetSnapshot snapshot = WidgetSnapshot.empty();
+		snapshot.widgetDualColumn = root.optBoolean("widget_dual_column", true);
 
         JSONArray tasks = root.optJSONArray("focus_tasks");
         if (tasks != null) {
@@ -248,6 +252,7 @@ final class TodoWidgetDataFetcher {
         String emptyMeta = "";
         long fetchedAtMillis;
         boolean fromCache;
+		boolean widgetDualColumn = true;
 
         static WidgetSnapshot empty() {
             return new WidgetSnapshot();

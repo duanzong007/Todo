@@ -101,6 +101,36 @@ npm run sync
 
 再重新打包即可。
 
+## 一键打包到桌面
+
+先在 `release-changelog.txt` 中按行填写本次安卓壳更新说明，然后执行：
+
+```bash
+cd android-shell
+npm run build:desktop
+```
+
+脚本会自动读取 `android/app/build.gradle` 中的 `versionName` 和 `versionCode`，构建 release APK，并复制到桌面：
+
+```text
+~/Desktop/Todo-android-shell-v版本号-release.apk
+```
+
+终端会同时输出：
+
+```text
+ANDROID_UPDATE_VERSION_NAME=...
+ANDROID_UPDATE_VERSION_CODE=...
+ANDROID_UPDATE_SHA256=...
+ANDROID_UPDATE_CHANGELOG=...
+```
+
+临时覆盖更新说明时，也可以直接传环境变量：
+
+```bash
+ANDROID_UPDATE_CHANGELOG='修复问题 A|新增功能 B' npm run build:desktop
+```
+
 ## 运行前说明
 
 - 需要本机安装 Android Studio 和 Android SDK

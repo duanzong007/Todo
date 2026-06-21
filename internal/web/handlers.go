@@ -231,9 +231,14 @@ type CompletedTaskCard struct {
 }
 
 type DashboardSnapshot struct {
-	FocusTasks     []TaskCard          `json:"focus_tasks"`
-	CompletedTasks []CompletedTaskCard `json:"completed_tasks"`
-	EmptyQuote     *QuoteView          `json:"empty_quote,omitempty"`
+	FocusTasks       []TaskCard          `json:"focus_tasks"`
+	CompletedTasks   []CompletedTaskCard `json:"completed_tasks"`
+	EmptyQuote       *QuoteView          `json:"empty_quote,omitempty"`
+	WidgetDualColumn bool                `json:"widget_dual_column"`
+}
+
+type UserPreferencesResponse struct {
+	WidgetDualColumn bool `json:"widget_dual_column"`
 }
 
 func NewHandler(taskService *service.TaskService, authService *service.AuthService, quoteService *service.QuoteService, options HandlerOptions) (*Handler, error) {
@@ -284,6 +289,8 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/me/friends", h.handleAccountPage)
 		r.Get("/me/changelog", h.handleAccountPage)
 		r.Get("/me/settings", h.handleAccountPage)
+		r.Get("/me/settings/preferences", h.handleGetUserPreferences)
+		r.Post("/me/settings/preferences", h.handleSetUserPreferences)
 		r.Get("/me/data", h.handleAccountData)
 		r.Get("/sms/native", h.handleNativeSMSPage)
 		r.Get("/sms/native/data", h.handleNativeSMSData)
@@ -900,13 +907,58 @@ func (h *Handler) writeDashboardSnapshot(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	widgetDualColumn, err := h.authService.WidgetDualColumn(r.Context(), user)
+	if err != nil {
+		http.Error(w, humanizeError(err), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	_ = json.NewEncoder(w).Encode(DashboardSnapshot{
-		FocusTasks:     pageData.FocusTasks,
-		CompletedTasks: pageData.CompletedTasks,
-		EmptyQuote:     pageData.EmptyQuote,
+		FocusTasks:       pageData.FocusTasks,
+		CompletedTasks:   pageData.CompletedTasks,
+		EmptyQuote:       pageData.EmptyQuote,
+		WidgetDualColumn: widgetDualColumn,
 	})
+}
+
+func (h *Handler) handleGetUserPreferences(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.writeAccountActionJSON(w, http.StatusUnauthorized, "", "请先登录")
+		return
+	}
+	enabled, err := h.authService.WidgetDualColumn(r.Context(), user)
+	if err != nil {
+		h.writeAccountActionJSON(w, http.StatusInternalServerError, "", humanizeError(err))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(UserPreferencesResponse{WidgetDualColumn: enabled})
+}
+
+func (h *Handler) handleSetUserPreferences(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.currentUser(r)
+	if !ok {
+		h.writeAccountActionJSON(w, http.StatusUnauthorized, "", "请先登录")
+		return
+	}
+	var input UserPreferencesResponse
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		h.writeAccountActionJSON(w, http.StatusBadRequest, "", "设置内容无效")
+		return
+	}
+	if err := h.authService.SetWidgetDualColumn(r.Context(), user, input.WidgetDualColumn); err != nil {
+		h.writeAccountActionJSON(w, http.StatusInternalServerError, "", humanizeError(err))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(input)
 }
 
 func (h *Handler) handleDashboardSnapshot(w http.ResponseWriter, r *http.Request) {

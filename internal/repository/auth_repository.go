@@ -273,6 +273,36 @@ func (r *AuthRepository) ListIncomingFriendRequests(ctx context.Context, userID 
 	return users, nil
 }
 
+func (r *AuthRepository) GetWidgetDualColumn(ctx context.Context, userID uuid.UUID) (bool, error) {
+	var enabled bool
+	if err := r.db.QueryRow(ctx, `
+		SELECT widget_dual_column
+		FROM app_users
+		WHERE id = $1
+	`, userID).Scan(&enabled); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return true, ErrUserNotFound
+		}
+		return true, fmt.Errorf("get widget dual column preference: %w", err)
+	}
+	return enabled, nil
+}
+
+func (r *AuthRepository) SetWidgetDualColumn(ctx context.Context, userID uuid.UUID, enabled bool) error {
+	command, err := r.db.Exec(ctx, `
+		UPDATE app_users
+		SET widget_dual_column = $2
+		WHERE id = $1
+	`, userID, enabled)
+	if err != nil {
+		return fmt.Errorf("set widget dual column preference: %w", err)
+	}
+	if command.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
 func (r *AuthRepository) RequestFriendByEmail(ctx context.Context, requesterID uuid.UUID, email string) (domain.User, error) {
 	normalizedEmail := strings.TrimSpace(strings.ToLower(email))
 	if normalizedEmail == "" {

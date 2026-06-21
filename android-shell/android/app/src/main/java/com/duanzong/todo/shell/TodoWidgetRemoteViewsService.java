@@ -84,7 +84,7 @@ public class TodoWidgetRemoteViewsService extends RemoteViewsService {
         private void load() {
             snapshot = TodoWidgetDataFetcher.loadCached(context);
             Bundle options = AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId);
-            layout = TodoWidgetProvider.resolveLayout(options, snapshot.tasks.size());
+            layout = TodoWidgetProvider.resolveLayout(options, snapshot.tasks.size(), snapshot.widgetDualColumn);
         }
 
         private RemoteViews singleRow(int position) {
