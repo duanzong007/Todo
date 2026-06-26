@@ -18,8 +18,6 @@ export interface TaskCard {
   kind_class: string;
   importance: number;
   status_line: string;
-  compact_status: string;
-  mobile_compact: boolean;
   note: string;
   can_complete: boolean;
   can_postpone: boolean;

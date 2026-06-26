@@ -361,8 +361,6 @@ function optimisticallyRestore(task: CompletedTaskCard) {
         kind_class: task.kind_class,
         importance: task.importance,
         status_line: task.status_line,
-        compact_status: "",
-        mobile_compact: false,
         note: task.note,
         can_complete: true,
         can_postpone: task.can_postpone,
@@ -878,15 +876,12 @@ onBeforeUnmount(() => {
 
         <TransitionGroup v-else-if="focusTasks.length" :key="`tasks-${focusDate}`" name="task-flow" tag="div"
           class="focus-list-vue">
-          <article v-for="task in focusTasks" :key="task.id" class="focus-card-vue"
-            :class="{ 'is-mobile-ddl-ready': task.kind_class === 'ddl', 'is-mobile-ddl-compact': task.mobile_compact }"
-            :data-kind-class="task.kind_class">
+          <article v-for="task in focusTasks" :key="task.id" class="focus-card-vue" :data-kind-class="task.kind_class">
             <span class="task-importance-badge">{{ task.importance }}</span>
             <div class="focus-card-main-vue">
               <div class="task-kind-stack">
                 <span class="task-kind" :class="kindClass(task)" @dblclick="startEdit(task)">{{ task.kind_label
                 }}</span>
-                <span v-if="task.compact_status" class="task-status-mobile">{{ task.compact_status }}</span>
               </div>
               <div class="task-body-vue">
                 <template v-if="editTaskID === task.id">

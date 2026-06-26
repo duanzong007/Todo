@@ -3,7 +3,7 @@
     return;
   }
 
-  const SW_URL = "/sw.js?v=v1.2.1";
+  const SW_URL = "/sw.js?v=v1.2.2";
   let refreshing = false;
 
   function isNativeShell() {

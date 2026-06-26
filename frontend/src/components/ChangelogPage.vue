@@ -21,6 +21,12 @@ const androidShell = ref(false);
 const activeKind = ref<ChangelogKind>("app");
 const appEntries: ChangelogEntry[] = [
   {
+    version: "v1.2.2",
+    date: "2026-06-26",
+    summary: "修复手机端 DDL 剩余时间显示。",
+    items: [],
+  },
+  {
     version: "v1.2.1",
     date: "2026-06-21",
     summary: "精简设置页和更新日志界面。",
